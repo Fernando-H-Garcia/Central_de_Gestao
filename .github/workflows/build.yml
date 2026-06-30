@@ -2,14 +2,68 @@ name: Build e Validação
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, release/*]
   pull_request:
     branches: [main]
 
 jobs:
   lint:
+    name: Verificação de sintaxe
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Instalar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: |
+          pip install pyinstaller PySide6==6.6.3.1 Markdown
+
       - name: Verificar sintaxe
-        run: python -m py_compile main.py
+        run: |
+          python -m py_compile main.py
+          python -m py_compile config.py
+
+  build:
+    name: Build PyInstaller
+    runs-on: windows-latest
+    needs: lint
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: |
+          pip install pyinstaller PySide6==6.6.3.1 Markdown
+
+      - name: Build PyInstaller
+        working-directory: build
+        run: |
+          pyinstaller build.spec --clean --noconfirm
+
+      - name: Limpar DLLs obsoletas
+        working-directory: build
+        run: python cleanup_dlls.py
+
+      - name: Validar artefatos
+        run: |
+          if (-not (Test-Path "build/dist/CentralDeGestao/CentralDeGestao.exe")) {
+            Write-Error "Artefato nao encontrado"
+            exit 1
+          }
+          $size = (Get-Item "build/dist/CentralDeGestao/CentralDeGestao.exe").Length
+          Write-Host "Tamanho do EXE: $($size / 1MB) MB"
+
+      - name: Upload artefato
+        uses: actions/upload-artifact@v4
+        with:
+          name: CentralDeGestao-Build
+          path: build/dist/CentralDeGestao/
