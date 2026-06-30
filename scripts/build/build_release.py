@@ -241,7 +241,8 @@ def generate_installer():
         print("[AVISO] Inno Setup (ISCC.exe) nao encontrado. Instale em: https://jrsoftware.org/isdl.php")
         return False
     os.chdir(BUILD_DIR)
-    run(f'"{iscc}" installer.iss')
+    short_ver = ".".join(VERSION.split(".")[:2]) if VERSION else "0.0"
+    run(f'"{iscc}" /DMyAppVersion="{short_ver}" installer.iss')
     os.chdir(PROJECT_ROOT)
     installer_path = BUILD_DIR / INSTALLER_NAME
     if installer_path.exists():
