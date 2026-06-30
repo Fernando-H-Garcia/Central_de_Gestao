@@ -136,4 +136,5 @@ def main():
 
 
 if __name__ == "__main__":
+    print("[DEPRECATED] Use: python scripts/ops/control_panel.py score", file=sys.stderr)
     main()

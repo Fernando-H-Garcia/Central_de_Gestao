@@ -89,4 +89,5 @@ def main():
 
 
 if __name__ == "__main__":
+    print("[DEPRECATED] Use: python scripts/ops/control_panel.py bump <patch|minor|major>", file=sys.stderr)
     main()

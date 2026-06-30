@@ -8,9 +8,22 @@
 |-------|-------|
 | Versão | `v0.8.0` |
 | Status do build | ✅ |
+| Golden Release | `v0.8.0` |
 | Último release | `v0.8.0` |
 | Último smoke test | ✅ |
-| Health score | ⏳ pendente |
+| Score médio | ⏳ pendente |
+| Última falha | — |
+
+## Engine Status
+
+| Componente | Status |
+|------------|--------|
+| `scripts/core/engine.py` | ✅ |
+| `scripts/core/config_release.py` | ✅ |
+| `scripts/core/error_classifier.py` | ✅ |
+| `scripts/ops/control_panel.py` | ✅ |
+| `scripts/guards/constitution_rules.py` | ✅ |
+| `scripts/guards/freeze_check.py` | ✅ |
 
 ## Pipeline
 
@@ -22,11 +35,11 @@
 
 ## Histórico de Releases
 
-| Versão | Data | Status | Notas |
-|--------|------|--------|-------|
-| v0.8.0 | 2024-06-30 | ✅ | Documentação + pipeline + release automation |
-| v0.7.0 | 2024-03-15 | ✅ | UI completa em PySide6 |
-| v0.6.0 | 2024-01-20 | ✅ | Primeira versão funcional |
+| Versão | Data | Status | Score | Notas |
+|--------|------|--------|-------|-------|
+| v0.8.0 | 2024-06-30 | ✅ | ⏳ | Arquitetura 3 camadas + engine |
+| v0.7.0 | 2024-03-15 | ✅ | ⏳ | UI completa em PySide6 |
+| v0.6.0 | 2024-01-20 | ✅ | ⏳ | Primeira versão funcional |
 
 ## Health Score
 
@@ -39,11 +52,21 @@
 | Logs | ⏳ |
 | Anexos | ⏳ |
 
+## Estabilidade Geral
+
+| Indicador | Valor |
+|-----------|-------|
+| Estabilidade | 🟢 Estável |
+| Builds consecutivos sem falha | ⏳ |
+| Última falha classificada | — |
+| Erro mais comum | — |
+
 ## Regras de Release
 
 - ✅ Build contract OK → pode gerar instalador
 - ✅ Smoke test OK → pode publicar release
 - ✅ Instalador validado → pode subir para GitHub
+- ✅ Golden release protegida contra overwrite
 - ❌ Falha no smoke test → **BLOQUEIA** release manual
 
 ---
