@@ -302,6 +302,9 @@ def main():
 
     step(f"Build v{VERSION} (modo: {mode})")
 
+    step("0/6 Environment Fingerprint")
+    run(f"{sys.executable} scripts/build/env_fingerprint.py --save")
+
     step("1/6 Validando ambiente")
     check_python()
     check_pyside()

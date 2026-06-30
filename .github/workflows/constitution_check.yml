@@ -1,0 +1,91 @@
+name: Constitution Check
+
+on:
+  pull_request:
+    branches: [main, staging, release/*]
+  push:
+    branches: [main, staging]
+
+jobs:
+  constitution:
+    name: Verificar Regras da Constituição
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔒 Regra 1 - Não alterar Services para resolver build
+        run: |
+          $changed = git diff --name-only HEAD~1 -- 'services/*.py'
+          if ($changed) {
+            Write-Host "Arquivos Services alterados:"
+            $changed | ForEach-Object { Write-Host "  $_" }
+            Write-Host "AVISO: Verifique se a mudanca e realmente de negocio, nao de build"
+          }
+
+      - name: 🔒 Regra 2 - Não usar parent=None em widgets Qt
+        shell: pwsh
+        run: |
+          $violations = git diff --unified=0 HEAD~1 -- '*.py' | Select-String 'parent=None'
+          if ($violations) {
+            Write-Host "::error::VIOLACAO: parent=None encontrado em widgets Qt"
+            $violations | ForEach-Object { Write-Host "  $_" }
+            exit 1
+          }
+          Write-Host "  parent=None: nenhuma violacao"
+
+      - name: 🔒 Regra 3 - Não alterar version.py manualmente
+        shell: pwsh
+        run: |
+          $changed = git diff --name-only HEAD~1 -- 'scripts/build/version.py'
+          if ($changed) {
+            $author = git log -1 --format="%an" HEAD
+            $msg = git log -1 --format="%s" HEAD
+            if ($msg -notmatch 'bump version') {
+              Write-Host "::error::VIOLACAO: version.py alterado sem usar bump_version.py"
+              Write-Host "  Autor: $author"
+              Write-Host "  Msg:   $msg"
+              exit 1
+            }
+          }
+          Write-Host "  version.py: alteracao via bump script OK"
+
+      - name: 🔒 Regra 4 - Build logic só em scripts/build/
+        shell: pwsh
+        run: |
+          $violations = git diff --name-only HEAD~1 -- '*.py' | Where-Object {
+            $_ -notmatch '^scripts/build/' -and $_ -notmatch '^\.github/'
+          }
+          $buildRelated = $violations | Where-Object {
+            (Get-Content $_ -Raw) -match 'pyinstaller|build\.spec|cleanup_dlls|ISCC'
+          }
+          if ($buildRelated) {
+            Write-Host "::error::VIOLACAO: Logica de build fora de scripts/build/"
+            $buildRelated | ForEach-Object { Write-Host "  $_" }
+            exit 1
+          }
+          Write-Host "  Build logic: centralizada em scripts/build/ OK"
+
+      - name: 🔒 Regra 5 - Mudancas tem classificacao
+        shell: pwsh
+        run: |
+          $types = @('FIX','FEATURE','REFACTOR','BUILD','RISKY','BREAKING','docs','chore','feat','fix')
+          $msg = git log -1 --format="%s" HEAD
+          $classified = $false
+          foreach ($t in $types) {
+            if ($msg -match "^$t[\(:]") {
+              $classified = $true
+              break
+            }
+          }
+          if (-not $classified) {
+            Write-Host "::warning::Commit sem classificacao: $msg"
+            Write-Host "  Use: FIX | FEATURE | REFACTOR | BUILD | RISKY | BREAKING"
+          } else {
+            Write-Host "  Classificacao: OK"
+          }
+
+      - name: ✅ Resultado
+        run: |
+          Write-Host "Constitution Check: todas as regras verificadas"
