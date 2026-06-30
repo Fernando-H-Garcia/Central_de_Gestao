@@ -20,9 +20,9 @@ logs/*.log
 Thumbs.db
 .DS_Store
 
-# Build artifacts
-build/
-build_pyi/
+# Build artifacts (raiz apenas)
+/build/
+/build_pyi/
 
 # Environment
 .env
