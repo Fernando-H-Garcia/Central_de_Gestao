@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build_pyi/
+*.spec
+
+# IDE
+.vscode/
+
+# Database (runtime, not seed)
+*.db
+!novo_cerebro.db
+
+# Logs
+logs/*.log
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Build artifacts
+build/
+build_pyi/
+
+# Environment
+.env
+.venv
