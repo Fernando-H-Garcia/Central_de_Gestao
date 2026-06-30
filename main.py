@@ -39,6 +39,28 @@ def initialize_appdata():
         init_marker.write_text("1")
 
 
+def verify_build_hash():
+    """Verifica integridade do build se build.hash existir."""
+    import hashlib
+    try:
+        from config import BASE_DIR
+        hash_path = BASE_DIR / "build.hash"
+        if not hash_path.exists():
+            return  # build sem hash (dev mode)
+        lines = {}
+        for line in hash_path.read_text(encoding="utf-8").strip().split("\n"):
+            if "=" in line:
+                k, v = line.split("=", 1)
+                lines[k] = v
+        exe_path = Path(sys.executable if getattr(sys, 'frozen', False) else __file__)
+        if exe_path.exists() and "exe_sha256" in lines:
+            current = hashlib.sha256(exe_path.read_bytes()).hexdigest()
+            if current != lines["exe_sha256"]:
+                print("[AVISO] Hash do executavel nao confere com build.hash")
+    except Exception as e:
+        print(f"[AVISO] Erro ao verificar hash: {e}")
+
+
 def run_migrations():
     import database.connection as db_conn
 
@@ -79,6 +101,7 @@ def run_migrations():
 
 def main():
     setup_global_error_handler()
+    verify_build_hash()
     initialize_appdata()
     run_migrations()
 

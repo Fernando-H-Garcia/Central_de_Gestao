@@ -197,6 +197,34 @@ def validate_bundle():
     return results
 
 
+# ---- hash de integridade ----------------------------------------------------
+
+def generate_build_hash(validation_results):
+    """Gera build.hash com hashes SHA256 do EXE e instalador."""
+    import hashlib
+    hash_path = BUILD_DIR / "build.hash"
+    lines = []
+    lines.append(f"version={VERSION}")
+    lines.append(f"timestamp={datetime.now().isoformat()}")
+
+    exe = BUNDLE_DIR / "CentralDeGestao.exe"
+    if exe.exists():
+        h = hashlib.sha256(exe.read_bytes()).hexdigest()
+        lines.append(f"exe_sha256={h}")
+        lines.append(f"exe_size={exe.stat().st_size}")
+
+    installer = BUILD_DIR / INSTALLER_NAME
+    if installer.exists():
+        h = hashlib.sha256(installer.read_bytes()).hexdigest()
+        lines.append(f"installer_sha256={h}")
+        lines.append(f"installer_size={installer.stat().st_size}")
+
+    lines.append(f"build_contract_ok={validation_results.get('all_ok', False)}")
+    hash_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"  Hash salvo em: {hash_path}")
+    return hash_path
+
+
 # ---- relatório --------------------------------------------------------------
 
 def generate_report(validation_results, mode, elapsed=None):
@@ -298,6 +326,8 @@ def main():
         step("6/6 Gerando instalador Inno Setup")
         installer_ok = generate_installer()
         validation_results["installer_generated"] = installer_ok
+
+    generate_build_hash(validation_results)
 
     elapsed = (datetime.now() - start).total_seconds()
     generate_report(validation_results, mode, elapsed)

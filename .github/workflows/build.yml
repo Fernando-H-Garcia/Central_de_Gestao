@@ -2,9 +2,22 @@ name: Build e Validação
 
 on:
   push:
-    branches: [main, develop, release/*]
+    branches: [main, staging, release/*]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Ambiente de release"
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  ENVIRONMENT: ${{ github.ref_name == 'main' && 'production' || github.ref_name == 'staging' && 'staging' || 'development' }}
 
 jobs:
   build:
@@ -37,28 +50,35 @@ jobs:
         id: build
         run: python scripts/build/build_release.py
 
-      - name: Smoke Test
+      - name: Smoke Test Suite
         id: smoke
         run: python scripts/tests/smoke_test.py
+
+      - name: Release Gate
+        if: steps.smoke.outcome != 'success'
+        run: |
+          echo "::error::SMOKE TEST FALHOU - Release BLOQUEADA"
+          echo "::error::Corrija os erros antes de tentar novamente"
+          exit 1
 
       - name: Upload artefato (bundle)
         uses: actions/upload-artifact@v4
         with:
-          name: CentralDeGestao-Bundle
+          name: CentralDeGestao-Bundle-${{ env.ENVIRONMENT }}
           path: build/dist/CentralDeGestao/
 
   installer:
     name: Instalador
     runs-on: windows-latest
     needs: build
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')
+    if: success() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging' || startsWith(github.ref, 'refs/heads/release/'))
     steps:
       - uses: actions/checkout@v4
 
       - name: Baixar artefato do build
         uses: actions/download-artifact@v4
         with:
-          name: CentralDeGestao-Bundle
+          name: CentralDeGestao-Bundle-${{ env.ENVIRONMENT }}
           path: build/dist/CentralDeGestao/
 
       - name: Instalar Inno Setup
@@ -80,21 +100,21 @@ jobs:
       - name: Upload artefato (instalador)
         uses: actions/upload-artifact@v4
         with:
-          name: CentralDeGestao-Installer
+          name: CentralDeGestao-Installer-${{ env.ENVIRONMENT }}
           path: build/*.exe
 
   release:
     name: Publicar Release
     runs-on: windows-latest
     needs: [build, installer]
-    if: startsWith(github.ref, 'refs/heads/release/') && success()
+    if: success() && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
 
       - name: Baixar instalador
         uses: actions/download-artifact@v4
         with:
-          name: CentralDeGestao-Installer
+          name: CentralDeGestao-Installer-production
           path: build/
 
       - name: Criar Release no GitHub

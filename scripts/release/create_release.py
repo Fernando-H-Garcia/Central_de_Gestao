@@ -3,8 +3,9 @@
 Release Automation Script — comando único para gerar e publicar release.
 
 Uso:
-    python scripts/release/create_release.py              # build + validação local
-    python scripts/release/create_release.py --publish    # build + tag + release no GitHub
+    python scripts/release/create_release.py                 # build + validação local
+    python scripts/release/create_release.py --publish       # build + tag + release no GitHub
+    python scripts/release/create_release.py --dry-run       # build + testes, NÃO publica
 
 Fluxo:
     1. Lê versão de scripts/build/version.py
@@ -13,6 +14,7 @@ Fluxo:
     4. Executa smoke_test.py
     5. Executa validate_installer.py
     6. Se --publish: cria tag git + release no GitHub
+    7. Se --dry-run: faz tudo menos publicar
 """
 
 import sys
@@ -56,7 +58,6 @@ def get_version():
 
 def validate_deps():
     """Verifica dependências necessárias."""
-    # gh CLI
     result = subprocess.run(["gh", "--version"], capture_output=True, text=True)
     if result.returncode != 0:
         print("[AVISO] gh CLI nao encontrado. '--publish' nao funcionara.")
@@ -69,6 +70,7 @@ def validate_deps():
 def main():
     parser = argparse.ArgumentParser(description="Release Automation do Central de Gestao")
     parser.add_argument("--publish", action="store_true", help="Publica release no GitHub (cria tag + release)")
+    parser.add_argument("--dry-run", action="store_true", help="Simula release: build + testes, NAO publica")
     args = parser.parse_args()
 
     print(f"\n{'=' * 60}")
@@ -78,14 +80,25 @@ def main():
     version = get_version()
     has_gh = validate_deps()
 
+    if args.dry_run:
+        print("\n  >>> DRY RUN: build + testes sem publicacao <<<\n")
+
     step("1/6 Build + Instalador")
     run_py(f"{SCRIPTS_DIR / 'build' / 'build_release.py'} --release")
 
-    step("2/6 Smoke Test")
+    step("2/6 Smoke Test Suite")
     run_py(f"{SCRIPTS_DIR / 'tests' / 'smoke_test.py'}")
 
     step("3/6 Validacao do Instalador")
     run_py(f"{SCRIPTS_DIR / 'tests' / 'validate_installer.py'}")
+
+    if args.dry_run:
+        print(f"\n  >>> DRY RUN CONCLUIDO <<<")
+        print(f"  Versao:  v{version}")
+        print(f"  Bundle:  build/dist/CentralDeGestao/")
+        print(f"  Install: build/CentralDeGestao_Installer.exe")
+        print(f"  Para publicar: python scripts/release/create_release.py --publish")
+        sys.exit(0)
 
     if not args.publish:
         step("4/6 Publicacao (PULAR — use --publish para publicar)")
