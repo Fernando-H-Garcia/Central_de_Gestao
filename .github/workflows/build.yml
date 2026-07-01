@@ -119,6 +119,11 @@ jobs:
         run: |
           choco install innosetup --no-progress --confirm
 
+      - name: Copiar installer.iss para build/
+        shell: pwsh
+        run: |
+          Copy-Item -Path "scripts/build/templates/installer.iss" -Destination "build/installer.iss" -Force
+
       - name: Build Installer
         shell: pwsh
         run: |
@@ -127,7 +132,6 @@ jobs:
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
             /DMyAppVersion="$shortVer" `
             build/installer.iss
-
       - name: Validar instalador
         run: python scripts/tests/validate_installer.py
 

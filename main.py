@@ -3,6 +3,7 @@ import sys
 import sqlite3
 import shutil
 from pathlib import Path
+from core.startup import startup_init, log
 from core.error_handler import setup_global_error_handler
 from config import (
     DB_PATH, MIGRATIONS_DIR, LOGS_DIR,
@@ -14,6 +15,7 @@ from core.background_queue import task_queue
 
 
 def initialize_appdata():
+    """Copia dados do instalador para DATA_DIR (segunda camada de segurança)."""
     if not _is_bundled:
         return
     init_marker = DATA_DIR / ".initialized"
@@ -21,6 +23,7 @@ def initialize_appdata():
 
     if first_run and INSTALL_DB_PATH.exists() and not DB_PATH.exists():
         shutil.copy2(str(INSTALL_DB_PATH), str(DB_PATH))
+        log("Seed DB copiada (initialize_appdata)")
 
     if INSTALL_MIGRATIONS_DIR.exists():
         MIGRATIONS_DIR.mkdir(parents=True, exist_ok=True)
@@ -28,12 +31,14 @@ def initialize_appdata():
             dst = MIGRATIONS_DIR / f.name
             if not dst.exists():
                 shutil.copy2(str(f), str(dst))
+        log("Migrations copiadas (initialize_appdata)")
 
     if INSTALL_CONFIG_DIR.exists():
         for f in INSTALL_CONFIG_DIR.glob("*"):
             dst = CONFIG_DIR / f.name
             if not dst.exists():
                 shutil.copy2(str(f), str(dst))
+        log("Config copiada (initialize_appdata)")
 
     if first_run:
         init_marker.write_text("1")
@@ -46,7 +51,7 @@ def verify_build_hash():
         from config import BASE_DIR
         hash_path = BASE_DIR / "build.hash"
         if not hash_path.exists():
-            return  # build sem hash (dev mode)
+            return
         lines = {}
         for line in hash_path.read_text(encoding="utf-8").strip().split("\n"):
             if "=" in line:
@@ -56,54 +61,22 @@ def verify_build_hash():
         if exe_path.exists() and "exe_sha256" in lines:
             current = hashlib.sha256(exe_path.read_bytes()).hexdigest()
             if current != lines["exe_sha256"]:
-                print("[AVISO] Hash do executavel nao confere com build.hash")
+                log("Hash do executavel nao confere com build.hash", "warning")
     except Exception as e:
-        print(f"[AVISO] Erro ao verificar hash: {e}")
-
-
-def run_migrations():
-    import database.connection as db_conn
-
-    with db_conn.get_db_cursor() as cursor:
-        try:
-            cursor.execute("SELECT MAX(version) FROM schema_version")
-            row = cursor.fetchone()
-            current_version = row[0] if row and row[0] is not None else 0
-        except sqlite3.OperationalError:
-            current_version = 0
-
-    if MIGRATIONS_DIR.exists():
-        migration_files = sorted(f for f in os.listdir(MIGRATIONS_DIR) if f.endswith('.sql'))
-    else:
-        migration_files = []
-
-    with db_conn.get_db_cursor() as cursor:
-        for file in migration_files:
-            version_str = file.split('_')[0]
-            try:
-                version = int(version_str)
-            except ValueError:
-                continue
-
-            if version > current_version:
-                with open(MIGRATIONS_DIR / file, 'r', encoding='utf-8') as f:
-                    sql_script = f.read()
-                try:
-                    cursor.executescript(sql_script)
-                except sqlite3.OperationalError as e:
-                    error_msg = str(e)
-                    if "duplicate column" in error_msg.lower() or "already exists" in error_msg.lower():
-                        pass
-                    else:
-                        raise
-                cursor.execute("INSERT OR REPLACE INTO schema_version (version) VALUES (?)", (version,))
+        log(f"Erro ao verificar hash: {e}", "warning")
 
 
 def main():
     setup_global_error_handler()
+
+    # ---- First Run Hardening: startup pipeline com auto-repair ----
+    try:
+        startup_init()
+    except Exception as e:
+        log(f"Startup pipeline falhou criticamente: {e}", "error")
+
     verify_build_hash()
     initialize_appdata()
-    run_migrations()
 
     from PySide6.QtWidgets import QApplication
     from gui.main_window_qt import MainWindow

@@ -30,11 +30,15 @@ from pathlib import Path
 from datetime import datetime
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 BUILD_DIR = PROJECT_ROOT / "build"
 DIST_DIR = BUILD_DIR / "dist"
 BUNDLE_DIR = DIST_DIR / "CentralDeGestao"
 INTERNAL_DIR = BUNDLE_DIR / "_internal"
 INSTALLER_NAME = "CentralDeGestao_Installer.exe"
+SPEC_FILE = PROJECT_ROOT / "CentralDeGestao.spec"
+CLEANUP_SCRIPT = TEMPLATES_DIR / "cleanup_dlls.py"
+INSTALLER_ISS = TEMPLATES_DIR / "installer.iss"
 
 sys.path.insert(0, str(PROJECT_ROOT / "scripts" / "build"))
 try:
@@ -56,10 +60,10 @@ def step(msg):
 
 
 def run(cmd, cwd=None):
-    print(f"> {cmd}")
-    result = subprocess.run(cmd, shell=True, cwd=cwd or PROJECT_ROOT)
+    print("> ", cmd)
+    result = subprocess.run(cmd, cwd=cwd or PROJECT_ROOT, shell=False)
     if result.returncode != 0:
-        print(f"[FATAL] Comando falhou (exit {result.returncode}): {cmd}")
+        print(f"[FATAL] Comando falhou (exit {result.returncode})")
         sys.exit(result.returncode)
     return result
 
@@ -107,19 +111,26 @@ def clean_artifacts():
         if d.exists():
             print(f"  Removendo: {d}")
             shutil.rmtree(d, ignore_errors=True)
-    for f in PROJECT_ROOT.glob("*.spec"):
+    for f in (BUILD_DIR).glob("*.spec"):
         f.unlink(missing_ok=True)
 
 
 def run_pyinstaller():
+    if not SPEC_FILE.exists():
+        fail(f"Spec file nao encontrado: {SPEC_FILE}")
+    build_spec = BUILD_DIR / "CentralDeGestao.spec"
+    shutil.copy2(str(SPEC_FILE), str(build_spec))
     os.chdir(BUILD_DIR)
-    run("pyinstaller build.spec --clean --noconfirm")
+    run(f"pyinstaller {build_spec.name} --clean --noconfirm")
     os.chdir(PROJECT_ROOT)
 
 
 def cleanup_dlls():
+    if not CLEANUP_SCRIPT.exists():
+        print(f"  [AVISO] cleanup_dlls.py nao encontrado em {CLEANUP_SCRIPT}")
+        return
     os.chdir(BUILD_DIR)
-    run("python cleanup_dlls.py")
+    run(f"python {CLEANUP_SCRIPT}")
     os.chdir(PROJECT_ROOT)
 
 
@@ -268,6 +279,11 @@ def generate_installer():
     if not iscc:
         print("[AVISO] Inno Setup (ISCC.exe) nao encontrado. Instale em: https://jrsoftware.org/isdl.php")
         return False
+    if not INSTALLER_ISS.exists():
+        print(f"[AVISO] installer.iss nao encontrado em {INSTALLER_ISS}")
+        return False
+    build_iss = BUILD_DIR / "installer.iss"
+    shutil.copy2(str(INSTALLER_ISS), str(build_iss))
     os.chdir(BUILD_DIR)
     short_ver = ".".join(VERSION.split(".")[:2]) if VERSION else "0.0"
     run(f'"{iscc}" /DMyAppVersion="{short_ver}" installer.iss')
@@ -303,7 +319,11 @@ def main():
     step(f"Build v{VERSION} (modo: {mode})")
 
     step("0/6 Environment Fingerprint")
-    run(f"{sys.executable} scripts/build/env_fingerprint.py --save")
+    run([
+        str(sys.executable),
+        str(PROJECT_ROOT / "scripts" / "build" / "env_fingerprint.py"),
+        "--save"
+    ])
 
     step("1/6 Validando ambiente")
     check_python()
