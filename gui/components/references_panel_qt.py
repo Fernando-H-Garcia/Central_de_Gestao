@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QFrame, QListWidget, QListWidgetItem
 )
-from PySide6.QtCore import Qt, QTimer, QEvent
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
 
@@ -168,29 +168,11 @@ class ReferencesPanelQt(QWidget):
         self.btn_in = QPushButton("↩️ Referenciado por (0)")
         self.btn_in.setObjectName("secondary")
 
-        self.btn_out.installEventFilter(self)
         self.btn_out.clicked.connect(self._show_out_popup)
         layout.addWidget(self.btn_out)
 
-        self.btn_in.installEventFilter(self)
         self.btn_in.clicked.connect(self._show_in_popup)
         layout.addWidget(self.btn_in)
-
-    def eventFilter(self, obj, event):
-        if obj in (self.btn_out, self.btn_in):
-            if event.type() == QEvent.Enter:
-                QTimer.singleShot(400, lambda: self._on_hover(obj))
-            elif event.type() == QEvent.Leave:
-                pass
-        return super().eventFilter(obj, event)
-
-    def _on_hover(self, btn):
-        if self._popup and self._popup.isVisible():
-            return
-        if btn == self.btn_out:
-            self._show_out_popup()
-        else:
-            self._show_in_popup()
 
     def _show_out_popup(self):
         if not self._out_links:
@@ -203,7 +185,8 @@ class ReferencesPanelQt(QWidget):
         self._show_popup(self._in_links, self.btn_in)
 
     def _show_popup(self, items, anchor_btn):
-        self._popup = ReferencePopup(items, self)
+        main_win = self.window()
+        self._popup = ReferencePopup(items, main_win)
         pos = anchor_btn.mapToGlobal(anchor_btn.rect().bottomLeft())
         screen = self.screen() if hasattr(self, 'screen') else None
         if screen:
