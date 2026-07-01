@@ -467,8 +467,17 @@ class TaskDetailQt(QWidget):
         # Sub-tab Alarmes
         tab_alarmes = QWidget()
         layout_alarmes = QVBoxLayout(tab_alarmes)
+        layout_alarmes.setSpacing(8)
+        layout_alarmes.setContentsMargins(4, 4, 4, 4)
 
         alarm_header = QHBoxLayout()
+        self._filter_alarms_only_task = False
+        self.btn_filter_alarms = QPushButton("📋 Filtrar: Todas do Projeto")
+        self.btn_filter_alarms.setObjectName("secondary")
+        self.btn_filter_alarms.setCheckable(True)
+        self.btn_filter_alarms.setChecked(False)
+        self.btn_filter_alarms.clicked.connect(self._toggle_alarm_filter)
+        alarm_header.addWidget(self.btn_filter_alarms)
         alarm_header.addStretch()
         self.btn_new_alarm = QPushButton("🔔 + Novo Alarme")
         self.btn_new_alarm.setObjectName("secondary")
@@ -477,15 +486,24 @@ class TaskDetailQt(QWidget):
         layout_alarmes.addLayout(alarm_header)
 
         from gui.components.alarm_cards_qt import AlarmCardsWidget
-        self.tree_alarms = AlarmCardsWidget(grouping="date", filter_project_id=self.task.project_id, highlight_task_id=self.task.id, main_window=self.window(), parent=self)
+        self.tree_alarms = AlarmCardsWidget(grouping="date", filter_project_id=self.task.project_id, filter_task_id=None, highlight_task_id=self.task.id, main_window=self.window(), parent=self)
         layout_alarmes.addWidget(self.tree_alarms)
         self.agenda_tabs.addTab(tab_alarmes, "Alarmes")
         
         # Sub-tab Eventos
         tab_eventos = QWidget()
         layout_eventos = QVBoxLayout(tab_eventos)
+        layout_eventos.setSpacing(8)
+        layout_eventos.setContentsMargins(4, 4, 4, 4)
         
         header_layout = QHBoxLayout()
+        self._filter_events_only_task = False
+        self.btn_filter_events = QPushButton("📋 Filtrar: Todas do Projeto")
+        self.btn_filter_events.setObjectName("secondary")
+        self.btn_filter_events.setCheckable(True)
+        self.btn_filter_events.setChecked(False)
+        self.btn_filter_events.clicked.connect(self._toggle_event_filter)
+        header_layout.addWidget(self.btn_filter_events)
         header_layout.addStretch()
         self.btn_new_event = QPushButton("🔔 + Novo Evento (Alerta)")
         self.btn_new_event.setObjectName("secondary")
@@ -494,7 +512,7 @@ class TaskDetailQt(QWidget):
         layout_eventos.addLayout(header_layout)
         
         from gui.components.agenda_tree_qt import AgendaTreeWidget
-        self.tree_agenda = AgendaTreeWidget(grouping="date", filter_project_id=self.task.project_id, highlight_task_id=self.task.id, main_window=self.window(), parent=self)
+        self.tree_agenda = AgendaTreeWidget(grouping="date", filter_project_id=self.task.project_id, filter_task_id=None, highlight_task_id=self.task.id, main_window=self.window(), parent=self)
         layout_eventos.addWidget(self.tree_agenda)
         self.agenda_tabs.addTab(tab_eventos, "Eventos")
         
@@ -536,6 +554,21 @@ class TaskDetailQt(QWidget):
             except:
                 pass
         
+    def _toggle_alarm_filter(self):
+        self._filter_alarms_only_task = self.btn_filter_alarms.isChecked()
+        self.btn_filter_alarms.setText(
+            "📋 Filtrar: Só desta Tarefa" if self._filter_alarms_only_task
+            else "📋 Filtrar: Todas do Projeto"
+        )
+        self.load_agenda()
+
+    def _toggle_event_filter(self):
+        self._filter_events_only_task = self.btn_filter_events.isChecked()
+        self.btn_filter_events.setText(
+            "📋 Filtrar: Só desta Tarefa" if self._filter_events_only_task
+            else "📋 Filtrar: Todas do Projeto"
+        )
+        self.load_agenda()
 
     def load_agenda(self):
         from services.alert_service import AlertService
@@ -545,6 +578,7 @@ class TaskDetailQt(QWidget):
             events = [e for e in self.event_service.list_active() if e.project_id == self.task.project_id]
             from services.project_service import ProjectService
             from services.task_service import TaskService
+            self.tree_agenda.filter_task_id = self.task.id if self._filter_events_only_task else None
             self.tree_agenda.populate(events, ProjectService().project_repo, TaskService().task_repo)
         except Exception:
             import traceback
@@ -559,6 +593,7 @@ class TaskDetailQt(QWidget):
             task_alarms = [a for a in all_alarms if a.entity_type == "task" and a.entity_id in task_ids and a.status in ('pending', 'overdue')]
             proj_alarms = [a for a in all_alarms if a.entity_type == "project" and a.entity_id == self.task.project_id and a.status in ('pending', 'overdue')]
             alarms = task_alarms + proj_alarms
+            self.tree_alarms.filter_task_id = self.task.id if self._filter_alarms_only_task else None
             self.tree_alarms.populate(alarms)
         except Exception:
             import traceback

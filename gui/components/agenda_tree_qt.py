@@ -6,10 +6,11 @@ from PySide6.QtCore import Qt
 from gui.theme import GLOBAL_STYLE, BG_HOVER, FONT_CAPTION
 
 class AgendaTreeWidget(QTreeWidget):
-    def __init__(self, grouping="project", filter_project_id=None, highlight_task_id=None, main_window=None, parent=None):
+    def __init__(self, grouping="project", filter_project_id=None, filter_task_id=None, highlight_task_id=None, main_window=None, parent=None):
         super().__init__(parent)
         self.grouping = grouping # "project" or "date"
         self.filter_project_id = filter_project_id
+        self.filter_task_id = filter_task_id
         self.highlight_task_id = highlight_task_id
         self.main_window = main_window
         self.main_view = parent
@@ -89,6 +90,8 @@ class AgendaTreeWidget(QTreeWidget):
             # Group by Project, then sub-group by "Eventos de Projeto" and "Eventos de Tarefas"
             proj_groups = {}
             for ev in valid_events:
+                if self.filter_task_id and ev.task_id != self.filter_task_id:
+                    continue
                 # filter
                 if self.filter_project_id and ev.project_id != self.filter_project_id:
                     continue
@@ -133,6 +136,8 @@ class AgendaTreeWidget(QTreeWidget):
             # Group by Date directly
             date_groups = {}
             for ev in valid_events:
+                if self.filter_task_id and ev.task_id != self.filter_task_id:
+                    continue
                 if self.filter_project_id and ev.project_id != self.filter_project_id:
                     continue
                 d = ev.start_datetime.split("T")[0] if ev.start_datetime else "Sem Data"

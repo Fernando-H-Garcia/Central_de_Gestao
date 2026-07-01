@@ -266,10 +266,11 @@ class DateGroupHeader(QFrame):
 
 
 class AlarmCardsWidget(QWidget):
-    def __init__(self, grouping="date", filter_project_id=None, highlight_task_id=None, main_window=None, parent=None):
+    def __init__(self, grouping="date", filter_project_id=None, filter_task_id=None, highlight_task_id=None, main_window=None, parent=None):
         super().__init__(parent)
         self.grouping = grouping
         self.filter_project_id = filter_project_id
+        self.filter_task_id = filter_task_id
         self.highlight_task_id = highlight_task_id
         self.main_window = main_window
         
@@ -336,6 +337,9 @@ class AlarmCardsWidget(QWidget):
     def _populate_by_project(self, alarms):
         proj_groups = {}
         for al in alarms:
+            if self.filter_task_id and al.entity_type == "task" and al.entity_id != self.filter_task_id:
+                continue
+
             pid = 0
             if al.entity_type == "task":
                 task = self.task_service.task_repo.get_by_id(al.entity_id)
@@ -368,6 +372,9 @@ class AlarmCardsWidget(QWidget):
         
         date_groups = {}
         for al in alarms:
+            if self.filter_task_id and al.entity_type == "task" and al.entity_id != self.filter_task_id:
+                continue
+
             pid = 0
             if al.entity_type == "task":
                 task = self.task_service.task_repo.get_by_id(al.entity_id)
