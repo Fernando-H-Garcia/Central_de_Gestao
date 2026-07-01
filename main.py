@@ -1,5 +1,8 @@
 import os
 import sys
+import time
+import traceback
+import threading
 import sqlite3
 import shutil
 from pathlib import Path
@@ -12,6 +15,28 @@ from config import (
     CONFIG_DIR
 )
 from core.background_queue import task_queue
+
+_BOOT_LOG_FILE = None
+_BOOT_START = 0.0
+
+
+def _boot_log_init():
+    global _BOOT_LOG_FILE, _BOOT_START
+    _BOOT_START = time.perf_counter()
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    _BOOT_LOG_FILE = str(LOGS_DIR / "boot.log")
+
+
+def _boot_log(step: str):
+    elapsed = time.perf_counter() - _BOOT_START
+    ts = time.strftime("%Y-%m-%d %H:%M:%S")
+    line = f"[{ts}] [BOOT] {step} ({elapsed:.3f}s)\n"
+    if _BOOT_LOG_FILE:
+        try:
+            with open(_BOOT_LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(line)
+        except Exception:
+            pass
 
 
 def initialize_appdata():
@@ -67,57 +92,81 @@ def verify_build_hash():
 
 
 def main():
-    setup_global_error_handler()
+    _boot_log_init()
+    _boot_log("início do main")
 
-    # ---- First Run Hardening: startup pipeline com auto-repair ----
     try:
+        setup_global_error_handler()
         startup_init()
+        verify_build_hash()
+        initialize_appdata()
+        _boot_log("configurações carregadas")
     except Exception as e:
-        log(f"Startup pipeline falhou criticamente: {e}", "error")
+        _boot_log(f"FALHA configurações: {traceback.format_exc()}")
+        sys.exit(1)
 
-    verify_build_hash()
-    initialize_appdata()
+    try:
+        from PySide6.QtWidgets import QApplication
 
-    from PySide6.QtWidgets import QApplication
-    from gui.main_window_qt import MainWindow
+        qt_app = QApplication(sys.argv)
 
-    qt_app = QApplication(sys.argv)
+        from gui.theme import GLOBAL_STYLE
+        qt_app.setStyleSheet(GLOBAL_STYLE)
 
-    from gui.theme import GLOBAL_STYLE
-    qt_app.setStyleSheet(GLOBAL_STYLE)
+        from gui.theme import style_calendar_today
+        from PySide6.QtWidgets import QDateEdit, QDateTimeEdit, QCalendarWidget
+        from PySide6.QtCore import QEvent, QObject, QTimer
 
-    from gui.theme import style_calendar_today
-    from PySide6.QtWidgets import QDateEdit, QDateTimeEdit, QCalendarWidget
-    from PySide6.QtCore import QEvent, QObject, QTimer
+        class _CalendarWatcher(QObject):
+            def __init__(self, date_edit):
+                super().__init__(date_edit)
+                date_edit.installEventFilter(self)
 
-    class _CalendarWatcher(QObject):
-        def __init__(self, date_edit):
-            super().__init__(date_edit)
-            date_edit.installEventFilter(self)
+            def eventFilter(self, obj, event):
+                if event.type() == QEvent.ChildPolished and isinstance(event.child(), QCalendarWidget):
+                    QTimer.singleShot(0, lambda de=obj: style_calendar_today(de))
+                return super().eventFilter(obj, event)
 
-        def eventFilter(self, obj, event):
-            if event.type() == QEvent.ChildPolished and isinstance(event.child(), QCalendarWidget):
-                QTimer.singleShot(0, lambda de=obj: style_calendar_today(de))
-            return super().eventFilter(obj, event)
+        _orig_date_cal = QDateEdit.setCalendarPopup
+        def _patched_date_cal(self, enabled):
+            _orig_date_cal(self, enabled)
+            if enabled:
+                _CalendarWatcher(self)
+        QDateEdit.setCalendarPopup = _patched_date_cal
 
-    _orig_date_cal = QDateEdit.setCalendarPopup
-    def _patched_date_cal(self, enabled):
-        _orig_date_cal(self, enabled)
-        if enabled:
-            _CalendarWatcher(self)
-    QDateEdit.setCalendarPopup = _patched_date_cal
+        _orig_dt_cal = QDateTimeEdit.setCalendarPopup
+        def _patched_dt_cal(self, enabled):
+            _orig_dt_cal(self, enabled)
+            if enabled:
+                _CalendarWatcher(self)
+        QDateTimeEdit.setCalendarPopup = _patched_dt_cal
 
-    _orig_dt_cal = QDateTimeEdit.setCalendarPopup
-    def _patched_dt_cal(self, enabled):
-        _orig_dt_cal(self, enabled)
-        if enabled:
-            _CalendarWatcher(self)
-    QDateTimeEdit.setCalendarPopup = _patched_dt_cal
+        _boot_log("QApplication criada")
+    except Exception as e:
+        _boot_log(f"FALHA QApplication: {traceback.format_exc()}")
+        sys.exit(1)
 
-    window = MainWindow()
-    window.showMaximized()
+    try:
+        from gui.main_window_qt import MainWindow
+        window = MainWindow()
+        _boot_log("MainWindow instanciada")
+    except Exception as e:
+        _boot_log(f"FALHA MainWindow: {traceback.format_exc()}")
+        sys.exit(1)
 
-    sys.exit(qt_app.exec())
+    try:
+        window.showMaximized()
+        _boot_log("MainWindow.show() chamado")
+    except Exception as e:
+        _boot_log(f"FALHA MainWindow.show: {traceback.format_exc()}")
+        sys.exit(1)
+
+    _boot_log("threads ativas: {}".format([t.name for t in threading.enumerate()]))
+
+    _boot_log("app.exec() iniciado")
+    exit_code = qt_app.exec()
+    _boot_log("app.exec retornou")
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

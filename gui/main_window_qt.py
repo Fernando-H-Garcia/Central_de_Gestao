@@ -3,7 +3,19 @@ from PySide6.QtWidgets import (
     QFrame, QPushButton, QStackedWidget, QLabel, QButtonGroup
 )
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QPaintEvent
 from gui.theme import FONT_TITLE, FONT_CAPTION
+
+def _boot_log_append(msg: str):
+    try:
+        from config import LOGS_DIR
+        from datetime import datetime
+        p = LOGS_DIR / "boot.log"
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(p, "a", encoding="utf-8") as f:
+            f.write(f"[{ts}] [BOOT] {msg}\n")
+    except Exception:
+        pass
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -12,6 +24,8 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1000, 700)
         self._layout_fixed = False
         self._nav_history = []
+        self._window_visible_logged = False
+        self._paint_logged = False
         
         self.setup_ui()
         self.load_stylesheet()
@@ -23,6 +37,20 @@ class MainWindow(QMainWindow):
         super().showEvent(event)
         if not self._layout_fixed:
             QTimer.singleShot(0, self._fix_layout)
+        if not self._window_visible_logged and self.isVisible():
+            self._window_visible_logged = True
+            _boot_log_append(
+                f"MainWindow showEvent "
+                f"isVisible={self.isVisible()} "
+                f"isMinimized={self.isMinimized()} "
+                f"isMaximized={self.isMaximized()}"
+            )
+
+    def paintEvent(self, event: QPaintEvent):
+        super().paintEvent(event)
+        if not self._paint_logged:
+            self._paint_logged = True
+            _boot_log_append("primeiro paint recebido")
 
     def resizeEvent(self, event):
         super().resizeEvent(event)

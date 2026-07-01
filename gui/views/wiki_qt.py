@@ -915,9 +915,6 @@ class WikiQt(QWidget):
 
         self._populate_parent_combo()
 
-        id_to_item = {}
-        root_items = []
-
         def sort_key(p):
             return (p.parent_id is not None, p.category or "", p.title)
         sorted_pages = sorted(pages, key=sort_key)
@@ -926,17 +923,7 @@ class WikiQt(QWidget):
             label = ("⭐ " if page.is_favorite else "📄 ") + page.title
             item = QTreeWidgetItem([label])
             item.setData(0, Qt.UserRole, page)
-            id_to_item[page.id] = item
-
-        for page in sorted_pages:
-            item = id_to_item[page.id]
-            if page.parent_id and page.parent_id in id_to_item and page.parent_id != page.id:
-                id_to_item[page.parent_id].addChild(item)
-            else:
-                root_items.append(item)
-
-        for it in root_items:
-            self.tree.addTopLevelItem(it)
+            self.tree.addTopLevelItem(item)
 
         self.tree.expandAll()
         self._filter_tree(self.search_bar.text())

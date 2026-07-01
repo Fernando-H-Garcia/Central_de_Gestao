@@ -1,7 +1,7 @@
 import os
 import time
 from collections import defaultdict
-PERFORMANCE_DEBUG = True
+PERFORMANCE_DEBUG = False
 
 from config import LOGS_DIR
 LOG_PATH = os.path.join(LOGS_DIR, "instrumentation_log.txt")
