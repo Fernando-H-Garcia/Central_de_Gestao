@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal
 from services.project_service import ProjectService
-from gui.theme import get_status_color, get_energy_color, FONT_SUBTITLE, FONT_BODY, FONT_CAPTION
+from gui.theme import get_status_color, get_energy_color, format_status, get_archived_color, FONT_SUBTITLE, FONT_BODY, FONT_CAPTION
 from gui.components.page_header import PageHeader
 
 class ClickableFrame(QFrame):
@@ -146,8 +146,10 @@ class ProjectsQt(QWidget):
             
             info_layout = QHBoxLayout()
             
-            lbl_status = QLabel(p.status)
-            lbl_status.setStyleSheet(f"font-size: {FONT_CAPTION}px; font-weight: bold; color: {get_status_color(p.status)}; background-color: #2a2a3f; padding: 2px 6px; border-radius: 3px;")
+            display_status = format_status(p.status, getattr(p, 'is_archived', False))
+            status_color = get_archived_color() if getattr(p, 'is_archived', False) else get_status_color(p.status)
+            lbl_status = QLabel(display_status)
+            lbl_status.setStyleSheet(f"font-size: {FONT_CAPTION}px; font-weight: bold; color: {status_color}; background-color: #2a2a3f; padding: 2px 6px; border-radius: 3px;")
             info_layout.addWidget(lbl_status)
             
             prio_val = p.priority if hasattr(p, 'priority') and p.priority else "-"

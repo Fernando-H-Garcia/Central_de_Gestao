@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, Signal, QSettings
 from gui.components.drag_drop_table_qt import DragDropTableWidget
 from services.idea_service import IdeaService
 from services.project_service import ProjectService
-from gui.theme import get_status_color, get_energy_color
+from gui.theme import get_status_color, get_energy_color, format_status
 from PySide6.QtGui import QAction
 from core.event_bus import event_bus
 
@@ -160,7 +160,7 @@ class IdeasQt(QWidget):
             id_item.setData(Qt.UserRole, i)
             title_item = QTableWidgetItem(i.title or "Sem título")
             cat_item = QTableWidgetItem(i.category or "Geral")
-            status_item = QTableWidgetItem(i.status or "Pendente")
+            status_item = QTableWidgetItem(format_status(i.status or "Pendente", getattr(i, 'is_archived', False)))
             prio_item = QTableWidgetItem(i.priority or "Média")
             
             # Styling colors (handled by BadgeDelegate)

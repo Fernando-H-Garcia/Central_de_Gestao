@@ -47,10 +47,17 @@ Name: "{group}\Desinstalar Central de Gestao"; Filename: "{uninstallexe}"
 Name: "{userdesktop}\Central de Gestao"; Filename: "{app}\CentralDeGestao.exe"; Tasks: desktopicon
 
 [Run]
-; Nao executa nada — o app faz auto-configuracao no primeiro run
+Filename: "{tmp}\VC_redist.x64.exe"; Parameters: "/quiet /norestart"; StatusMsg: "Instalando Visual C++ Redistributable..."; Check: VC_Redist_Needed; Flags: skipifdoesntexist
+Filename: "{app}\CentralDeGestao.exe"; Description: "Iniciar Central de Gestao"; Flags: postinstall nowait skipifsilent
 
 [UninstallRun]
 ; Nao executa nada — preserva dados do usuario
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\CentralGestao\.initialized"
+
+[Code]
+function VC_Redist_Needed: Boolean;
+begin
+  Result := FileExists(ExpandConstant('{tmp}\VC_redist.x64.exe'));
+end;

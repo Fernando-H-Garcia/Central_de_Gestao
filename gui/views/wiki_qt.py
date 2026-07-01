@@ -6,8 +6,9 @@ from PySide6.QtWidgets import (
     QScrollArea, QDialog, QTextBrowser, QListWidget,
     QListWidgetItem, QFileDialog, QButtonGroup
 )
-from PySide6.QtCore import Qt, QTimer, QEvent, QRect
-from PySide6.QtGui import QAction, QFont, QTextCursor, QKeyEvent
+from PySide6.QtCore import Qt, QTimer, QEvent, QRect, QSize
+from PySide6.QtGui import QAction, QFont, QFontMetrics, QTextCursor, QKeyEvent, QPainter
+from PySide6.QtWidgets import QStyledItemDelegate, QStyle
 from services.knowledge_page_service import KnowledgePageService
 
 ENTITY_TYPE_LABELS = {
@@ -18,6 +19,28 @@ ENTITY_ICONS = {
     "project": "📁", "task": "📋", "idea": "💡",
     "wiki": "📖", "knowledge_page": "📖", "note": "📝",
 }
+
+
+class WordWrapDelegate(QStyledItemDelegate):
+    def paint(self, painter, option, index):
+        painter.save()
+        text = index.data(Qt.DisplayRole) or ""
+        rect = option.rect
+        if option.state & QStyle.State_Selected:
+            painter.fillRect(rect, option.palette.highlight())
+        rect.adjust(4, 2, -4, -2)
+        painter.setPen(option.palette.windowText().color())
+        painter.drawText(rect, Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignVCenter, text)
+        painter.restore()
+
+    def sizeHint(self, option, index):
+        text = index.data(Qt.DisplayRole) or ""
+        fm = QFontMetrics(option.font)
+        tw = option.rect.width() - 8
+        if tw < 50:
+            tw = 200
+        r = fm.boundingRect(QRect(0, 0, tw, 0), Qt.TextWordWrap, text)
+        return QSize(tw + 8, r.height() + 10)
 
 
 class WikiQt(QWidget):
@@ -115,13 +138,18 @@ class WikiQt(QWidget):
 
         self.tree = QTreeWidget()
         self.tree.setHeaderHidden(True)
+        self.tree.setItemDelegate(WordWrapDelegate(self.tree))
+        self.tree.setIndentation(14)
+        self.tree.header().setStretchLastSection(False)
+        self.tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.tree.installEventFilter(self)
         self.tree.setStyleSheet("""
             QTreeWidget {
                 background-color: transparent;
                 border: none;
             }
             QTreeWidget::item {
-                padding: 5px 4px;
+                padding: 3px 2px;
                 border-radius: 4px;
             }
             QTreeWidget::item:selected {
@@ -139,7 +167,9 @@ class WikiQt(QWidget):
         editor_layout.setContentsMargins(20, 20, 20, 20)
         editor_layout.setSpacing(8)
 
-        # Title (editable in edit mode)
+        # Title row (editable title + archived badge)
+        title_row = QHBoxLayout()
+        title_row.setSpacing(8)
         self.title_edit = QLineEdit("Selecione ou crie uma página")
         self.title_edit.setReadOnly(True)
         self.title_edit.setStyleSheet("""
@@ -152,7 +182,21 @@ class WikiQt(QWidget):
                 background-color: #1c1c2e;
             }
         """)
-        editor_layout.addWidget(self.title_edit)
+        title_row.addWidget(self.title_edit, stretch=1)
+
+        self.lbl_archived_badge = QLabel("📦 ARQUIVADO")
+        self.lbl_archived_badge.setStyleSheet("""
+            background-color: #444466;
+            color: #666666;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 3px 10px;
+            border-radius: 4px;
+        """)
+        self.lbl_archived_badge.setVisible(False)
+        title_row.addWidget(self.lbl_archived_badge)
+
+        editor_layout.addLayout(title_row)
 
         # ── Reference buttons + toolbar ──
         ref_bar = QHBoxLayout()
@@ -680,6 +724,9 @@ class WikiQt(QWidget):
         from PySide6.QtCore import QEvent
         from PySide6.QtGui import QKeyEvent
 
+        if not hasattr(self, 'text_edit'):
+            return super().eventFilter(obj, event)
+
         if obj == self.text_edit:
             if event.type() == QEvent.KeyRelease:
                 ke = event
@@ -915,15 +962,27 @@ class WikiQt(QWidget):
 
         self._populate_parent_combo()
 
-        def sort_key(p):
-            return (p.parent_id is not None, p.category or "", p.title)
-        sorted_pages = sorted(pages, key=sort_key)
-
-        for page in sorted_pages:
-            label = ("⭐ " if page.is_favorite else "📄 ") + page.title
+        # Build a dict of page_id -> QTreeWidgetItem
+        items = {}
+        for page in pages:
+            arch = " 📦ARQUIVADO" if getattr(page, 'is_archived', False) else ""
+            label = ("⭐ " if page.is_favorite else "📄 ") + page.title + arch
             item = QTreeWidgetItem([label])
             item.setData(0, Qt.UserRole, page)
-            self.tree.addTopLevelItem(item)
+            items[page.id] = item
+
+        # Attach children to parents or to the tree root
+        for page in pages:
+            item = items[page.id]
+            if page.parent_id and page.parent_id in items:
+                items[page.parent_id].addChild(item)
+            else:
+                self.tree.addTopLevelItem(item)
+
+        # Sort children of each parent
+        for item in items.values():
+            if item.childCount() > 0:
+                item.sortChildren(0, Qt.AscendingOrder)
 
         self.tree.expandAll()
         self._filter_tree(self.search_bar.text())
@@ -979,6 +1038,7 @@ class WikiQt(QWidget):
         self._original_page = copy.deepcopy(page)
 
         self.title_edit.setText(page.title)
+        self.lbl_archived_badge.setVisible(getattr(page, 'is_archived', False))
         self.text_edit.blockSignals(True)
         self.text_edit.setPlainText(page.content or "")
         self.text_edit.blockSignals(False)
@@ -1332,11 +1392,14 @@ class WikiQt(QWidget):
                 self.current_page = None
                 self.title_edit.setText("Selecione ou crie uma página")
                 self.text_edit.clear()
+                self.lbl_archived_badge.setVisible(False)
                 self._set_editor_enabled(False)
             self.load_pages()
 
     def _restore_page(self, page):
         self.page_service.restore_page(page.id)
+        if self.current_page and self.current_page.id == page.id:
+            self.lbl_archived_badge.setVisible(False)
         self.load_pages()
 
     def _delete_page(self, page):
@@ -1354,6 +1417,7 @@ class WikiQt(QWidget):
                     self.current_page = None
                     self.title_edit.setText("Selecione ou crie uma página")
                     self.text_edit.clear()
+                    self.lbl_archived_badge.setVisible(False)
                     self._set_editor_enabled(False)
                 self.load_pages()
                 return
@@ -1376,6 +1440,7 @@ class WikiQt(QWidget):
                 self.current_page = None
                 self.title_edit.setText("Selecione ou crie uma página")
                 self.text_edit.clear()
+                self.lbl_archived_badge.setVisible(False)
                 self._set_editor_enabled(False)
             self.load_pages()
 

@@ -101,6 +101,7 @@ def main():
         verify_build_hash()
         initialize_appdata()
         _boot_log("configurações carregadas")
+        _boot_log("migrations/banco executados")
     except Exception as e:
         _boot_log(f"FALHA configurações: {traceback.format_exc()}")
         sys.exit(1)

@@ -158,6 +158,65 @@
 - `KnowledgePageService` uses `self.page_repo` (not `self.repository`); `AttachmentService` uses `self.repository`
 - Segfault in `_handle_complete` / `_handle_snooze` was caused by calling `self.accept()` inside the button slot while widget destruction was pending; fixed by deferring with `QTimer.singleShot(0, …)`
 
+## Build Procedure (EXE + Installer)
+
+### Prerequisites
+- Python **3.11** (3.12+ causes PySide6 compatibility issues)
+- PySide6 **6.6.x** (any 6.11+ breaks on Python 3.11 → `DLL load failed while importing QtWidgets`)
+- PyInstaller **6.21+**
+- Inno Setup 6 (`C:\Program Files (x86)\Inno Setup 6\ISCC.exe`)
+- `VC_redist.x64.exe` at project root (optional but recommended)
+
+### Step-by-step
+
+1. **Create venv** (one-time):
+   ```powershell
+   & "C:\Anaconda\python.exe" -m venv venv_build
+   ```
+
+2. **Install deps with correct versions** (critical — must be PySide6 6.6.x):
+   ```powershell
+   .\venv_build\Scripts\pip.exe install "PySide6>=6.6,<6.7" "pyinstaller>=6.21,<7.0" Markdown>=3.5
+   ```
+
+3. **Verify compatibility** (must succeed without ImportError):
+   ```powershell
+   .\venv_build\Scripts\python.exe -c "import PySide6; from PySide6 import QtCore; print(f'PySide6: {PySide6.__version__}, Qt: {QtCore.qVersion()}')"
+   ```
+
+4. **Build EXE + Installer**:
+   ```powershell
+   .\venv_build\Scripts\python.exe scripts\build\build_release.py --release
+   ```
+
+5. **Expected artifacts**:
+   - `build\dist\CentralDeGestao.exe` — **~46 MB** (one-file mode, self-contained)
+   - `build\CentralDeGestao_Installer.exe` — **~70 MB** (includes VC++ Redist)
+
+6. **Copy installer**:
+   ```powershell
+   Copy-Item build\CentralDeGestao_Installer.exe ..\Executaveis\ -Force
+   ```
+
+### Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `DLL load failed while importing QtWidgets` | PySide6 6.11+ on Python 3.11 | Install PySide6 6.6.x (`pip install "PySide6>=6.6,<6.7"`) |
+| EXE is 2.5 MB (too small) | `.spec` is in one-folder mode (COLLECT) | Remove COLLECT, EXE must include `a.binaries, a.zipfiles, a.datas` |
+| `PERFORMANCE_DEBUG = True` causes excessive I/O | Set to `False` in `utils/instrumentation.py:4` |
+| App crashes writing logs to `Program Files` | `LOGS_DIR` resolves to wrong path | Check `config.py:LOGS_DIR` — must use `data_root()` → `%LOCALAPPDATA%\CentralGestao\logs\` when bundled |
+| App doesn't start, no visible window | Boot instrumentation helps debug | Check `%LOCALAPPDATA%\CentralGestao\logs\boot.log` for last successful step |
+
+### Build architecture
+- **Spec**: `CentralDeGestao.spec` at project root — `console=False`, `icon='app.ico'`, one-file mode
+- **Boot log**: Written to `%LOCALAPPDATA%\CentralGestao\logs\boot.log` with timestamps per step
+- **Data dir**: `%LOCALAPPDATA%\CentralGestao\` (DB, config, logs, backups, attachments)
+- **No __file__ in log paths**: All paths use `utils.paths.data_root()` which returns `%LOCALAPPDATA%/CentralGestao` when bundled
+- **Single process**: Only `subprocess.Popen(["explorer", ...])` allowed (open files in Windows Explorer)
+- **Boot instrumentation in main.py**: Reports `início do main`, `configurações carregadas`, `migrations/banco executados`, `QApplication criada`, `MainWindow instanciada`, `MainWindow.show() chamado`, `app.exec() iniciado`
+- **showEvent/paintEvent in main_window_qt.py**: Confirms window is actually visible and painted
+
 ## Relevant Files
 - `gui/views/wiki_qt.py`: Formatting toolbar, title_edit auto-selection, archived toggle, delete‑with‑reference‑check, all‑attachments lookup, `_confirm_save_before_leave` (Salvar/Descartar only, no autosave), `_set_read_mode`/`_set_edit_mode` toolbar toggle, `_restore_page`
 - `gui/dialogs_qt/reference_warning_dialog_qt.py`: Dialog with yellow triangle, reference list, three action buttons (Arquivar, Excluir tudo, Cancelar), `show_archive` parameter

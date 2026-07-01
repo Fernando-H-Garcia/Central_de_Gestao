@@ -4,9 +4,10 @@ from PySide6.QtWidgets import (
     QGridLayout, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
     QInputDialog, QMessageBox, QMenu, QTreeWidget, QTreeWidgetItem, QTextBrowser
 )
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, Signal, QTimer, QEvent
+from PySide6.QtWidgets import QScrollBar
 from PySide6.QtWidgets import QSizePolicy
-from gui.theme import get_status_color, get_energy_color, format_colored_label
+from gui.theme import get_status_color, get_energy_color, format_colored_label, format_status, get_archived_color
 from PySide6.QtGui import QColor, QBrush, QAction
 from services.task_service import TaskService
 from services.event_service import EventService
@@ -25,14 +26,20 @@ class TaskDetailQt(QWidget):
         self.task = self.service.task_repo.get_by_id(task_id)
         if not self.task:
             return
-            
-        self.setup_ui()
-        self.load_data()
+        self._first_show = True
 
-        from PySide6.QtCore import QTimer
+        self.setup_ui()
+
         self._alarm_timer = QTimer(self)
         self._alarm_timer.timeout.connect(self.load_agenda)
         self._alarm_timer.start(30000)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if self._first_show:
+            self._first_show = False
+            self.load_data()
+            QTimer.singleShot(50, self._adjust_all_rows)
 
     def edit_task(self):
         from gui.dialogs_qt.task_dialog_qt import TaskDialogQt
@@ -118,8 +125,10 @@ class TaskDetailQt(QWidget):
         
         grid = QGridLayout()
         grid.addWidget(QLabel("Status:"), 0, 0)
-        lbl_status = QLabel(self.task.status)
-        lbl_status.setStyleSheet(f"color: {get_status_color(self.task.status)}; font-weight: bold;")
+        ts = format_status(self.task.status, getattr(self.task, 'is_archived', False))
+        sc = get_archived_color() if getattr(self.task, 'is_archived', False) else get_status_color(self.task.status)
+        lbl_status = QLabel(ts)
+        lbl_status.setStyleSheet(f"color: {sc}; font-weight: bold;")
         grid.addWidget(lbl_status, 0, 1)
         
         grid.addWidget(QLabel("Prioridade:"), 1, 0)
@@ -177,6 +186,7 @@ class TaskDetailQt(QWidget):
         self.tbl_logs.setEditTriggers(QTableWidget.NoEditTriggers)
         self.tbl_logs.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tbl_logs.customContextMenuRequested.connect(self.show_logs_context_menu)
+        self.tbl_logs.horizontalHeader().sectionResized.connect(lambda: QTimer.singleShot(0, self._adjust_all_rows))
         layout.addWidget(self.tbl_logs)
         
     def get_activity_text(self, title, default_text=""):
@@ -250,16 +260,28 @@ class TaskDetailQt(QWidget):
             repo.delete(log_id)
             self.load_data()
 
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Wheel and isinstance(obj, QScrollBar):
+            return True
+        return super().eventFilter(obj, event)
+
+    def _adjust_all_rows(self):
+        for row in range(self.tbl_logs.rowCount()):
+            tb = self.tbl_logs.cellWidget(row, 2)
+            if tb:
+                self._adjust_log_row(row, tb)
+
     def _adjust_log_row(self, row, tb):
-        from PySide6.QtWidgets import QApplication
-        QApplication.processEvents()
+        vw = self.tbl_logs.viewport().width()
+        c0 = self.tbl_logs.columnWidth(0)
+        c1 = self.tbl_logs.columnWidth(1)
+        c2 = vw - c0 - c1 - 8
+        if c2 < 100:
+            c2 = 400
         tb.document().setDocumentMargin(3)
-        w = tb.viewport().width() - 6
-        if w < 50:
-            w = 400
-        tb.document().setTextWidth(w)
+        tb.document().setTextWidth(c2 - 6)
         h = tb.document().size().height()
-        self.tbl_logs.setRowHeight(row, max(int(h) + 10, 30))
+        self.tbl_logs.setRowHeight(row, max(int(h) + 16, 36))
 
     def _on_activity_link_clicked(self, url):
         scheme = url.scheme()
@@ -414,10 +436,11 @@ class TaskDetailQt(QWidget):
             tb.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
             tb.setStyleSheet("background: transparent; border: none; padding: 0px; margin: 0px;")
             tb.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            tb.verticalScrollBar().installEventFilter(self)
             self.tbl_logs.setCellWidget(i, 2, tb)
-            QTimer.singleShot(0, lambda r=i, t=tb: self._adjust_log_row(r, t))
-            
+
         self.load_agenda()
+        QTimer.singleShot(0, self._adjust_all_rows)
 
     def setup_agenda_tab(self):
         layout = QVBoxLayout(self.tab_agenda)

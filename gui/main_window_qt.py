@@ -224,7 +224,9 @@ class MainWindow(QMainWindow):
     def show_project_360(self, project_id, origin_widget=None):
         from gui.views.project_360_qt import Project360Qt
         
-        self._nav_history.append(self.stacked_widget.currentWidget())
+        current = self.stacked_widget.currentWidget()
+        if not isinstance(current, Project360Qt):
+            self._nav_history.append(current)
         
         # Deselect sidebar buttons since we are in a sub-view
         self.btn_group.setExclusive(False)
@@ -248,7 +250,9 @@ class MainWindow(QMainWindow):
     def show_task_detail(self, task_id, origin_widget=None):
         from gui.views.task_detail_qt import TaskDetailQt
         
-        self._nav_history.append(self.stacked_widget.currentWidget())
+        current = self.stacked_widget.currentWidget()
+        if not isinstance(current, TaskDetailQt):
+            self._nav_history.append(current)
         
         # Deselect sidebar buttons since we are in a sub-view
         self.btn_group.setExclusive(False)
@@ -273,7 +277,10 @@ class MainWindow(QMainWindow):
     def _navigate_back(self):
         while self._nav_history:
             prev_widget = self._nav_history.pop()
-            idx = self.stacked_widget.indexOf(prev_widget)
+            try:
+                idx = self.stacked_widget.indexOf(prev_widget)
+            except RuntimeError:
+                continue  # widget was deleted, skip
             if idx >= 0:
                 self.stacked_widget.setCurrentIndex(idx)
                 if idx < 5:

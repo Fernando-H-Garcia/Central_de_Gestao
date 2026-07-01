@@ -7,7 +7,7 @@ from gui.components.drag_drop_table_qt import DragDropTableWidget
 from services.task_service import TaskService
 from services.project_service import ProjectService
 
-from gui.theme import get_status_color, get_energy_color
+from gui.theme import get_status_color, get_energy_color, format_status
 
 
 class TasksQt(QWidget):
@@ -329,7 +329,7 @@ class TasksQt(QWidget):
             
             self.table.setItem(row, 1, QTableWidgetItem(t.title))
             
-            item_status = QTableWidgetItem(t.status)
+            item_status = QTableWidgetItem(format_status(t.status, t.is_archived))
             item_status.setTextAlignment(Qt.AlignCenter)
             self.table.setItem(row, 2, item_status)
             

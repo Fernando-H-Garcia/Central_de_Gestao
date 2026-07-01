@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, Signal, QSettings
 
 from gui.components.drag_drop_table_qt import DragDropTableWidget
 from services.project_service import ProjectService
-from gui.theme import get_status_color, get_energy_color, format_colored_label
+from gui.theme import get_status_color, get_energy_color, format_colored_label, format_status, get_archived_color
 from services.task_service import TaskService
 from services.event_service import EventService
 from services.alert_service import AlertService
@@ -392,7 +392,10 @@ class Project360Qt(QWidget):
             
         self.lbl_title.setText(f"Projeto: {self.project.name}")
         self.lbl_obj.setText(f"Objetivo: {self.project.objective or '—'}")
-        self.lbl_status.setText(format_colored_label("Status:", self.project.status, get_status_color))
+        archived = getattr(self.project, 'is_archived', False)
+        proj_status = format_status(self.project.status, archived)
+        proj_color = get_archived_color() if archived else get_status_color(self.project.status)
+        self.lbl_status.setText(f'Status: <span style="color: {proj_color}; font-weight: bold;">{proj_status}</span>')
         self.lbl_prio.setText(format_colored_label("Prioridade:", self.project.priority, get_energy_color))
         due = "-"
         if self.project.due_date:
@@ -492,7 +495,7 @@ class Project360Qt(QWidget):
             
             self.tbl_tasks.setItem(row, 1, QTableWidgetItem(t.title))
             
-            status_item = QTableWidgetItem(t.status)
+            status_item = QTableWidgetItem(format_status(t.status, getattr(t, 'is_archived', False)))
             status_item.setTextAlignment(Qt.AlignCenter)
             self.tbl_tasks.setItem(row, 2, status_item)
             

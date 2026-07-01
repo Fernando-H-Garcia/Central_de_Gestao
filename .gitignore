@@ -27,6 +27,7 @@ Thumbs.db
 # Environment
 .env
 .venv
+venv_build/
 
 # Runtime artifacts
 VC_redist.x64.exe

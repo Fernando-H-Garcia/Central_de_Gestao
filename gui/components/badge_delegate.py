@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QStyledItemDelegate
 from PySide6.QtCore import Qt, QRect, QSize
 from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QFont
-from gui.theme import get_status_color, get_energy_color, RADIUS_SM, TEXT_PRIMARY, FONT_CAPTION
+from gui.theme import get_status_color, get_energy_color, get_archived_color, RADIUS_SM, TEXT_PRIMARY, FONT_CAPTION
 
 
 class BadgeDelegate(QStyledItemDelegate):
@@ -15,7 +15,10 @@ class BadgeDelegate(QStyledItemDelegate):
 
         text = index.data(Qt.DisplayRole) or ""
 
-        color = get_status_color(text) if self._mode == "status" else get_energy_color(text)
+        if text == "ARQUIVADO":
+            color = get_archived_color()
+        else:
+            color = get_status_color(text) if self._mode == "status" else get_energy_color(text)
 
         bg_color = QColor(color)
         bg_color.setAlpha(50)

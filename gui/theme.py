@@ -443,6 +443,16 @@ def format_colored_label(prefix: str, value: str, color_func) -> str:
     return f'{prefix} <span style="color: {color}; font-weight: bold;">{value}</span>'
 
 
+def format_status(status: str, is_archived: bool = False) -> str:
+    if is_archived:
+        return "ARQUIVADO"
+    return status
+
+
+def get_archived_color() -> str:
+    return TEXT_DISABLED
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # CALENDAR HELPERS
 # ═══════════════════════════════════════════════════════════════════════

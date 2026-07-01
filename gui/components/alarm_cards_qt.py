@@ -1,9 +1,9 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QScrollArea, QFrame, QMessageBox
+    QScrollArea, QFrame, QMessageBox, QMenu
 )
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QAction
 from gui.theme import (
     BG_CARD, BG_HOVER, BG_SECONDARY, TEXT_PRIMARY, TEXT_SECONDARY, TEXT_BODY, TEXT_DISABLED,
     ACCENT_BLUE, SUCCESS_GREEN, WARNING_ORANGE, ERROR_RED,
@@ -36,13 +36,14 @@ PRIORITY_EMOJIS = {
 }
 
 class AlarmCard(QFrame):
-    def __init__(self, alarm, task_name, project_name, on_edit, on_delete, parent=None):
+    def __init__(self, alarm, task_name, project_name, on_edit, on_delete, on_open_entity=None, parent=None):
         super().__init__(parent)
         self.alarm = alarm
         self.task_name = task_name
         self.project_name = project_name
         self.on_edit = on_edit
         self.on_delete = on_delete
+        self.on_open_entity = on_open_entity
         
         self.setFrameShape(QFrame.StyledPanel)
         self.setObjectName("alarm_card")
@@ -57,7 +58,34 @@ class AlarmCard(QFrame):
                 border: 1px solid {ACCENT_BLUE};
             }}
         """)
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
         self._build()
+
+    def _show_context_menu(self, pos):
+        menu = QMenu(self)
+        menu.setStyleSheet("QMenu { background-color: #1c1c2e; color: white; border: 1px solid #2a2a3f; } QMenu::item:selected { background-color: #2d2d55; }")
+
+        if self.alarm.entity_type == "task" and self.task_name:
+            open_task_action = QAction("📋 Abrir Tarefa", self)
+            open_task_action.triggered.connect(lambda: self.on_open_entity(self.alarm.id))
+            menu.addAction(open_task_action)
+        elif self.alarm.entity_type == "project" and self.project_name:
+            open_proj_action = QAction("🗂️ Abrir Projeto", self)
+            open_proj_action.triggered.connect(lambda: self.on_open_entity(self.alarm.id))
+            menu.addAction(open_proj_action)
+
+        edit_action = QAction("✏️ Editar", self)
+        edit_action.triggered.connect(lambda: self.on_edit(self.alarm.id))
+        menu.addAction(edit_action)
+
+        menu.addSeparator()
+
+        del_action = QAction("🗑️ Excluir", self)
+        del_action.triggered.connect(lambda: self.on_delete(self.alarm.id))
+        menu.addAction(del_action)
+
+        menu.exec_(self.mapToGlobal(pos))
 
     def apply_dimmed(self):
         self.setStyleSheet(f"""
@@ -80,6 +108,10 @@ class AlarmCard(QFrame):
         layout.setContentsMargins(14, 10, 14, 10)
         layout.setSpacing(6)
 
+        def _prevent(btn):
+            btn.setContextMenuPolicy(Qt.NoContextMenu)
+            return btn
+
         # Top row: priority badge + title
         top = QHBoxLayout()
         top.setSpacing(8)
@@ -88,7 +120,7 @@ class AlarmCard(QFrame):
         color = PRIORITY_COLORS.get(self.alarm.priority, SUCCESS_GREEN)
         emoji = PRIORITY_EMOJIS.get(self.alarm.priority, "🟡")
         
-        badge = QLabel(f"{emoji} {label_pt}")
+        badge = _prevent(QLabel(f"{emoji} {label_pt}"))
         badge.setStyleSheet(f"""
             background-color: {color};
             color: white;
@@ -101,7 +133,7 @@ class AlarmCard(QFrame):
         top.addWidget(badge)
         top.addStretch()
 
-        lbl_title = QLabel(self.alarm.title)
+        lbl_title = _prevent(QLabel(self.alarm.title))
         font = QFont()
         font.setPointSize(FONT_BODY_LG)
         font.setBold(True)
@@ -113,7 +145,7 @@ class AlarmCard(QFrame):
 
         # Description
         if self.alarm.description:
-            lbl_desc = QLabel(self.alarm.description)
+            lbl_desc = _prevent(QLabel(self.alarm.description))
             lbl_desc.setWordWrap(True)
             lbl_desc.setStyleSheet(f"color: {TEXT_BODY}; font-size: {FONT_BODY}px;")
             layout.addWidget(lbl_desc)
@@ -123,12 +155,12 @@ class AlarmCard(QFrame):
         meta.setSpacing(12)
         
         if self.project_name:
-            lbl_proj = QLabel(f"📁 {self.project_name}")
+            lbl_proj = _prevent(QLabel(f"📁 {self.project_name}"))
             lbl_proj.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: {FONT_CAPTION}px;")
             meta.addWidget(lbl_proj)
         
         if self.task_name:
-            lbl_task = QLabel(f"📋 {self.task_name}")
+            lbl_task = _prevent(QLabel(f"📋 {self.task_name}"))
             lbl_task.setStyleSheet(f"color: {TEXT_SECONDARY}; font-size: {FONT_CAPTION}px;")
             meta.addWidget(lbl_task)
         
@@ -143,7 +175,7 @@ class AlarmCard(QFrame):
         except Exception:
             pass
         hora = f" às {self.alarm.alert_time}" if self.alarm.alert_time else ""
-        lbl_date = QLabel(f"🗓 {date_display}{hora}")
+        lbl_date = _prevent(QLabel(f"🗓 {date_display}{hora}"))
         lbl_date.setStyleSheet(f"color: {ACCENT_BLUE}; font-size: {FONT_CAPTION}px; font-weight: bold;")
         meta.addWidget(lbl_date)
         
@@ -154,7 +186,7 @@ class AlarmCard(QFrame):
         btn_row.setSpacing(8)
         btn_row.addStretch()
         
-        btn_edit = QPushButton("✏️ Editar")
+        btn_edit = _prevent(QPushButton("✏️ Editar"))
         btn_edit.setObjectName("secondary")
         btn_edit.setMinimumHeight(32)
         btn_edit.setStyleSheet(f"""
@@ -179,7 +211,7 @@ class AlarmCard(QFrame):
         btn_edit.clicked.connect(lambda: self.on_edit(self.alarm.id))
         btn_row.addWidget(btn_edit)
 
-        btn_delete = QPushButton("🗑️ Excluir")
+        btn_delete = _prevent(QPushButton("🗑️ Excluir"))
         btn_delete.setObjectName("danger")
         btn_delete.setMinimumHeight(32)
         btn_delete.setStyleSheet(f"""
@@ -416,6 +448,7 @@ class AlarmCardsWidget(QWidget):
             project_name=project_name,
             on_edit=self._open_edit,
             on_delete=self._delete_alarm,
+            on_open_entity=self._open_entity,
             parent=self.container
         )
 
@@ -450,12 +483,15 @@ class AlarmCardsWidget(QWidget):
         alarm = self.alert_service.get_alert(alarm_id)
         if not alarm:
             return
+        main_win = self.window()
+        if not main_win:
+            return
         if alarm.entity_type == "task":
-            if self.main_window and hasattr(self.main_window, "show_task_detail"):
-                self.main_window.show_task_detail(alarm.entity_id, self)
+            if hasattr(main_win, "show_task_detail"):
+                main_win.show_task_detail(alarm.entity_id, self)
         elif alarm.entity_type == "project":
-            if self.main_window and hasattr(self.main_window, "show_project_360"):
-                self.main_window.show_project_360(alarm.entity_id, self)
+            if hasattr(main_win, "show_project_360"):
+                main_win.show_project_360(alarm.entity_id, self)
 
     def _reload_parent(self):
         p = self.parent()
