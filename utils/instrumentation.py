@@ -1,10 +1,10 @@
 import os
 import time
 from collections import defaultdict
-
 PERFORMANCE_DEBUG = True
 
-LOG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs", "instrumentation_log.txt")
+from config import LOGS_DIR
+LOG_PATH = os.path.join(LOGS_DIR, "instrumentation_log.txt")
 
 class PerfTracker:
     timings = defaultdict(list)          # category -> [duration_sec, ...]
