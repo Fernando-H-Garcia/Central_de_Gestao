@@ -3,9 +3,7 @@
 import os
 import sys
 
-# Determinado pelo script de build via --distpath/--workpath
 PROJECT_ROOT = os.getcwd()
-
 MAIN = os.path.join(PROJECT_ROOT, "main.py")
 
 
@@ -37,21 +35,13 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
-    exclude_binaries=True,
     name="CentralDeGestao",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    name="CentralDeGestao",
+    console=False,
 )

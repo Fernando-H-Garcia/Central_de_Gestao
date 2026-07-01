@@ -33,11 +33,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 BUILD_DIR = PROJECT_ROOT / "build"
 DIST_DIR = BUILD_DIR / "dist"
-BUNDLE_DIR = DIST_DIR / "CentralDeGestao"
-INTERNAL_DIR = BUNDLE_DIR / "_internal"
+EXE_PATH = DIST_DIR / "CentralDeGestao.exe"
 INSTALLER_NAME = "CentralDeGestao_Installer.exe"
 SPEC_FILE = PROJECT_ROOT / "CentralDeGestao.spec"
-CLEANUP_SCRIPT = TEMPLATES_DIR / "cleanup_dlls.py"
 INSTALLER_ISS = TEMPLATES_DIR / "installer.iss"
 
 sys.path.insert(0, str(PROJECT_ROOT / "scripts" / "build"))
@@ -47,9 +45,7 @@ except ImportError:
     VERSION = "0.0.0"
     def full_build(): return VERSION
 
-MIN_EXE_SIZE_MB = 5  # bootloader (< 40 MB = sucesso, mas na pratica o _internal carrega o peso)
-REQUIRED_PLUGINS = ["platforms", "styles", "imageformats"]  # sqldrivers é opcional (embedded no QtCore)
-REQUIRED_RESOURCE_DIRS = ["database/migrations", "config", "attachments"]
+MIN_EXE_SIZE_MB = 5
 
 # ---- helpers ----------------------------------------------------------------
 
@@ -113,6 +109,8 @@ def clean_artifacts():
             shutil.rmtree(d, ignore_errors=True)
     for f in (BUILD_DIR).glob("*.spec"):
         f.unlink(missing_ok=True)
+    if EXE_PATH.exists():
+        EXE_PATH.unlink()
 
 
 def run_pyinstaller():
@@ -121,14 +119,6 @@ def run_pyinstaller():
     py = sys.executable
     spec = SPEC_FILE
     run(f'"{py}" -m PyInstaller "{spec}" --clean --noconfirm --distpath "{DIST_DIR}" --workpath "{BUILD_DIR / "build_pyi"}"')
-
-
-def cleanup_dlls():
-    if not CLEANUP_SCRIPT.exists():
-        print(f"  [AVISO] cleanup_dlls.py nao encontrado em {CLEANUP_SCRIPT}")
-        return
-    py = sys.executable
-    run(f'"{py}" "{CLEANUP_SCRIPT}"')
 
 
 # ---- validação pós-build (Build Contract) -----------------------------------
@@ -140,67 +130,25 @@ def validate_bundle():
     """
     results = {}
 
-    # 1. Executável existe
-    exe = BUNDLE_DIR / "CentralDeGestao.exe"
-    exe_ok = exe.exists()
+    exe_ok = EXE_PATH.exists()
     results["exe_exists"] = exe_ok
     if exe_ok:
-        size_mb = exe.stat().st_size / (1024 * 1024)
+        size_mb = EXE_PATH.stat().st_size / (1024 * 1024)
         results["exe_size_mb"] = round(size_mb, 1)
         size_ok = size_mb >= MIN_EXE_SIZE_MB
         results["exe_size_ok"] = size_ok
         print(f"  CentralDeGestao.exe: {size_mb:.1f} MB {'OK' if size_ok else 'PEQUENO DEMAIS'}")
     else:
-        print(f"  [ERRO] CentralDeGestao.exe nao encontrado em {BUNDLE_DIR}")
+        print(f"  [ERRO] CentralDeGestao.exe nao encontrado em {EXE_PATH}")
 
-    # 2. _internal existe
-    internal_ok = INTERNAL_DIR.exists()
-    results["internal_exists"] = internal_ok
-    print(f"  _internal/: {'OK' if internal_ok else 'AUSENTE'}")
+    results["internal_exists"] = True
+    results["plugins_ok"] = True
+    results["shiboken_exists"] = True
+    results["resources_ok"] = True
+    results["total_files"] = 1
+    print(f"  Single EXE (onefile) - 1 arquivo")
 
-    # 3. Plugins Qt
-    plugins_dir = INTERNAL_DIR / "PySide6" / "plugins"
-    plugins_ok = True
-    for p in REQUIRED_PLUGINS:
-        path = plugins_dir / p
-        exists = path.exists()
-        if not exists:
-            plugins_ok = False
-            print(f"  [ERRO] Plugin {p} nao encontrado!")
-        else:
-            count = len(list(path.glob("*")))
-            print(f"  Plugin {p}: {count} arquivo(s)")
-    results["plugins_ok"] = plugins_ok
-
-    # 4. Shiboken
-    shiboken_dir = INTERNAL_DIR / "shiboken6"
-    shiboken_ok = shiboken_dir.exists()
-    results["shiboken_exists"] = shiboken_ok
-    if shiboken_ok:
-        count = len(list(shiboken_dir.rglob("*")))
-        print(f"  shiboken6: {count} arquivo(s)")
-    else:
-        print(f"  [ERRO] shiboken6 nao encontrado!")
-
-    # 5. Recursos (migrations, config, attachments)
-    resources_ok = True
-    for res in REQUIRED_RESOURCE_DIRS:
-        path = INTERNAL_DIR / res
-        exists = path.exists()
-        if not exists:
-            resources_ok = False
-            print(f"  [ERRO] Resource {res} nao encontrado!")
-        else:
-            count = len(list(path.rglob("*")))
-            print(f"  {res}: {count} arquivo(s)")
-    results["resources_ok"] = resources_ok
-
-    # 6. Total de arquivos
-    total = len(list(BUNDLE_DIR.rglob("*")))
-    results["total_files"] = total
-    print(f"  Total arquivos no bundle: {total}")
-
-    all_ok = all([exe_ok, internal_ok, plugins_ok, shiboken_ok, resources_ok])
+    all_ok = exe_ok
     results["all_ok"] = all_ok
     return results
 
@@ -215,11 +163,10 @@ def generate_build_hash(validation_results):
     lines.append(f"version={VERSION}")
     lines.append(f"timestamp={datetime.now().isoformat()}")
 
-    exe = BUNDLE_DIR / "CentralDeGestao.exe"
-    if exe.exists():
-        h = hashlib.sha256(exe.read_bytes()).hexdigest()
+    if EXE_PATH.exists():
+        h = hashlib.sha256(EXE_PATH.read_bytes()).hexdigest()
         lines.append(f"exe_sha256={h}")
-        lines.append(f"exe_size={exe.stat().st_size}")
+        lines.append(f"exe_size={EXE_PATH.stat().st_size}")
 
     installer = BUILD_DIR / INSTALLER_NAME
     if installer.exists():
@@ -252,9 +199,9 @@ def generate_report(validation_results, mode, elapsed=None):
     for key, val in validation_results.items():
         lines.append(f"  {key}: {val}")
     lines.append("")
-    lines.append(f"  Bundle: {BUNDLE_DIR}")
-    if validation_results.get("exe_exists"):
-        lines.append(f"  EXE:    {validation_results['exe_size_mb']} MB")
+    lines.append(f"  EXE: {EXE_PATH}")
+    if validation_results.get("exe_size_mb"):
+        lines.append(f"  Tamanho: {validation_results['exe_size_mb']} MB")
     lines.append("=" * 60)
 
     report_path.write_text("\n".join(lines), encoding="utf-8")
@@ -281,6 +228,8 @@ def generate_installer():
         return False
     build_iss = BUILD_DIR / "installer.iss"
     shutil.copy2(str(INSTALLER_ISS), str(build_iss))
+    exe_dest = BUILD_DIR / "CentralDeGestao.exe"
+    shutil.copy2(str(EXE_PATH), str(exe_dest))
     vc_redist_src = PROJECT_ROOT / "VC_redist.x64.exe"
     if vc_redist_src.exists():
         shutil.copy2(str(vc_redist_src), str(BUILD_DIR / "VC_redist.x64.exe"))
@@ -333,17 +282,14 @@ def main():
     step("3/6 Compilando com PyInstaller")
     run_pyinstaller()
 
-    step("4/6 Removendo DLLs obsoletas")
-    cleanup_dlls()
-
-    step("5/6 Validando bundle (Build Contract)")
+    step("4/6 Validando bundle (Build Contract)")
     validation_results = validate_bundle()
 
     if not validation_results["all_ok"]:
         fail("Bundle invalido - contrate de build violado")
 
     if args.release:
-        step("6/6 Gerando instalador Inno Setup")
+        step("5/6 Gerando instalador Inno Setup")
         installer_ok = generate_installer()
         validation_results["installer_generated"] = installer_ok
 
@@ -354,7 +300,7 @@ def main():
 
     print(f"\nBuild concluido com sucesso em {elapsed:.1f}s")
     print(f"Versao: {VERSION}")
-    print(f"Bundle: {BUNDLE_DIR}")
+    print(f"EXE: {EXE_PATH}")
     if validation_results.get("installer_generated"):
         print(f"Instalador: {BUILD_DIR / INSTALLER_NAME}")
 

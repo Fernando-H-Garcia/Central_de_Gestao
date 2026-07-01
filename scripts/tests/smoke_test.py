@@ -27,7 +27,7 @@ import argparse
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_EXE = PROJECT_ROOT / "build" / "dist" / "CentralDeGestao" / "CentralDeGestao.exe"
+DEFAULT_EXE = PROJECT_ROOT / "build" / "dist" / "CentralDeGestao.exe"
 TIMEOUT = 15
 LOCALAPPDATA = Path.home() / "AppData" / "Local" / "CentralGestao"
 
@@ -76,7 +76,7 @@ def module_core():
 
 def module_banco():
     """SQLite conecta e migrations existem."""
-    db = LOCALAPPDATA / "brain.db"
+    db = LOCALAPPDATA / "database" / "novo_cerebro.db"
     if not db.exists():
         # Tenta o seed DB
         db = PROJECT_ROOT / "database" / "novo_cerebro.db"

@@ -26,12 +26,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_INSTALLER = PROJECT_ROOT / "build" / "CentralDeGestao_Installer.exe"
 MIN_SIZE_MB = 50
 
-# Estrutura esperada dentro do instalador
+# Estrutura esperada dentro do instalador (onefile)
 EXPECTED_INTERNAL = [
     "CentralDeGestao.exe",
-    "_internal/PySide6/plugins/platforms/qwindows.dll",
-    "_internal/PySide6/plugins/sqldrivers/qsqlite.dll",
-    "_internal/shiboken6/shiboken6.abi3.dll",
 ]
 
 

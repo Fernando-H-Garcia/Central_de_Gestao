@@ -1,4 +1,4 @@
-; Central de Gestao — Inno Setup Installer
+; Central de Gestao — Inno Setup Installer (Single-File Mode)
 ; Versao injetada via /DMyAppVersion=<versao>
 
 #define MyAppName "Central de Gestao"
@@ -28,10 +28,10 @@ Name: "portuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
 Name: "desktopicon"; Description: "Criar atalho na &Area de Trabalho"; GroupDescription: "Atalhos:"; Flags: checkedonce
 
 [Files]
-Source: "dist\CentralDeGestao\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; VC++ Redist (opcional — só inclui se o arquivo existir)
+Source: "CentralDeGestao.exe"; DestDir: "{app}"; Flags: ignoreversion
+; VC++ Redist (opcional)
 #if FileExists("VC_redist.x64.exe")
-Source: "VC_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: not IsWin64
+Source: "VC_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: IsWin64
 #endif
 
 [Dirs]

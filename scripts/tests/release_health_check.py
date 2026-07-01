@@ -26,7 +26,7 @@ import json
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-DEFAULT_APP_DIR = PROJECT_ROOT / "build" / "dist" / "CentralDeGestao"
+DEFAULT_APP_DIR = PROJECT_ROOT / "build" / "dist"
 LOCALAPPDATA = Path.home() / "AppData" / "Local" / "CentralGestao"
 
 HEALTH = {"status": "unknown", "checks": {}}
@@ -62,7 +62,7 @@ def main():
     check("executavel", exe.exists(), str(exe) if exe.exists() else "AUSENTE")
 
     step("2. Banco SQLite")
-    db = LOCALAPPDATA / "brain.db"
+    db = LOCALAPPDATA / "database" / "novo_cerebro.db"
     db_ok = db.exists()
     if db_ok:
         try:
