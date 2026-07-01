@@ -53,9 +53,12 @@ def _run(cmd, cwd=None, capture=False):
 
 
 def _run_py(script_path, *args):
-    cmd = f"{sys.executable} {script_path}"
-    if args:
-        cmd += " " + " ".join(str(a) for a in args)
+    py = str(sys.executable)
+    sp = str(script_path)
+    cmd = f'"{py}" "{sp}"'
+    for a in args:
+        if a:
+            cmd += f" {a}"
     return _run(cmd)
 
 

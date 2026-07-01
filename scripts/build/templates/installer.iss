@@ -29,8 +29,10 @@ Name: "desktopicon"; Description: "Criar atalho na &Area de Trabalho"; GroupDesc
 
 [Files]
 Source: "dist\CentralDeGestao\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
-; VC++ Redist (se disponivel)
+; VC++ Redist (opcional — só inclui se o arquivo existir)
+#if FileExists("VC_redist.x64.exe")
 Source: "VC_redist.x64.exe"; DestDir: "{tmp}"; Flags: deleteafterinstall; Check: not IsWin64
+#endif
 
 [Dirs]
 Name: "{localappdata}\CentralGestao"; Permissions: users-modify

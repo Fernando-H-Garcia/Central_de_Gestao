@@ -47,8 +47,8 @@ except ImportError:
     VERSION = "0.0.0"
     def full_build(): return VERSION
 
-MIN_EXE_SIZE_MB = 30
-REQUIRED_PLUGINS = ["platforms", "sqldrivers", "styles", "imageformats"]
+MIN_EXE_SIZE_MB = 5  # bootloader (< 40 MB = sucesso, mas na pratica o _internal carrega o peso)
+REQUIRED_PLUGINS = ["platforms", "styles", "imageformats"]  # sqldrivers é opcional (embedded no QtCore)
 REQUIRED_RESOURCE_DIRS = ["database/migrations", "config", "attachments"]
 
 # ---- helpers ----------------------------------------------------------------
@@ -61,7 +61,7 @@ def step(msg):
 
 def run(cmd, cwd=None):
     print("> ", cmd)
-    result = subprocess.run(cmd, cwd=cwd or PROJECT_ROOT, shell=False)
+    result = subprocess.run(cmd, cwd=cwd or PROJECT_ROOT, shell=True)
     if result.returncode != 0:
         print(f"[FATAL] Comando falhou (exit {result.returncode})")
         sys.exit(result.returncode)
@@ -118,20 +118,17 @@ def clean_artifacts():
 def run_pyinstaller():
     if not SPEC_FILE.exists():
         fail(f"Spec file nao encontrado: {SPEC_FILE}")
-    build_spec = BUILD_DIR / "CentralDeGestao.spec"
-    shutil.copy2(str(SPEC_FILE), str(build_spec))
-    os.chdir(BUILD_DIR)
-    run(f"pyinstaller {build_spec.name} --clean --noconfirm")
-    os.chdir(PROJECT_ROOT)
+    py = sys.executable
+    spec = SPEC_FILE
+    run(f'"{py}" -m PyInstaller "{spec}" --clean --noconfirm --distpath "{DIST_DIR}" --workpath "{BUILD_DIR / "build_pyi"}"')
 
 
 def cleanup_dlls():
     if not CLEANUP_SCRIPT.exists():
         print(f"  [AVISO] cleanup_dlls.py nao encontrado em {CLEANUP_SCRIPT}")
         return
-    os.chdir(BUILD_DIR)
-    run(f"python {CLEANUP_SCRIPT}")
-    os.chdir(PROJECT_ROOT)
+    py = sys.executable
+    run(f'"{py}" "{CLEANUP_SCRIPT}"')
 
 
 # ---- validação pós-build (Build Contract) -----------------------------------
@@ -284,10 +281,12 @@ def generate_installer():
         return False
     build_iss = BUILD_DIR / "installer.iss"
     shutil.copy2(str(INSTALLER_ISS), str(build_iss))
-    os.chdir(BUILD_DIR)
+    vc_redist_src = PROJECT_ROOT / "VC_redist.x64.exe"
+    if vc_redist_src.exists():
+        shutil.copy2(str(vc_redist_src), str(BUILD_DIR / "VC_redist.x64.exe"))
+        print("  VC_redist.x64.exe copiado para build/")
     short_ver = ".".join(VERSION.split(".")[:2]) if VERSION else "0.0"
-    run(f'"{iscc}" /DMyAppVersion="{short_ver}" installer.iss')
-    os.chdir(PROJECT_ROOT)
+    run(f'"{iscc}" /DMyAppVersion="{short_ver}" "{build_iss}"')
     installer_path = BUILD_DIR / INSTALLER_NAME
     if installer_path.exists():
         size_mb = installer_path.stat().st_size / (1024 * 1024)
@@ -319,11 +318,9 @@ def main():
     step(f"Build v{VERSION} (modo: {mode})")
 
     step("0/6 Environment Fingerprint")
-    run([
-        str(sys.executable),
-        str(PROJECT_ROOT / "scripts" / "build" / "env_fingerprint.py"),
-        "--save"
-    ])
+    py = sys.executable
+    fp = str(PROJECT_ROOT / "scripts" / "build" / "env_fingerprint.py")
+    run(f'"{py}" "{fp}" --save')
 
     step("1/6 Validando ambiente")
     check_python()

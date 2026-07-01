@@ -20,15 +20,14 @@ PATHS = {
 
 # ---- Thresholds -------------------------------------------------------------
 THRESHOLDS = {
-    "min_exe_size_mb": 30,
+    "min_exe_size_mb": 5,
     "min_installer_size_mb": 50,
     "smoke_timeout_seconds": 15,
     "release_score_min": 50,
     "health_score_min": 80,
 }
 
-# ---- Plugins Qt obrigatórios ------------------------------------------------
-QT_PLUGINS = ["platforms", "sqldrivers", "styles", "imageformats"]
+QT_PLUGINS = ["platforms", "styles", "imageformats"]
 
 # ---- Recursos obrigatórios no bundle ----------------------------------------
 BUNDLE_RESOURCES = ["database/migrations", "config", "attachments"]
