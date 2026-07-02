@@ -196,17 +196,21 @@ class LinkService:
         except Exception:
             pass
 
-        # 3. Ideas (only if parent project/task still exists)
+        # 3. Ideas (only if reachable via a living parent)
         try:
             alive_projects = {p.id for p in self.project_repo.get_all()}
             alive_tasks = {t.id for t in self.task_repo.get_all()}
             for idx in self.idea_repo.get_all():
                 if getattr(idx, "is_archived", False) or getattr(idx, "deleted_at", None) is not None:
                     continue
-                if idx.project_id and idx.project_id not in alive_projects:
-                    continue
-                if idx.task_id and idx.task_id not in alive_tasks:
-                    continue
+                if idx.project_id:
+                    if idx.project_id not in alive_projects:
+                        continue
+                elif idx.task_id:
+                    if idx.task_id not in alive_tasks:
+                        continue
+                else:
+                    continue  # standalone idea without parent — no UI to view it
                 candidates.append({"type": "idea", "id": idx.id, "title": idx.title})
         except Exception:
             pass
