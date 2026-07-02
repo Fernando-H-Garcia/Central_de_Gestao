@@ -223,7 +223,7 @@ class ActivitySummaryQt(QWidget):
                     cursor.execute("SELECT id, name FROM projects WHERE id = ?", (project_id,))
                     projetos = cursor.fetchall()
                 else:
-                    cursor.execute("SELECT id, name FROM projects WHERE deleted_at IS NULL ORDER BY name")
+                    cursor.execute("SELECT id, name FROM projects WHERE deleted_at IS NULL AND is_archived = 0 ORDER BY name")
                     projetos = cursor.fetchall()
 
                 has_any = False
@@ -236,7 +236,7 @@ class ActivitySummaryQt(QWidget):
                                al.id, al.action, al.changed_fields_json, al.created_at
                         FROM activity_logs al
                         JOIN tasks t ON t.id = al.entity_id AND al.entity_type = 'task'
-                        WHERE t.project_id = ? AND t.deleted_at IS NULL
+                        WHERE t.project_id = ? AND t.deleted_at IS NULL AND t.is_archived = 0
                         ORDER BY t.id, al.created_at DESC
                     """, (pid,))
                     rows = cursor.fetchall()
