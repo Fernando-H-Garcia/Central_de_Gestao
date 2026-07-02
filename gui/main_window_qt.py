@@ -84,6 +84,14 @@ class MainWindow(QMainWindow):
         elif e_type in ("wiki", "knowledge_page"):
             self.change_page(4)  # Switch to "Documentação" tab
             # WikiQt catches the same navigate_to event and opens the page
+        elif e_type == "idea":
+            from services.idea_service import IdeaService
+            idea = IdeaService().get_by_id(e_id)
+            if idea:
+                if idea.project_id:
+                    self.show_project_360(idea.project_id)
+                elif idea.task_id:
+                    self.show_task_detail(idea.task_id)
         
     def setup_ui(self):
         # Central widget and main layout
