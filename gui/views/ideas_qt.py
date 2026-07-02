@@ -250,46 +250,64 @@ class IdeasQt(QWidget):
         idea = self.table.item(item.row(), 0).data(Qt.UserRole)
         
         menu = QMenu(self)
-        
-        edit_action = QAction("✏️ Editar Ideia", self)
-        edit_action.triggered.connect(lambda: self.edit_idea(idea))
-        menu.addAction(edit_action)
-        
-        menu.addSeparator()
-        
-        promote_proj_action = QAction("🚀 Promover para Projeto", self)
-        promote_proj_action.triggered.connect(lambda: self.open_promote_project(idea))
-        menu.addAction(promote_proj_action)
-        
-        promote_task_action = QAction("📋 Promover para Tarefa", self)
-        promote_task_action.triggered.connect(lambda: self.open_promote_task(idea))
-        menu.addAction(promote_task_action)
-        
-        menu.addSeparator()
-        
-        from gui.theme import create_color_icon
-        
-        prio_menu = menu.addMenu("Alterar Prioridade")
-        for p in ["Baixa", "Média", "Alta", "Crítica"]:
-            action = QAction(p, self)
-            from gui.theme import get_energy_color
-            action.setIcon(create_color_icon(get_energy_color(p)))
-            action.triggered.connect(lambda ch, prio=p: self.change_priority(idea, prio))
-            prio_menu.addAction(action)
+        is_archived = getattr(idea, "is_archived", False)
+
+        if is_archived:
+            restore_action = QAction("♻️ Desarquivar", self)
+            restore_action.triggered.connect(lambda: self.restore_idea(idea))
+            menu.addAction(restore_action)
+
+            menu.addSeparator()
+
+            del_action = QAction("🗑️ Excluir", self)
+            del_action.triggered.connect(lambda: self.delete_idea(idea))
+            menu.addAction(del_action)
+        else:
+            edit_action = QAction("✏️ Editar Ideia", self)
+            edit_action.triggered.connect(lambda: self.edit_idea(idea))
+            menu.addAction(edit_action)
             
-        status_menu = menu.addMenu("Alterar Status")
-        for s in ["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"]:
-            action = QAction(s, self)
-            from gui.theme import get_status_color
-            action.setIcon(create_color_icon(get_status_color(s)))
-            action.triggered.connect(lambda ch, st=s: self.change_status(idea, st))
-            status_menu.addAction(action)
+            menu.addSeparator()
             
-        menu.addSeparator()
-        
-        del_action = QAction("🗑️ Excluir", self)
-        del_action.triggered.connect(lambda: self.delete_idea(idea))
-        menu.addAction(del_action)
+            promote_proj_action = QAction("🚀 Promover para Projeto", self)
+            promote_proj_action.triggered.connect(lambda: self.open_promote_project(idea))
+            menu.addAction(promote_proj_action)
+            
+            promote_task_action = QAction("📋 Promover para Tarefa", self)
+            promote_task_action.triggered.connect(lambda: self.open_promote_task(idea))
+            menu.addAction(promote_task_action)
+            
+            menu.addSeparator()
+            
+            from gui.theme import create_color_icon
+            
+            prio_menu = menu.addMenu("Alterar Prioridade")
+            for p in ["Baixa", "Média", "Alta", "Crítica"]:
+                action = QAction(p, self)
+                from gui.theme import get_energy_color
+                action.setIcon(create_color_icon(get_energy_color(p)))
+                action.triggered.connect(lambda ch, prio=p: self.change_priority(idea, prio))
+                prio_menu.addAction(action)
+                
+            status_menu = menu.addMenu("Alterar Status")
+            for s in ["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"]:
+                action = QAction(s, self)
+                from gui.theme import get_status_color
+                action.setIcon(create_color_icon(get_status_color(s)))
+                action.triggered.connect(lambda ch, st=s: self.change_status(idea, st))
+                status_menu.addAction(action)
+                
+            menu.addSeparator()
+
+            archive_action = QAction("📦 Arquivar", self)
+            archive_action.triggered.connect(lambda: self.archive_idea(idea))
+            menu.addAction(archive_action)
+
+            menu.addSeparator()
+            
+            del_action = QAction("🗑️ Excluir", self)
+            del_action.triggered.connect(lambda: self.delete_idea(idea))
+            menu.addAction(del_action)
         
         menu.exec_(self.table.viewport().mapToGlobal(pos))
         
@@ -307,6 +325,16 @@ class IdeasQt(QWidget):
         event_bus.emit("entity_updated")
         self.load_data()
         
+    def archive_idea(self, idea):
+        self.service.archive_idea(idea.id)
+        event_bus.emit("entity_updated")
+        self.load_data()
+
+    def restore_idea(self, idea):
+        self.service.idea_repo.restore(idea.id)
+        event_bus.emit("entity_updated")
+        self.load_data()
+
     def delete_idea(self, idea):
         reply = QMessageBox.question(self, "Confirmar", f"Tem certeza que deseja excluir '{idea.title}'?", QMessageBox.Yes | QMessageBox.No)
         if reply == QMessageBox.Yes:
