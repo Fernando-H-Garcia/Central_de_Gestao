@@ -41,14 +41,38 @@ class WikiTextEdit(QTextEdit):
             with get_db_cursor() as cursor:
                 cursor.execute("SELECT * FROM attachments WHERE deleted_at IS NULL ORDER BY created_at DESC")
                 rows = cursor.fetchall()
+
+            parent_cache = {}
+            def _parent_exists(etype, eid):
+                key = (etype, eid)
+                if key not in parent_cache:
+                    table_map = {
+                        "project": "projects",
+                        "task": "tasks",
+                        "idea": "ideas",
+                        "knowledge_page": "knowledge_pages",
+                        "note": "notes",
+                        "event": "events",
+                    }
+                    tbl = table_map.get(etype)
+                    if not tbl:
+                        parent_cache[key] = False
+                        return False
+                    with get_db_cursor() as cursor:
+                        cursor.execute(f"SELECT 1 FROM {tbl} WHERE id = ? AND deleted_at IS NULL", (eid,))
+                        parent_cache[key] = cursor.fetchone() is not None
+                return parent_cache[key]
+
             seen_uuids = set()
             for row in rows:
                 att = Attachment(**dict(row))
                 if att.uuid in seen_uuids:
                     continue
+                if not _parent_exists(att.entity_type, att.entity_id):
+                    continue
                 seen_uuids.add(att.uuid)
                 page_id = att.entity_id if att.entity_type == "knowledge_page" else None
-                location = f" (pg #{page_id})" if page_id else ""
+                location = f" (pg #{page_id})" if page_id else None
                 candidates.append({
                     "type": "file", "id": att.id,
                     "title": att.file_name, "uuid": att.uuid,
