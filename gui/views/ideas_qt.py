@@ -134,6 +134,7 @@ class IdeasQt(QWidget):
             
         if self.show_archived:
             ideas = self.service.idea_repo.get_all(include_archived=True, include_deleted=False)
+            ideas = [i for i in ideas if getattr(i, 'is_archived', False)]
         else:
             ideas = self.service.get_all_active()
             
