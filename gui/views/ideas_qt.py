@@ -92,6 +92,12 @@ class IdeasQt(QWidget):
         
     def open_idea_detail(self, item):
         idea = self.table.item(item.row(), 0).data(Qt.UserRole)
+        self._open_idea_dialog(idea)
+
+    def edit_idea(self, idea):
+        self._open_idea_dialog(idea)
+
+    def _open_idea_dialog(self, idea):
         from gui.dialogs_qt.idea_dialog_qt import IdeaDialogQt
         dialog = IdeaDialogQt(self, idea=idea, on_save=lambda data: self.handle_save(data, False, idea))
         dialog.exec()
