@@ -184,16 +184,50 @@
    .\venv_build\Scripts\python.exe -c "import PySide6; from PySide6 import QtCore; print(f'PySide6: {PySide6.__version__}, Qt: {QtCore.qVersion()}')"
    ```
 
-4. **Build EXE + Installer**:
+4. **Criar seed DB limpo** (substitui `database/novo_cerebro.db` por schema-only):
+   ```powershell
+   .\venv_build\Scripts\python.exe -c "
+   import sqlite3, os
+   from pathlib import Path
+   db = Path('database/seed_empty.db')
+   if db.exists(): db.unlink()
+   conn = sqlite3.connect(str(db))
+   conn.executescript('PRAGMA foreign_keys = ON;'); conn.commit()
+   for f in sorted(Path('database/migrations').glob('*.sql')):
+       if f.stem.split('_')[0].isdigit():
+           v = int(f.stem.split('_')[0])
+           sql = f.read_text(encoding='utf-8')
+           try:
+               conn.executescript(sql); conn.commit()
+               conn.execute('INSERT OR REPLACE INTO schema_version (version) VALUES (?)', (v,)); conn.commit()
+           except sqlite3.OperationalError as e:
+               if 'already exists' in str(e).lower() or 'duplicate column' in str(e).lower(): pass
+               else: raise
+   conn.close()
+   bak = Path('database/novo_cerebro.db.bak')
+   orig = Path('database/novo_cerebro.db')
+   if orig.exists(): orig.rename(bak)
+   db.rename(orig)
+   print(f'Seed limpo: {orig} ({os.path.getsize(orig)} bytes) | Backup: {bak}')
+   "
+   ```
+
+5. **Build EXE + Installer**:
    ```powershell
    .\venv_build\Scripts\python.exe scripts\build\build_release.py --release
    ```
 
-5. **Expected artifacts**:
+6. **Restaurar banco original** (remove seed, volta o backup):
+   ```powershell
+   Move-Item database\novo_cerebro.db.bak database\novo_cerebro.db -Force
+   Remove-Item database\seed_empty.db -ErrorAction SilentlyContinue
+   ```
+
+7. **Expected artifacts**:
    - `build\dist\CentralDeGestao.exe` — **~46 MB** (one-file mode, self-contained)
    - `build\CentralDeGestao_Installer.exe` — **~70 MB** (includes VC++ Redist)
 
-6. **Copy installer**:
+8. **Copy installer**:
    ```powershell
    Copy-Item build\CentralDeGestao_Installer.exe ..\Executaveis\ -Force
    ```

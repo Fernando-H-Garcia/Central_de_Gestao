@@ -29,6 +29,48 @@ Esperado: `PySide6: 6.6.x, Qt: 6.6.x`
 
 ## Build
 
+### ⚠️ Antes de buildar — banco de seed limpo
+
+O instalador embala `database/novo_cerebro.db` como seed. **Nunca faça o build com o banco de produção**, senão o instalador distribuirá seus dados reais.
+
+Gere um banco vazio (schema puro, sem dados) antes de buildar:
+
+```powershell
+.\venv_build\Scripts\python.exe -c "
+import sqlite3, os
+from pathlib import Path
+db = Path('database/seed_empty.db')
+if db.exists(): db.unlink()
+conn = sqlite3.connect(str(db))
+conn.executescript('PRAGMA foreign_keys = ON;'); conn.commit()
+for f in sorted(Path('database/migrations').glob('*.sql')):
+    if f.stem.split('_')[0].isdigit():
+        v = int(f.stem.split('_')[0])
+        sql = f.read_text(encoding='utf-8')
+        try:
+            conn.executescript(sql); conn.commit()
+            conn.execute('INSERT OR REPLACE INTO schema_version (version) VALUES (?)', (v,)); conn.commit()
+        except sqlite3.OperationalError as e:
+            if 'already exists' in str(e).lower() or 'duplicate column' in str(e).lower(): pass
+            else: raise
+conn.close()
+bak = Path('database/novo_cerebro.db.bak')
+orig = Path('database/novo_cerebro.db')
+if orig.exists(): orig.rename(bak)
+db.rename(orig)
+print(f'Seed limpo: {orig} ({os.path.getsize(orig)} bytes) | Backup: {bak}')
+"
+```
+
+Depois do build, restaure o banco original:
+
+```powershell
+Move-Item database\novo_cerebro.db.bak database\novo_cerebro.db -Force
+Remove-Item database\seed_empty.db -ErrorAction SilentlyContinue
+```
+
+### Buildar
+
 ```powershell
 .\venv_build\Scripts\python.exe scripts\build\build_release.py --release
 ```
