@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView
+    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView, QLineEdit
 )
 from PySide6.QtCore import Qt, Signal, QSettings
 from gui.components.drag_drop_table_qt import DragDropTableWidget
@@ -37,6 +37,12 @@ class TasksQt(QWidget):
         self.header.setAlignment(Qt.AlignCenter)
         header_layout.addWidget(self.header, stretch=1)
         
+        self.search_bar = QLineEdit()
+        self.search_bar.setPlaceholderText("Filtrar tarefas (ID, Título, Período)...")
+        self.search_bar.setStyleSheet("padding: 5px; border-radius: 5px; background-color: #13131f; color: white; border: 1px solid #2a2a3f; max-width: 280px;")
+        self.search_bar.textChanged.connect(self.load_data)
+        header_layout.addWidget(self.search_bar)
+
         self.btn_archived = QPushButton("📦 Arquivados: OFF")
         self.btn_archived.setObjectName("secondary")
         self.btn_archived.setCheckable(True)
@@ -297,8 +303,8 @@ class TasksQt(QWidget):
         
     def load_data(self):
         try:
-            # Check if C++ object still exists
             _ = self.table.rowCount()
+            _ = self.search_bar.text()
         except RuntimeError:
             return
             
@@ -307,6 +313,33 @@ class TasksQt(QWidget):
         else:
             tasks = self.service.get_all_active()
         self.current_tasks = tasks
+        
+        # Search filter — archived items bypass the filter
+        query = self.search_bar.text().strip().lower()
+        if query:
+            filtered = []
+            for t in tasks:
+                if t.is_archived:
+                    filtered.append(t)
+                    continue
+                match_id = query in str(t.id)
+                match_title = query in (t.title or "").lower()
+                match_period = False
+                if t.start_date:
+                    try:
+                        import datetime
+                        sd = datetime.datetime.fromisoformat(str(t.start_date))
+                        match_period = match_period or query in sd.strftime("%d/%m/%Y").lower()
+                    except: pass
+                if t.due_date:
+                    try:
+                        import datetime
+                        dd = datetime.datetime.fromisoformat(str(t.due_date))
+                        match_period = match_period or query in dd.strftime("%d/%m/%Y").lower()
+                    except: pass
+                if match_id or match_title or match_period:
+                    filtered.append(t)
+            tasks = filtered
         
         # Desligar ordenação para não bagunçar a inserção
         self.table.setSortingEnabled(False)
