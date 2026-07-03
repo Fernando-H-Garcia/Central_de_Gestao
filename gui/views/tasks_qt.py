@@ -217,35 +217,37 @@ class TasksQt(QWidget):
         act_open = menu.addAction("🗂️ Abrir")
         act_open.triggered.connect(lambda: self.open_task_detail(item))
         
-        act_edit = menu.addAction("✏️ Editar")
-        act_edit.triggered.connect(lambda: self.edit_task(item))
-        
-        menu.addSeparator()
-        
-        def create_color_icon(color_hex):
-            from PySide6.QtGui import QPixmap, QIcon, QPainter, QColor
-            from PySide6.QtCore import Qt
-            pixmap = QPixmap(16, 16)
-            pixmap.fill(Qt.transparent)
-            painter = QPainter(pixmap)
-            painter.setRenderHint(QPainter.Antialiasing)
-            painter.setBrush(QColor(color_hex))
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(2, 2, 12, 12)
-            painter.end()
-            return QIcon(pixmap)
-        
-        status_menu = menu.addMenu("Mudar Status")
-        from gui.theme import get_status_color
-        for st in ["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"]:
-            action = status_menu.addAction(st)
-            action.setIcon(create_color_icon(get_status_color(st)))
-            action.triggered.connect(lambda checked=False, s=st, t=task: self._change_task_status(t, s))
-            
         if task.is_archived:
-            act_restore = menu.addAction("📦 Restaurar (Desarquivar)")
+            act_restore = menu.addAction("♻️ Desarquivar")
             act_restore.triggered.connect(lambda: self._restore_task(task))
         else:
+            act_edit = menu.addAction("✏️ Editar")
+            act_edit.triggered.connect(lambda: self.edit_task(item))
+            
+            menu.addSeparator()
+            
+            def create_color_icon(color_hex):
+                from PySide6.QtGui import QPixmap, QIcon, QPainter, QColor
+                from PySide6.QtCore import Qt
+                pixmap = QPixmap(16, 16)
+                pixmap.fill(Qt.transparent)
+                painter = QPainter(pixmap)
+                painter.setRenderHint(QPainter.Antialiasing)
+                painter.setBrush(QColor(color_hex))
+                painter.setPen(Qt.NoPen)
+                painter.drawEllipse(2, 2, 12, 12)
+                painter.end()
+                return QIcon(pixmap)
+            
+            status_menu = menu.addMenu("Mudar Status")
+            from gui.theme import get_status_color
+            for st in ["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"]:
+                action = status_menu.addAction(st)
+                action.setIcon(create_color_icon(get_status_color(st)))
+                action.triggered.connect(lambda checked=False, s=st, t=task: self._change_task_status(t, s))
+
+            menu.addSeparator()
+            
             act_archive = menu.addAction("📥 Arquivar")
             act_archive.triggered.connect(lambda: self._archive_task(task))
             
