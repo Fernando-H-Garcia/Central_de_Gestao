@@ -42,3 +42,12 @@ class AttachmentRepository:
         with get_db_cursor() as cursor:
             cursor.execute(f"SELECT * FROM {self.table_name} WHERE id = ?", (id,))
             return self._row_to_model(cursor.fetchone())
+
+    def update(self, attachment: Attachment) -> Attachment:
+        with get_db_cursor() as cursor:
+            cursor.execute(f"""
+                UPDATE {self.table_name}
+                SET entity_type = ?, entity_id = ?
+                WHERE id = ?
+            """, (attachment.entity_type, attachment.entity_id, attachment.id))
+            return attachment

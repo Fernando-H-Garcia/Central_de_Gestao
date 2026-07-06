@@ -852,11 +852,59 @@ class WikiQt(QWidget):
 
         menu.addSeparator()
 
+        move_a = QAction("↗️ Mover para...", self)
+        move_a.triggered.connect(lambda: self._move_attachment(att))
+        menu.addAction(move_a)
+
+        menu.addSeparator()
+
         del_a = QAction("🗑️ Excluir", self)
         del_a.triggered.connect(lambda: self._remove_attachment(att))
         menu.addAction(del_a)
 
         menu.exec_(self.lst_attachments.viewport().mapToGlobal(pos))
+
+    def _move_attachment(self, att):
+        pages = KnowledgePageService().get_all_active()
+        if not pages:
+            QMessageBox.information(self, "Mover Anexo", "Não há páginas disponíveis para mover o anexo.")
+            return
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Mover Anexo")
+        dialog.resize(350, 150)
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel(f"Selecione a página de destino para '{att.file_name}':"))
+        combo = QComboBox()
+        current_id = self.current_page.id if self.current_page else None
+        selection_idx = 0
+        for i, pg in enumerate(pages):
+            lbl = f"{pg.title} (ID {pg.id})"
+            combo.addItem(lbl, pg.id)
+            if pg.id == current_id:
+                selection_idx = i
+        combo.setCurrentIndex(selection_idx)
+        layout.addWidget(combo)
+        btn_layout = QHBoxLayout()
+        btn_cancel = QPushButton("Cancelar")
+        btn_cancel.clicked.connect(dialog.reject)
+        btn_ok = QPushButton("Mover")
+        btn_ok.setObjectName("primary")
+        btn_ok.clicked.connect(dialog.accept)
+        btn_layout.addStretch()
+        btn_layout.addWidget(btn_cancel)
+        btn_layout.addWidget(btn_ok)
+        layout.addLayout(btn_layout)
+        if dialog.exec() != QDialog.Accepted:
+            return
+        target_id = combo.currentData()
+        if not target_id or target_id == current_id:
+            return
+        from services.attachment_service import AttachmentService
+        try:
+            AttachmentService().move_attachment(att.id, "knowledge_page", target_id)
+            self._load_attachments()
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Não foi possível mover o anexo:\n{e}")
 
     def _open_attachment(self, item):
         att = item.data(Qt.UserRole)

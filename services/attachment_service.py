@@ -60,6 +60,14 @@ class AttachmentService:
         
         return self.repository.create(attachment)
 
+    def move_attachment(self, attachment_id: int, target_entity_type: str, target_entity_id: int) -> Attachment:
+        att = self.repository.get_by_id(attachment_id)
+        if not att:
+            raise ValueError("Anexo não encontrado")
+        att.entity_type = target_entity_type
+        att.entity_id = target_entity_id
+        return self.repository.update(att)
+
     def delete_attachment(self, attachment_id: int):
         # Soft delete in database
         self.repository.soft_delete(attachment_id)
