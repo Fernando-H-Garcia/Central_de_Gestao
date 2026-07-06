@@ -463,6 +463,12 @@ def style_calendar_today(date_edit):
         cal = date_edit.findChild(QCalendarWidget)
     if not cal:
         return
+
+    header_fmt = QTextCharFormat()
+    header_fmt.setForeground(QColor("#000000"))
+    header_fmt.setBackground(QColor("#f0f0f0"))
+    cal.setHeaderTextFormat(header_fmt)
+
     today_fmt = QTextCharFormat()
     today_fmt.setBackground(QColor(ACCENT_BLUE))
     today_fmt.setForeground(QColor(TEXT_PRIMARY))
