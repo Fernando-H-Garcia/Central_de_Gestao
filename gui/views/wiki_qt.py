@@ -1432,17 +1432,18 @@ class WikiQt(QWidget):
             f_uuid = url.path().strip("/")
             if not f_uuid:
                 return
-            from services.attachment_service import AttachmentService
-            from database.repositories.attachment_repository import AttachmentRepository
-            repo = AttachmentRepository()
+            from database.connection import get_db_cursor
+            from models.entities import Attachment
             try:
-                all_attach = repo.get_by_entity("knowledge_page", self.current_page.id) if self.current_page else []
-                for att in all_attach:
-                    if att.uuid == f_uuid:
-                        import subprocess, os
-                        if os.path.exists(att.file_path):
-                            subprocess.Popen(["explorer", att.file_path] if os.name == "nt" else ["xdg-open", att.file_path])
-                        break
+                with get_db_cursor() as cursor:
+                    cursor.execute("SELECT * FROM attachments WHERE deleted_at IS NULL")
+                    for row in cursor.fetchall():
+                        att = Attachment(**dict(row))
+                        if att.uuid == f_uuid:
+                            import subprocess, os
+                            if os.path.exists(att.file_path):
+                                subprocess.Popen(["explorer", att.file_path] if os.name == "nt" else ["xdg-open", att.file_path])
+                            break
             except Exception:
                 pass
 
