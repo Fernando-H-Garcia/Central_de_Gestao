@@ -4,10 +4,11 @@ from PySide6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QHeaderView,
     QLineEdit, QComboBox, QMenu, QMessageBox,
     QScrollArea, QDialog, QTextBrowser, QListWidget,
-    QListWidgetItem, QFileDialog, QButtonGroup
+    QListWidgetItem, QFileDialog, QButtonGroup,
+    QAbstractItemView
 )
 from PySide6.QtCore import Qt, QTimer, QEvent, QRect, QSize
-from PySide6.QtGui import QAction, QFont, QFontMetrics, QTextCursor, QKeyEvent, QPainter
+from PySide6.QtGui import QAction, QFont, QFontMetrics, QTextCursor, QKeyEvent, QPainter, QDropEvent
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
 from services.knowledge_page_service import KnowledgePageService
 
@@ -41,6 +42,63 @@ class WordWrapDelegate(QStyledItemDelegate):
             tw = 200
         r = fm.boundingRect(QRect(0, 0, tw, 0), Qt.TextWordWrap, text)
         return QSize(tw + 8, r.height() + 10)
+
+
+class WikiTreeWidget(QTreeWidget):
+    def __init__(self, wiki_view=None):
+        super().__init__()
+        self._wiki_view = wiki_view
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QAbstractItemView.InternalMove)
+        self.setDefaultDropAction(Qt.MoveAction)
+
+    def _is_descendant(self, item, ancestor):
+        while item:
+            if item is ancestor:
+                return True
+            item = item.parent()
+        return False
+
+    def dropEvent(self, event: QDropEvent):
+        dragged = self.currentItem()
+        if not dragged:
+            event.ignore()
+            return
+
+        target = self.itemAt(event.position().toPoint())
+        if not target:
+            if dragged.parent() is not None:
+                event.ignore()
+                return
+            super().dropEvent(event)
+            if self._wiki_view:
+                self._wiki_view._after_page_moved()
+            return
+
+        drop_pos = self.dropIndicatorPosition()
+
+        if drop_pos == QAbstractItemView.OnItem:
+            if target is dragged or self._is_descendant(target, dragged):
+                event.ignore()
+                return
+            super().dropEvent(event)
+            if self._wiki_view:
+                self._wiki_view._after_page_moved()
+            return
+
+        dragged_parent = dragged.parent()
+        target_parent = target.parent()
+
+        same_level = (dragged_parent is None and target_parent is None) or \
+                     (dragged_parent is not None and target_parent is not None and dragged_parent is target_parent)
+
+        if same_level:
+            super().dropEvent(event)
+            if self._wiki_view:
+                self._wiki_view._after_page_moved()
+        else:
+            event.ignore()
 
 
 class WikiQt(QWidget):
@@ -136,7 +194,7 @@ class WikiQt(QWidget):
         self.btn_archived.clicked.connect(self.toggle_archived)
         sidebar_layout.addWidget(self.btn_archived)
 
-        self.tree = QTreeWidget()
+        self.tree = WikiTreeWidget(wiki_view=self)
         self.tree.setHeaderHidden(True)
         self.tree.setItemDelegate(WordWrapDelegate(self.tree))
         self.tree.setIndentation(14)
@@ -1051,11 +1109,6 @@ class WikiQt(QWidget):
             else:
                 self.tree.addTopLevelItem(item)
 
-        # Sort children of each parent
-        for item in items.values():
-            if item.childCount() > 0:
-                item.sortChildren(0, Qt.AscendingOrder)
-
         self.tree.expandAll()
         self._filter_tree(self.search_bar.text())
 
@@ -1067,6 +1120,28 @@ class WikiQt(QWidget):
             page = first.data(0, Qt.UserRole)
             if page:
                 self._open_page(page)
+
+    def _after_page_moved(self):
+        self._save_page_order()
+        self._populate_parent_combo()
+
+    def _save_page_order(self):
+        order = 0
+        for i in range(self.tree.topLevelItemCount()):
+            order = self._save_item_order(self.tree.topLevelItem(i), None, order)
+
+    def _save_item_order(self, item, parent_id, order):
+        page = item.data(0, Qt.UserRole)
+        if not page:
+            return order
+        if page.parent_id != parent_id or page.sort_order != order:
+            page.parent_id = parent_id
+            page.sort_order = order
+            self.page_service.reorder_page(page.id, order, parent_id)
+        order += 1
+        for j in range(item.childCount()):
+            order = self._save_item_order(item.child(j), page.id, order)
+        return order
 
     def _filter_tree(self, text: str):
         t = text.strip().lower()

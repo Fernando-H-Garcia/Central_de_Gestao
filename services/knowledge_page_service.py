@@ -20,6 +20,9 @@ class KnowledgePageService:
         self._log_activity(created_page.id, "CREATED", {"title": {"from": None, "to": title}})
         return created_page
 
+    def reorder_page(self, page_id: int, sort_order: int, parent_id: int = None):
+        self.page_repo.update_sort_order(page_id, sort_order, parent_id)
+
     def update_page(self, page: KnowledgePage, original_page: KnowledgePage) -> KnowledgePage:
         updated = self.page_repo.update(page)
         changes = {}

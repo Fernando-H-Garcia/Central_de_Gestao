@@ -73,6 +73,7 @@ class KnowledgePage(BaseModel):
     parent_id: Optional[int] = None
     category: Optional[str] = None
     is_favorite: bool = False
+    sort_order: int = 0
     last_accessed_at: Optional[datetime] = None
     last_reviewed_at: Optional[str] = None
     review_interval_days: Optional[int] = None
