@@ -1,10 +1,10 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QComboBox, QSpinBox, QScrollArea, QFrame,
-    QSizePolicy, QGridLayout
+    QSizePolicy, QGridLayout, QMenu
 )
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtCore import Qt, Signal, QEvent
+from PySide6.QtGui import QFont, QAction, QCursor
 from gui.components.page_header import PageHeader
 import json
 from datetime import datetime
@@ -50,6 +50,7 @@ class ActivitySummaryQt(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.installEventFilter(self)
         self.setup_ui()
 
     def setup_ui(self):
@@ -257,7 +258,21 @@ class ActivitySummaryQt(QWidget):
                     proj_font.setPointSize(14)
                     proj_font.setBold(True)
                     proj_header.setFont(proj_font)
-                    proj_header.setStyleSheet("color: #e3a84a; padding: 8px 0 4px 0;")
+                    proj_header.setStyleSheet("""
+                        QLabel {
+                            color: #e3a84a;
+                            padding: 8px 0 4px 0;
+                        }
+                        QLabel:hover {
+                            background-color: rgba(227, 168, 74, 0.12);
+                            border-radius: 4px;
+                        }
+                    """)
+                    proj_header.setCursor(Qt.PointingHandCursor)
+                    proj_header.setProperty("project_id", pid)
+                    proj_header.setContextMenuPolicy(Qt.CustomContextMenu)
+                    proj_header.customContextMenuRequested.connect(lambda pos, l=proj_header: self._show_project_menu(l, pos))
+                    proj_header.installEventFilter(self)
                     self.results_layout.addWidget(proj_header)
 
                     for task_id in sorted(task_groups.keys()):
@@ -270,7 +285,21 @@ class ActivitySummaryQt(QWidget):
                         task_font.setPointSize(12)
                         task_font.setBold(True)
                         task_lbl.setFont(task_font)
-                        task_lbl.setStyleSheet("color: #e67e22; padding: 2px 0 2px 20px;")
+                        task_lbl.setStyleSheet("""
+                            QLabel {
+                                color: #e67e22;
+                                padding: 2px 0 2px 20px;
+                            }
+                            QLabel:hover {
+                                background-color: rgba(230, 126, 34, 0.12);
+                                border-radius: 4px;
+                            }
+                        """)
+                        task_lbl.setCursor(Qt.PointingHandCursor)
+                        task_lbl.setProperty("task_id", task_id)
+                        task_lbl.setContextMenuPolicy(Qt.CustomContextMenu)
+                        task_lbl.customContextMenuRequested.connect(lambda pos, l=task_lbl: self._show_task_menu(l, pos))
+                        task_lbl.installEventFilter(self)
                         self.results_layout.addWidget(task_lbl)
 
                         for log in logs:
@@ -324,6 +353,42 @@ class ActivitySummaryQt(QWidget):
     def _on_link_clicked_str(self, url_str):
         from PySide6.QtCore import QUrl
         self._on_link_clicked(QUrl(url_str))
+
+    def _show_project_menu(self, label, pos):
+        pid = label.property("project_id")
+        if not pid:
+            return
+        menu = QMenu(self)
+        act = QAction("📁 Abrir Projeto", self)
+        act.triggered.connect(lambda: self._navigate_to("project", pid))
+        menu.addAction(act)
+        menu.exec(label.mapToGlobal(pos))
+
+    def _show_task_menu(self, label, pos):
+        tid = label.property("task_id")
+        if not tid:
+            return
+        menu = QMenu(self)
+        act = QAction("📋 Abrir Tarefa", self)
+        act.triggered.connect(lambda: self._navigate_to("task", tid))
+        menu.addAction(act)
+        menu.exec(label.mapToGlobal(pos))
+
+    def _navigate_to(self, t_type, t_id):
+        from core.event_bus import event_bus
+        event_bus.emit("navigate_to", {"type": t_type, "id": t_id})
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.MouseButtonDblClick and isinstance(obj, QLabel):
+            pid = obj.property("project_id")
+            tid = obj.property("task_id")
+            if pid:
+                self._navigate_to("project", pid)
+                return True
+            if tid:
+                self._navigate_to("task", tid)
+                return True
+        return super().eventFilter(obj, event)
 
     def _on_link_clicked(self, url):
         scheme = url.scheme()
