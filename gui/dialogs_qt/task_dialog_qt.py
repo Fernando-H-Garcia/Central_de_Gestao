@@ -14,6 +14,8 @@ class TaskDialogQt(QDialog):
         self.task = task
         self.on_save = on_save
         self.project_service = ProjectService()
+        from services.task_service import TaskService
+        self.task_svc = TaskService()
         self.projects = self.project_service.get_all_active()
         
         self.setWindowTitle("Criação de Tarefa" if not task else "Editor de Tarefa")
@@ -75,6 +77,14 @@ class TaskDialogQt(QDialog):
             self.opt_proj.addItem(name)
         layout.addWidget(self.opt_proj)
         
+        # Parent Task
+        layout.addWidget(QLabel("Tarefa Pai:"))
+        self.opt_parent_task = QComboBox()
+        self.parent_task_dict = {}
+        self._populate_parent_tasks()
+        self.opt_proj.currentIndexChanged.connect(self._on_project_changed)
+        layout.addWidget(self.opt_parent_task)
+        
         # Dates
         layout.addWidget(QLabel("Data Início:"))
         self.ent_start = QDateEdit()
@@ -109,6 +119,43 @@ class TaskDialogQt(QDialog):
         self.btn_save.clicked.connect(self.save)
         main_layout.addWidget(self.btn_save)
         
+    def _selected_project_id(self):
+        proj_sel = self.opt_proj.currentText()
+        return self.proj_dict.get(proj_sel)
+
+    def _on_project_changed(self):
+        self._populate_parent_tasks()
+
+    def _populate_parent_tasks(self):
+        self.opt_parent_task.blockSignals(True)
+        current = self.opt_parent_task.currentText()
+        self.opt_parent_task.clear()
+        self.parent_task_dict = {"Nenhuma": None}
+        self.opt_parent_task.addItem("Nenhuma")
+
+        proj_id = self._selected_project_id()
+        exclude_ids = set()
+        if self.task:
+            exclude_ids.add(self.task.id)
+            try:
+                exclude_ids.update(self.task_svc.get_descendant_ids(self.task.id))
+            except Exception:
+                pass
+
+        all_tasks = self.task_svc.get_all_active()
+        for t in all_tasks:
+            if t.id in exclude_ids:
+                continue
+            if proj_id is not None and t.project_id != proj_id:
+                continue
+            name = f"{t.id} - {t.title}"
+            self.parent_task_dict[name] = t.id
+            self.opt_parent_task.addItem(name)
+
+        if current and current in self.parent_task_dict:
+            self.opt_parent_task.setCurrentText(current)
+        self.opt_parent_task.blockSignals(False)
+
     def populate_fields(self):
         if self.task:
             self.ent_title.setText(self.task.title)
@@ -121,6 +168,12 @@ class TaskDialogQt(QDialog):
                 for k, v in self.proj_dict.items():
                     if v == self.task.project_id:
                         self.opt_proj.setCurrentText(k)
+                        break
+                        
+            if getattr(self.task, "parent_task_id", None):
+                for k, v in self.parent_task_dict.items():
+                    if v == self.task.parent_task_id:
+                        self.opt_parent_task.setCurrentText(k)
                         break
                         
             if self.task.start_date:
@@ -153,6 +206,9 @@ class TaskDialogQt(QDialog):
         proj_sel = self.opt_proj.currentText()
         proj_id = self.proj_dict.get(proj_sel)
         
+        parent_sel = self.opt_parent_task.currentText()
+        parent_id = self.parent_task_dict.get(parent_sel)
+        
         start_date = self.ent_start.date().toString("yyyy-MM-dd")
         due_date = self.ent_due.date().toString("yyyy-MM-dd")
         
@@ -171,6 +227,7 @@ class TaskDialogQt(QDialog):
             self.task.status = status
             self.task.energy_level = energy
             self.task.project_id = proj_id
+            self.task.parent_task_id = parent_id
             self.task.start_date = start_date
             self.task.due_date = due_date
             self.task.estimated_hours = est_hours
@@ -181,6 +238,7 @@ class TaskDialogQt(QDialog):
             new_task = Task(
                 title=title, context=context, status=status, 
                 energy_level=energy, project_id=proj_id, 
+                parent_task_id=parent_id,
                 start_date=start_date, due_date=due_date, estimated_hours=est_hours, 
                 is_milestone=is_ms
             )

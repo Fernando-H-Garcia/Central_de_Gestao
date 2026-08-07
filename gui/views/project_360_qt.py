@@ -1,30 +1,18 @@
-from PySide6.QtWidgets import (
+﻿from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
     QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView, QProgressBar,
     QAbstractItemView, QMenu, QTreeWidget, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal, QSettings
+from PySide6.QtGui import QColor, QBrush, QFont
 
-from gui.components.drag_drop_table_qt import DragDropTableWidget
+from gui.components.drag_drop_tree_qt import DragDropTreeWidget, SortableTreeWidgetItem
 from services.project_service import ProjectService
 from gui.theme import get_status_color, get_energy_color, format_colored_label, format_status, get_archived_color
 from services.task_service import TaskService
 from services.event_service import EventService
 from services.alert_service import AlertService
 from core.event_bus import event_bus
-
-class SortableTableWidgetItem(QTableWidgetItem):
-    def __init__(self, text, sort_value):
-        super().__init__(text)
-        self.sort_value = sort_value
-        
-    def __lt__(self, other):
-        if hasattr(other, 'sort_value'):
-            try:
-                return self.sort_value < other.sort_value
-            except TypeError:
-                return str(self.sort_value) < str(other.sort_value)
-        return super().__lt__(other)
 
 STATUS_SORT_ORDER = {
     "Pendente": 1,
@@ -91,6 +79,8 @@ class Project360Qt(QWidget):
 
     def _check_alarms_periodically(self):
         """Verifica se há novos alarmes no horário sem bloquear se já há popup aberto."""
+        if not self.isVisible():
+            return
         if self._alarm_popup_open:
             # Anti-stuck: se ficou True por mais de 60s, força reset
             if self._alarm_stuck_since is None:
@@ -289,25 +279,29 @@ class Project360Qt(QWidget):
         btn_layout.addWidget(btn_new_task)
         layout.addLayout(btn_layout)
         
-        self.tbl_tasks = DragDropTableWidget()
-        self.tbl_tasks.setColumnCount(5)
-        self.tbl_tasks.setHorizontalHeaderLabels(["ID", "Título", "Status", "Prioridade", "Período"])
-        self.tbl_tasks.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.tbl_tasks.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
-        self.tbl_tasks.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
-        self.tbl_tasks.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.tbl_tasks = DragDropTreeWidget()
+        self.tbl_tasks.setColumnCount(6)
+        self.tbl_tasks.setHeaderLabels(["ID", "Título", "Status", "Prioridade", "Período", "Progresso"])
+        self.tbl_tasks.header().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.tbl_tasks.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.tbl_tasks.header().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.tbl_tasks.header().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.tbl_tasks.header().setSectionResizeMode(5, QHeaderView.ResizeToContents)
         self.tbl_tasks.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.tbl_tasks.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.tbl_tasks.setSortingEnabled(False)
         self.tbl_tasks.setAlternatingRowColors(True)
         self.tbl_tasks.itemDoubleClicked.connect(self.open_task_detail)
+        self.tbl_tasks.itemExpanded.connect(self._on_item_expanded)
 
         from gui.components.badge_delegate import BadgeDelegate
+        from gui.components.progress_bar_delegate import ProgressBarDelegate
         self.tbl_tasks.setItemDelegateForColumn(2, BadgeDelegate("status", parent=self.tbl_tasks))
         self.tbl_tasks.setItemDelegateForColumn(3, BadgeDelegate("priority", parent=self.tbl_tasks))
+        self.tbl_tasks.setItemDelegateForColumn(5, ProgressBarDelegate(parent=self.tbl_tasks))
         
-        self.tbl_tasks.row_moved.connect(self.handle_row_moved)
-        self.tbl_tasks.horizontalHeader().sectionClicked.connect(self.handle_header_click)
+        self.tbl_tasks.item_moved.connect(self.handle_row_moved)
+        self.tbl_tasks.header().sectionClicked.connect(self.handle_header_click)
         
         # Context menu
         self.tbl_tasks.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -315,9 +309,18 @@ class Project360Qt(QWidget):
         
         layout.addWidget(self.tbl_tasks)
 
-    def open_task_detail(self, item):
-        row = item.row()
-        task_id = int(self.tbl_tasks.item(row, 0).text())
+    def _on_item_expanded(self, item):
+        def _expand_subtree(it):
+            for i in range(it.childCount()):
+                ch = it.child(i)
+                ch.setExpanded(True)
+                _expand_subtree(ch)
+        _expand_subtree(item)
+
+    def open_task_detail(self, item, column):
+        task_id_str = item.text(0)
+        if not task_id_str: return
+        task_id = int(task_id_str)
         self.open_task_detail_signal.emit(task_id)
 
     def setup_agenda_tab(self):
@@ -477,78 +480,158 @@ class Project360Qt(QWidget):
         self.tbl_tasks.setSortingEnabled(False)
         project_tasks = sorted(project_tasks, key=lambda t: t.position if t.position is not None else 0.0)
         
-        # Remove badge delegates during bulk populate to avoid Qt 6.6.x paint crash
+        # ADR-005 workaround: remove delegates AND freeze updates during entire population
+        # to avoid Qt 6.6.x paint crash on QTreeWidget with BadgeDelegate
         old_delegates = {}
-        for col in (2, 3):
+        for col in (2, 3, 5):
             old_delegates[col] = self.tbl_tasks.itemDelegateForColumn(col)
             self.tbl_tasks.setItemDelegateForColumn(col, None)
         
-        print(f"[DEBUG] load_data: populating {len(project_tasks)} tasks into table")
-        self.tbl_tasks.setRowCount(len(project_tasks))
-        
-        for row, t in enumerate(project_tasks):
-            print(f"[DEBUG]   row={row}: task.id={t.id}, title={t.title}, status={t.status}, has_start_date={hasattr(t,'start_date')}, start_date={getattr(t,'start_date', 'N/A')}")
-            item_id = QTableWidgetItem(str(t.id))
-            item_id.setTextAlignment(Qt.AlignCenter)
-            item_id.setData(Qt.UserRole, t)
-            self.tbl_tasks.setItem(row, 0, item_id)
+        self.tbl_tasks.setUpdatesEnabled(False)
+        try:
+            # Preservar expansão da árvore entre recargas (senão o load_data colapsaria tudo)
+            expanded_ids = set()
+            _root = self.tbl_tasks.invisibleRootItem()
+            def _collect_expanded(parent):
+                for i in range(parent.childCount()):
+                    item = parent.child(i)
+                    if item.isExpanded():
+                        t = item.data(0, Qt.UserRole)
+                        if t:
+                            expanded_ids.add(t.id)
+                    _collect_expanded(item)
+            _collect_expanded(_root)
+
+            print(f"[DEBUG] load_data: populating {len(project_tasks)} tasks into tree")
+            self.tbl_tasks.clear()
             
-            self.tbl_tasks.setItem(row, 1, QTableWidgetItem(t.title))
+            main_tasks = [t for t in project_tasks if not getattr(t, 'parent_task_id', None)]
+            subtasks_by_parent = {}
+            for t in project_tasks:
+                pid = getattr(t, 'parent_task_id', None)
+                if pid is not None:
+                    subtasks_by_parent.setdefault(pid, []).append(t)
+
+            # Promover órfãs ao nível raiz: subtarefas cuja tarefa-pai não está visível (ex.: pai filtrado por status)
+            visible_ids = {t.id for t in project_tasks}
+            orphan_ids = []
+            for t in project_tasks:
+                pid = getattr(t, 'parent_task_id', None)
+                if pid is not None and pid not in visible_ids:
+                    orphan_ids.append(t.id)
+            if orphan_ids:
+                main_tasks += [t for t in project_tasks if t.id in orphan_ids]
+
+            def compute_progress(t):
+                subs = subtasks_by_parent.get(t.id, [])
+                if not subs:
+                    return None
+                total = len(subs)
+                done = sum(1 for s in subs if s.status == 'Concluído')
+                return f"{done}/{total}"
+
+            def create_tree_item(t, parent_item, depth=0):
+                item = SortableTreeWidgetItem(parent_item)
+                item.setData(0, Qt.UserRole, t)
+                item.setText(0, str(t.id))
+                item.setTextAlignment(0, Qt.AlignCenter)
+                prefix = ""
+                if depth > 0:
+                    prefix = ("    " * (depth - 1)) + "└─ "
+                item.setText(1, prefix + t.title)
+
+                # Indicador visual de profundidade: cor do título + leve background
+                if depth > 0:
+                    title_color = "#b06ab3" if depth >= 2 else "#e67e22"
+                    item.setForeground(1, QBrush(QColor(title_color)))
+                    from PySide6.QtGui import QColor as _QC
+                    bg = _QC(255, 255, 255, 0)
+                    if depth == 1:
+                        bg = _QC(230, 126, 34, 18)
+                    elif depth >= 2:
+                        bg = _QC(176, 106, 179, 22)
+                    for _c in range(self.tbl_tasks.columnCount()):
+                        item.setBackground(_c, QBrush(bg))
+
+                item.setText(2, format_status(t.status, getattr(t, 'is_archived', False)))
+                item.setTextAlignment(2, Qt.AlignCenter)
+                item.setText(3, t.energy_level)
+                item.setTextAlignment(3, Qt.AlignCenter)
+                
+                period_str = ""
+                start_str = ""
+                due_str = ""
+                if hasattr(t, 'start_date') and t.start_date:
+                    try:
+                        import datetime
+                        start_dt = datetime.datetime.fromisoformat(str(t.start_date))
+                        start_str = start_dt.strftime("%d/%m/%Y")
+                    except:
+                        start_str = str(t.start_date).split()[0]
+                        
+                if t.due_date:
+                    try:
+                        import datetime
+                        dt = datetime.datetime.fromisoformat(str(t.due_date))
+                        due_str = dt.strftime("%d/%m/%Y")
+                        if t.status != 'Concluído':
+                            today = datetime.datetime.now().date()
+                            delta = (dt.date() - today).days
+                            if delta < 0: due_str += f" ({abs(delta)} dias atrasado)"
+                            elif delta == 0: due_str += " (Hoje)"
+                            else: due_str += f" ({delta} dias)"
+                    except:
+                        due_str = str(t.due_date).split()[0]
+                
+                if start_str and due_str: period_str = f"{start_str} - {due_str}"
+                elif start_str: period_str = f"A partir de {start_str}"
+                elif due_str: period_str = f"Até {due_str}"
+                else: period_str = "-"
+                
+                item.setText(4, period_str)
+                item.setTextAlignment(4, Qt.AlignCenter)
+                item.sort_values = {4: t.due_date or ""}
+
+                progress_str = compute_progress(t)
+                if progress_str:
+                    item.setText(5, progress_str)
+                    try:
+                        done = int(progress_str.split("/")[0])
+                        total = int(progress_str.split("/")[1])
+                        item.sort_values[5] = done / total if total else 0.0
+                    except (ValueError, IndexError):
+                        pass
+                else:
+                    item.setText(5, "")
+                item.setTextAlignment(5, Qt.AlignCenter)
+                
+                for sub_t in subtasks_by_parent.get(t.id, []):
+                    create_tree_item(sub_t, item, depth + 1)
+                
+                return item
+
+            for t in main_tasks:
+                create_tree_item(t, self.tbl_tasks, 0)
+                
+        finally:
+            # Restore updates and delegates BEFORE expandAll to prevent paint crash
+            for col, delg in old_delegates.items():
+                self.tbl_tasks.setItemDelegateForColumn(col, delg)
+            self.tbl_tasks.setUpdatesEnabled(True)
             
-            status_item = QTableWidgetItem(format_status(t.status, getattr(t, 'is_archived', False)))
-            status_item.setTextAlignment(Qt.AlignCenter)
-            self.tbl_tasks.setItem(row, 2, status_item)
-            
-            energy_item = QTableWidgetItem(t.energy_level)
-            energy_item.setTextAlignment(Qt.AlignCenter)
-            self.tbl_tasks.setItem(row, 3, energy_item)
-            
-            period_str = ""
-            start_str = ""
-            due_str = ""
-            
-            if hasattr(t, 'start_date') and t.start_date:
-                try:
-                    import datetime
-                    start_dt = datetime.datetime.fromisoformat(str(t.start_date))
-                    start_str = start_dt.strftime("%d/%m/%Y")
-                except:
-                    start_str = str(t.start_date).split()[0]
-                    
-            if t.due_date:
-                try:
-                    import datetime
-                    dt = datetime.datetime.fromisoformat(str(t.due_date))
-                    due_str = dt.strftime("%d/%m/%Y")
-                    
-                    if t.status != 'Concluído':
-                        today = datetime.datetime.now().date()
-                        delta = (dt.date() - today).days
-                        if delta < 0:
-                            due_str += f" ({abs(delta)} dias atrasado)"
-                        elif delta == 0:
-                            due_str += " (Hoje)"
-                        else:
-                            due_str += f" ({delta} dias)"
-                except:
-                    due_str = str(t.due_date).split()[0]
-            
-            if start_str and due_str:
-                period_str = f"{start_str} - {due_str}"
-            elif start_str:
-                period_str = f"A partir de {start_str}"
-            elif due_str:
-                period_str = f"Até {due_str}"
-            else:
-                period_str = "-"
-            item_due = SortableTableWidgetItem(period_str, t.due_date or "")
-            item_due.setTextAlignment(Qt.AlignCenter)
-            self.tbl_tasks.setItem(row, 4, item_due)
-            
-        # Restore badge delegates
-        for col, delg in old_delegates.items():
-            self.tbl_tasks.setItemDelegateForColumn(col, delg)
-            
+        from gui.components.drag_drop_tree_qt import fit_branch_arrows
+        fit_branch_arrows(self.tbl_tasks)
+        self.tbl_tasks.collapseAll()
+        if expanded_ids:
+            _root2 = self.tbl_tasks.invisibleRootItem()
+            def _restore_expand(parent):
+                for i in range(parent.childCount()):
+                    item = parent.child(i)
+                    t = item.data(0, Qt.UserRole)
+                    if t and t.id in expanded_ids:
+                        item.setExpanded(True)
+                    _restore_expand(item)
+            _restore_expand(_root2)
         self.restore_sort_order()
             
         # Load Agenda
@@ -603,13 +686,22 @@ class Project360Qt(QWidget):
         dlg.exec()
 
     def edit_task(self, item):
-        row = item.row()
-        task = self.tbl_tasks.item(row, 0).data(Qt.UserRole)
+        task = item.data(0, Qt.UserRole)
+        if not task: return
+        from gui.dialogs_qt.task_dialog_qt import TaskDialogQt
+        def save_task(edited, is_new, original_t=None):
+            self.task_service.update_task(edited, original_t)
+            from core.event_bus import event_bus
+            event_bus.emit("entity_updated")
+            self.load_data()
+        dialog = TaskDialogQt(self, task, save_task)
+        dialog.exec()
+
     def show_task_context_menu(self, pos):
         item = self.tbl_tasks.itemAt(pos)
         if not item: return
-        row = item.row()
-        task = self.tbl_tasks.item(row, 0).data(Qt.UserRole)
+        task = item.data(0, Qt.UserRole)
+        if not task: return
         
         menu = QMenu(self)
         
@@ -709,35 +801,42 @@ class Project360Qt(QWidget):
         event_bus.emit("entity_updated")
         self.load_data()
 
-    def handle_row_moved(self, task_id, target_row):
+    def handle_row_moved(self, task_id, new_parent_id=None):
+        # Persist reparenting if the item's visual parent changed
+        task = self.task_service.task_repo.get_by_id(task_id)
+        if task:
+            current_parent = task.parent_task_id
+            if (current_parent or None) != (new_parent_id or None):
+                if not self.task_service.move_task(task_id, new_parent_id):
+                    self.load_data()
+                    return
+
+        # target_row is not entirely accurate for trees, so we rebuild visual_tasks
         visual_tasks = []
-        for row in range(self.tbl_tasks.rowCount()):
-            item = self.tbl_tasks.item(row, 0)
-            if item:
-                t = item.data(Qt.UserRole)
-                if t:
-                    visual_tasks.append(t)
+        root = self.tbl_tasks.invisibleRootItem()
+        def extract_tasks(parent):
+            for i in range(parent.childCount()):
+                item = parent.child(i)
+                t = item.data(0, Qt.UserRole)
+                if t: visual_tasks.append(t)
+                extract_tasks(item)
+        extract_tasks(root)
                     
         task = next((t for t in visual_tasks if t.id == task_id), None)
         if not task: return
         
-        source_row = visual_tasks.index(task)
-        visual_tasks.remove(task)
-        
-        if source_row < target_row:
-            target_row -= 1
-            
-        visual_tasks.insert(target_row, task)
-        
         if self.active_status_filter:
             # INTERPOLAÇÃO para não reescrever posições das tarefas invisíveis
-            if target_row == 0:
-                new_pos = (visual_tasks[1].position - 1.0) if len(visual_tasks) > 1 and visual_tasks[1].position is not None else 0.0
-            elif target_row == len(visual_tasks) - 1:
-                new_pos = (visual_tasks[-2].position + 1.0) if len(visual_tasks) > 1 and visual_tasks[-2].position is not None else 0.0
+            if len(visual_tasks) < 2:
+                return
+            idx = next((i for i, t in enumerate(visual_tasks) if t.id == task_id), -1)
+            if idx <= 0:
+                new_pos = (visual_tasks[1].position - 1.0) if visual_tasks[1].position is not None else 0.0
+            elif idx >= len(visual_tasks) - 1:
+                new_pos = (visual_tasks[-2].position + 1.0) if visual_tasks[-2].position is not None else 0.0
             else:
-                prev_pos = visual_tasks[target_row - 1].position if visual_tasks[target_row - 1].position is not None else 0.0
-                next_pos = visual_tasks[target_row + 1].position if visual_tasks[target_row + 1].position is not None else 0.0
+                prev_pos = visual_tasks[idx - 1].position if visual_tasks[idx - 1].position is not None else 0.0
+                next_pos = visual_tasks[idx + 1].position if visual_tasks[idx + 1].position is not None else 0.0
                 new_pos = (prev_pos + next_pos) / 2.0
                 
             task.position = new_pos
@@ -751,7 +850,7 @@ class Project360Qt(QWidget):
         
         self.settings.remove("proj_tasks_sort_column")
         self.settings.remove("proj_tasks_sort_order")
-        self.tbl_tasks.horizontalHeader().setSortIndicatorShown(False)
+        self.tbl_tasks.header().setSortIndicatorShown(False)
         
         self.load_data()
         
@@ -763,7 +862,7 @@ class Project360Qt(QWidget):
             
             self.settings.remove("proj_tasks_sort_column")
             self.settings.remove("proj_tasks_sort_order")
-            self.tbl_tasks.horizontalHeader().setSortIndicatorShown(False)
+            self.tbl_tasks.header().setSortIndicatorShown(False)
             
             self.load_data()
         except Exception as e:
@@ -779,7 +878,7 @@ class Project360Qt(QWidget):
                 pass
         
     def handle_header_click(self, logical_index):
-        header = self.tbl_tasks.horizontalHeader()
+        header = self.tbl_tasks.header()
         
         current_col = self.settings.value("proj_tasks_sort_column", -1, type=int)
         current_order = self.settings.value("proj_tasks_sort_order", Qt.AscendingOrder.value, type=int)
@@ -808,7 +907,7 @@ class Project360Qt(QWidget):
             self.tbl_tasks.sortItems(col, order)
             self.tbl_tasks.setSortingEnabled(False)
             
-            self.tbl_tasks.horizontalHeader().setSortIndicator(col, order)
-            self.tbl_tasks.horizontalHeader().setSortIndicatorShown(True)
+            self.tbl_tasks.header().setSortIndicator(col, order)
+            self.tbl_tasks.header().setSortIndicatorShown(True)
         else:
-            self.tbl_tasks.horizontalHeader().setSortIndicatorShown(False)
+            self.tbl_tasks.header().setSortIndicatorShown(False)

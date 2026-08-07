@@ -70,6 +70,72 @@
   - Results limited per task (not per project) by the record count — all tasks always shown
   - QTextBrowser uses QSizePolicy.Expanding (no fixed textWidth), left-aligned content
   - New nav button added in `main_window_qt.py` at index 2; all existing indices shifted accordingly
+- **Navigation back-button redesign** in `main_window_qt.py` (fixes: project→task→subtask→back must go to task, doc→link→entity→back must return to doc, task→log link→back must return to that task)
+  - `_nav_history` now stores target tuples (`("page", idx)` / `("project", id)` / `("task", id)`) instead of widget references — deleted widgets no longer corrupt history
+  - `_current_target` tracks current location; `_project_views` / `_task_views` caches keep live views (state preserved, no recreation)
+  - `show_project_360` / `show_task_detail` always push current target before switching (even task→subtask)
+  - `_navigate_back` pops until a target different from current is found, then shows it via internal `_show_project`/`_show_task`/`_show_page` without re-pushing (avoids ping-pong)
+  - Removed dead `_restore_nav_button`; `_deselect_nav_buttons` helper added
+  - `isVisible()` guards added to `_check_alarms_periodically` (project_360_qt.py) and `load_agenda` (task_detail_qt.py) so cached hidden views don't fire alarm popups or background reloads
+- **Hierarquia de tarefas** (subtarefas visíveis na árvore do Project360Qt)
+  - `get_tasks_by_project` agora inclui subtarefas (removido filtro `parent_task_id is None`) em `core/data_context.py` e fallback em `services/task_service.py`
+  - Nova coluna "Progresso" (6ª) com `ProgressBarDelegate` (mini barra `x/y` concluídas/diretas)
+  - Árvore colapsada por padrão (`collapseAll()` em vez de `expandAll()`)
+  - **Preservação de expansão**: `load_data` captura os ids das tarefas expandidas antes do `clear()` (`expanded_ids`) e re-expande após recriar a árvore — um drop/refresh não colapsa mais a visualização expandida
+  - Órfãs promovidas ao nível raiz quando o pai é filtrado por status (`visible_ids`/`orphan_ids`)
+  - Indicadores/progresso do projeto agora contam todas as tarefas, incluindo subtarefas
+  - Workaround ADR-005 atualizado: delegates de coluna removidos também para col 5
+- **Menu de contexto em subtarefas** (`task_detail_qt.py` `tbl_subtasks`)
+  - `show_subtasks_context_menu` com Abrir, Editar, Mudar Status, Criar Alarme, Arquivar/Desarquivar, Excluir
+  - Handlers: `_subtask_at`, `_change_subtask_status`, `_edit_subtask`, `_delete_subtask`
+  - `action_archive`/`action_unarchive` inicializados como `None` (evita NameError no elif)
+- **Arquivar/restaurar recursivo** em `services/task_service.py`
+  - `archive_task`/`restore_task` arquivam/restauram toda a subárvore (filhas acompanham)
+  - `_get_subtree_ids` usa repo direto com `include_archived=True` (snapshot só tem ativas)
+  - `soft_delete_task` também recursivo via `_get_subtree_ids`
+- **Migração de tarefa/subtarefa (reparent)**
+  - `move_task(task_id, new_parent_id)` no `TaskService` — previne ciclo (rejeita self e mover para própria subárvore); `new_parent_id=None` = raiz
+  - `DragDropTreeWidget.dropEvent` lê `source_item.parent()` após `super().dropEvent` e emite `item_moved(task.id, new_parent)` via `QTimer.singleShot(0, …)`
+  - Sinal alterado para `item_moved = Signal(int, object)` (task_id, new_parent_id) — atualizado em `project_360_qt.py` e `tasks_qt.py`
+  - `handle_row_moved` persiste reparent via `move_task` e reverte com `load_data()` se falhar; interpolação de posições preservada
+  - `TaskDialogQt`: combo "Tarefa Pai" (`_populate_parent_tasks`) filtra por projeto selecionado e exclui self+descendentes (`get_descendant_ids`); `_on_project_changed` repopula ao trocar projeto; migração também por edição
+  - `get_descendant_ids` exposto no `TaskService` para o diálogo
+- **Fix drop: subtarefa → tarefa ao soltar entre/vazio** (`gui/components/drag_drop_tree_qt.py`)
+  - `dropEvent` agora calcula `new_parent` ANTES do `super().dropEvent()` com base em `dropIndicatorPosition()`: `OnItem` → filho do item alvo; `AboveItem`/`BelowItem` → irmão no nível do alvo; `OnViewport`/espaço vazio → raiz (`None`)
+  - Evita o comportamento anterior de ler `source_item.parent()` após o drop (Qt colocava a subtarefa dentro de tarefa existente)
+  - **V2**: drops em espaço vazio dentro da subárvore usam `_nearest_row_item(pos)` (ancora no item mais próximo acima) — se o âncora tem pai, o novo pai é esse pai (mantém a tarefa dentro da área do pai em vez de promovê-la à raiz); só vira raiz quando o âncora é um item de nível raiz
+  - **V3 (`set_drop_root_parent`)**: novas árvores locais (ex.: `tbl_subtasks` no TaskDetailQt) definem `_drop_root_parent_id` = tarefa atual. Em árvores locais, drops ON/ENTRE itens de topo e em espaço vazio abaixo REDEFINEM o pai para a tarefa âncora (filho da âncora no topo NUNCA vira tarefa raiz do projeto). Em Project360/Tasks esse valor é `None` → comportamento com nível raiz
+  - Em árvores locais o drop "entre X/Y" e "vazio abaixo" reordena/persiste dentro do pai âncora via `_persist_subtree_order` (reescreve `position` por irmãos na ordem visual) + `load_subtasks` agora ordena filhos por `position`
+- **Subtarefas no TaskDetailQt agora são uma árvore expansível** (`gui/views/task_detail_qt.py`)
+  - `tbl_subtasks` trocado de `QTableWidget` para `DragDropTreeWidget` com 5 colunas (ID, Título, Status, Prazo, Progresso)
+  - `load_subtasks` constrói recursivamente toda a subárvore de descendentes com `create_tree_item`/`SortableTreeWidgetItem`, usa `task_repo.get_all(include_archived=True)` e `expandAll()`
+  - Coluna Progresso com `ProgressBarDelegate` (x/y subtarefas concluídas/diretas)
+  - `open_subtask`/`_subtask_at` passam a ler `item.data(0, Qt.UserRole)`; `_subtask_moved` persiste reparent via `move_task` + recarrega
+- **Logs de atividade amigáveis para reparenting** (`services/task_service.py`, `gui/views/task_detail_qt.py`, `gui/views/activity_summary_qt.py`)
+  - `move_task` agora registra `parent_task_id` como `{"from": old, "to": new}` no JSON
+  - Formatadores (TaskDetail logs + Activity Summary) exibem "virou filho de '<título do pai>'" ou "virou tarefa raiz" em vez do id cru
+  - Helper `_parent_task_title` no `activity_summary_qt.py` resolve título do pai via `TaskRepository`
+- **Resumo de Atividades cascateado por hierarquia** (`gui/views/activity_summary_qt.py`)
+  - Query inclui `t.parent_task_id`; cada tarefa renderiza um `QFrame` contêiner aninhado (recursivo) com `border-left` laranja translúcido — filhos ficam encaixados dentro do bloco do pai, deixando a contenção visual inequívoca
+  - Linhas de log ganham `border-left` de 3px na cor da ação + indentação; contêineres filhos adicionam fundo levemente laranja (`rgba(230,126,34,0.04)`)
+  - Pais sem logs não aparecem (só tarefas com atividade); filhos órfãos promovidos à raiz
+- **Seções recolhíveis no Resumo de Atividades** (`gui/components/collapsible_section_qt.py`, `gui/views/activity_summary_qt.py`)
+  - Novo componente reutilizável `CollapsibleSection` (header clicável com seta ▼/▶, recolhe/expande o corpo)
+  - Projetos e cada tarefa (incluindo filhas aninhadas) renderizados como `CollapsibleSection` — permite recolher um projeto/tarefa para focar nos demais
+  - Header azul/VR anexa propriedades `project_id`/`task_id`, menu de contexto e duplo clique de navegação preservados
+  - **Indicadores de profundidade**: `CollapsibleSection` aceita `depth` — cabeçalho ganha borda-guia vertical esquerda com largura proporcional ao nível (2px*de) e ton de fundo decrescente; corpo é indentado `8 + depth*18`px; título dos níveis ≥1 ganha ramo `└─`
+- **Indicadores de hierarquia na árvore de tarefas** (`project_360_qt.py`, `tasks_qt.py`, `task_detail_qt.py`)
+  - `create_tree_item` agora recebe `depth`; subtarefas ganham prefixo de ramo `└─ ` (indentação proporcional à profundidade), título colorido por nível (laranja `#e67e22` nível 1, roxo `#b06ab3` nível ≥2) e leve fundo por profundidade
+  - Itens de nível raiz permanecem inalterados (branco/sem fundo) — hierarquia clara por código de cor + marcador de ramo + sangria nativa
+- **Recarga de subtarefas no TaskDetail** (`gui/views/task_detail_qt.py`)
+  - `showEvent` recarrega `load_subtasks()` toda vez que a view fica visível (não só na primeira exibição) — views cacheadas no `main_window` (`_task_views`) refletem reparenting feito em outra tela (ex.: drag & drop)
+- **Expansão em cascata no Project360** (`gui/views/project_360_qt.py`)
+  - `tbl_tasks.itemExpanded` conectado a `_on_item_expanded`: um clique na seta expande recursivamente toda a subárvore (basta expandir a "1" para ver "2","3","4","5"...)
+  - Cada nível mantém a própria seta para expandir/recolher individualmente
+- **Fix: setas de expansão recortadas em árvores profundas** (`gui/components/drag_drop_tree_qt.py`)
+  - **Causa**: Qt desenha a seta no início da 1ª coluna, deslocada pela indentação acumulada (`indent * depth`). A coluna 0 (ID) tinha largura fixa (~100px) e indentação `20px/nível`; a partir de ~5 níveis a seta saía da coluna e era recortada (sumia)
+  - **Fix**: nova função `fit_branch_arrows(tree)` reduz a indentação gradualmente (20→16→14→12px conforme a profundidade) e alarga a coluna 0 (`indent*max_depth + 30`) para a seta sempre caber; aplicada no fim do `load_data` do 360/tasks_qt e do `load_subtasks` do task_detail
+  - Não há limite de profundidade no código — as setas continuam aparecendo em qualquer nível
 
 ### In Progress
 - (none)

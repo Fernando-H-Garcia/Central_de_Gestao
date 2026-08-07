@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import (
+﻿from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QTextEdit, QFrame, QTabWidget, QWidget, QLineEdit,
     QGridLayout, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
@@ -40,6 +40,12 @@ class TaskDetailQt(QWidget):
             self._first_show = False
             self.load_data()
             QTimer.singleShot(50, self._adjust_all_rows)
+        else:
+            try:
+                self.load_subtasks()
+            except Exception:
+                import traceback
+                traceback.print_exc()
 
     def edit_task(self):
         from gui.dialogs_qt.task_dialog_qt import TaskDialogQt
@@ -159,6 +165,41 @@ class TaskDetailQt(QWidget):
         self.txt_desc.setPlainText(self.task.context or "Sem contexto.")
         self.txt_desc.setMaximumHeight(80)
         layout.addWidget(self.txt_desc)
+        
+        lbl_sub = QLabel("Subtarefas:")
+        lbl_sub.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        layout.addWidget(lbl_sub)
+        
+        toolbar_sub = QHBoxLayout()
+        btn_add_sub = QPushButton("➕ Nova Subtarefa")
+        btn_add_sub.setObjectName("secondary")
+        btn_add_sub.clicked.connect(self.new_subtask)
+        toolbar_sub.addStretch()
+        toolbar_sub.addWidget(btn_add_sub)
+        layout.addLayout(toolbar_sub)
+        
+        from gui.components.drag_drop_tree_qt import DragDropTreeWidget
+        self.tbl_subtasks = DragDropTreeWidget()
+        self.tbl_subtasks.setColumnCount(5)
+        self.tbl_subtasks.setHeaderLabels(["ID", "Título", "Status", "Prazo", "Progresso"])
+        self.tbl_subtasks.header().setSectionResizeMode(1, QHeaderView.Stretch)
+        self.tbl_subtasks.header().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.tbl_subtasks.header().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.tbl_subtasks.header().setSectionResizeMode(4, QHeaderView.ResizeToContents)
+        self.tbl_subtasks.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.tbl_subtasks.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.tbl_subtasks.setAlternatingRowColors(True)
+        self.tbl_subtasks.itemDoubleClicked.connect(self.open_subtask)
+        self.tbl_subtasks.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.tbl_subtasks.customContextMenuRequested.connect(self.show_subtasks_context_menu)
+        self.tbl_subtasks.item_moved.connect(self._subtask_moved)
+        self.tbl_subtasks.set_drop_root_parent(self.task.id)
+
+        from gui.components.badge_delegate import BadgeDelegate
+        from gui.components.progress_bar_delegate import ProgressBarDelegate
+        self.tbl_subtasks.setItemDelegateForColumn(2, BadgeDelegate("status", parent=self.tbl_subtasks))
+        self.tbl_subtasks.setItemDelegateForColumn(4, ProgressBarDelegate(parent=self.tbl_subtasks))
+        layout.addWidget(self.tbl_subtasks)
         
         # Add a visual label for logs
         lbl_logs = QLabel("Atividades / Logs:")
@@ -311,7 +352,284 @@ class TaskDetailQt(QWidget):
             except Exception:
                 pass
 
+
+    def load_subtasks(self):
+        from gui.components.drag_drop_tree_qt import SortableTreeWidgetItem
+        svc = self.service
+        all_tasks = svc.task_repo.get_all(include_archived=True, include_deleted=False)
+        children = {}
+        for t in all_tasks:
+            pid = getattr(t, 'parent_task_id', None)
+            if pid is not None:
+                children.setdefault(pid, []).append(t)
+
+        self.tbl_subtasks.setSortingEnabled(False)
+        self.tbl_subtasks.clear()
+
+        def sort_key(t):
+            pos = getattr(t, 'position', None)
+            return (pos if pos is not None else float('inf'), getattr(t, 'id', 0) or 0)
+
+        for pid in list(children.keys()):
+            children[pid].sort(key=sort_key)
+
+        def compute_progress(t):
+            subs = children.get(t.id, [])
+            if not subs:
+                return None
+            total = len(subs)
+            done = sum(1 for s in subs if s.status == 'Concluído')
+            return f"{done}/{total}"
+
+        def create_tree_item(t, parent_item, depth=0):
+            item = SortableTreeWidgetItem(parent_item)
+            item.setData(0, Qt.UserRole, t)
+            item.setText(0, str(t.id))
+            item.setTextAlignment(0, Qt.AlignCenter)
+
+            prefix = ""
+            if depth > 0:
+                prefix = ("    " * (depth - 1)) + "└─ "
+            item.setText(1, prefix + t.title)
+
+            if depth > 0:
+                from PySide6.QtGui import QColor as _QC
+                if depth >= 2:
+                    item.setForeground(1, QBrush(_QC("#b06ab3")))
+                    bg = _QC(176, 106, 179, 22)
+                else:
+                    item.setForeground(1, QBrush(_QC("#e67e22")))
+                    bg = _QC(230, 126, 34, 18)
+                for _c in range(self.tbl_subtasks.columnCount()):
+                    item.setBackground(_c, QBrush(bg))
+
+            from gui.theme import format_status
+            item.setText(2, format_status(t.status, getattr(t, 'is_archived', False)))
+            item.setTextAlignment(2, Qt.AlignCenter)
+
+            due_str = "-"
+            if t.due_date:
+                try:
+                    import datetime
+                    dt = datetime.datetime.fromisoformat(str(t.due_date))
+                    due_str = dt.strftime("%d/%m/%Y")
+                except:
+                    due_str = str(t.due_date).split()[0]
+            item.setText(3, due_str)
+            item.setTextAlignment(3, Qt.AlignCenter)
+
+            progress_str = compute_progress(t)
+            if progress_str:
+                item.setText(4, progress_str)
+                try:
+                    done = int(progress_str.split("/")[0])
+                    total = int(progress_str.split("/")[1])
+                    item.sort_values[4] = done / total if total else 0.0
+                except (ValueError, IndexError):
+                    pass
+            else:
+                item.setText(4, "")
+            item.setTextAlignment(4, Qt.AlignCenter)
+
+            for sub_t in children.get(t.id, []):
+                create_tree_item(sub_t, item, depth + 1)
+            return item
+
+        for st in children.get(self.task.id, []):
+            create_tree_item(st, self.tbl_subtasks, 0)
+
+        from gui.components.drag_drop_tree_qt import fit_branch_arrows
+        fit_branch_arrows(self.tbl_subtasks)
+        self.tbl_subtasks.expandAll()
+
+    def _subtask_moved(self, task_id, new_parent_id=None):
+        if not self.service.move_task(task_id, new_parent_id):
+            self.load_subtasks()
+            return
+        # Reescrever posições na ordem visual atual (para persistir reordenações
+        # dentro do mesmo pai e a posição do item movido)
+        self._persist_subtree_order()
+        self.load_subtasks()
+        from core.event_bus import event_bus
+        event_bus.emit("entity_updated")
+
+    def _persist_subtree_order(self):
+        """Persiste a posição de todas as subtarefas conforme a ordem visual atual
+        da árvore, atribuindo gaps de 100 a cada irmão (mesma parent_task_id)."""
+        svc = self.service
+        children_by_parent = {}
+        root = self.tbl_subtasks.invisibleRootItem()
+        stack = []
+
+        def collect(parent, pid):
+            for i in range(parent.childCount()):
+                item = parent.child(i)
+                t = item.data(0, Qt.UserRole)
+                if t:
+                    children_by_parent.setdefault(pid, []).append(t)
+                collect(item, t.id if t else pid)
+        collect(root, None)
+
+        for pid, tasks in children_by_parent.items():
+            for row, t in enumerate(tasks):
+                new_pos = float((row + 1) * 100)
+                if (t.position or 0.0) == new_pos:
+                    continue
+                t.position = new_pos
+                svc.update_task_position(t.id, new_pos)
+            
+    def new_subtask(self):
+        from gui.dialogs_qt.task_dialog_qt import TaskDialogQt
+        from models.entities import Task
+        
+        new_t = Task(project_id=self.task.project_id, parent_task_id=self.task.id)
+        
+        def save_subtask(saved_t, is_new, original_t=None):
+            try:
+                from services.task_service import TaskService
+                svc = TaskService()
+                svc.create_task(
+                    title=saved_t.title,
+                    context=saved_t.context,
+                    status=saved_t.status,
+                    energy_level=saved_t.energy_level,
+                    project_id=saved_t.project_id,
+                    parent_task_id=saved_t.parent_task_id,
+                    start_date=saved_t.start_date,
+                    due_date=saved_t.due_date,
+                    estimated_hours=saved_t.estimated_hours,
+                    is_milestone=saved_t.is_milestone
+                )
+                self.load_subtasks()
+                from core.event_bus import event_bus
+                event_bus.emit("entity_updated")
+            except Exception as e:
+                import traceback
+                print("Error saving subtask:", e)
+                traceback.print_exc()
+
+        dialog = TaskDialogQt(self, task=new_t, on_save=save_subtask)
+        dialog.exec()
+        
+    def open_subtask(self, item, column=None):
+        task = item.data(0, Qt.UserRole)
+        if not task:
+            return
+        from core.event_bus import event_bus
+        event_bus.emit("navigate_to", {"type": "task", "id": task.id})
+
+    def _subtask_at(self, pos):
+        item = self.tbl_subtasks.itemAt(pos)
+        if item is None:
+            return None, None
+        task = item.data(0, Qt.UserRole)
+        return task, None
+
+    def show_subtasks_context_menu(self, pos):
+        task, row = self._subtask_at(pos)
+        if task is None:
+            return
+
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(self)
+        menu.setStyleSheet("QMenu { background-color: #2a2a3f; color: white; } QMenu::item:selected { background-color: #4a6fe3; }")
+
+        action_open = menu.addAction("👁️ Abrir")
+        action_edit = menu.addAction("✏️ Editar")
+
+        def create_color_icon(color_hex):
+            from PySide6.QtGui import QPixmap, QIcon, QPainter, QColor
+            pixmap = QPixmap(16, 16)
+            pixmap.fill(Qt.transparent)
+            painter = QPainter(pixmap)
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setBrush(QColor(color_hex))
+            painter.setPen(Qt.NoPen)
+            painter.drawEllipse(2, 2, 12, 12)
+            painter.end()
+            return QIcon(pixmap)
+
+        status_menu = menu.addMenu("Mudar Status")
+        from gui.theme import get_status_color
+        for st in ["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"]:
+            action = status_menu.addAction(create_color_icon(get_status_color(st)), st)
+            action.triggered.connect(lambda checked=False, s=st, t=task: self._change_subtask_status(t, s))
+
+        menu.addSeparator()
+        action_alarm = menu.addAction("🔔 Criar Alarme")
+        action_archive = None
+        action_unarchive = None
+
+        if getattr(task, "is_archived", False):
+            action_unarchive = menu.addAction("📦 Desarquivar")
+        else:
+            action_archive = menu.addAction("📦 Arquivar")
+
+        menu.addSeparator()
+        action_del = menu.addAction("🗑️ Excluir")
+
+        action = menu.exec(self.tbl_subtasks.viewport().mapToGlobal(pos))
+        if action == action_open:
+            from core.event_bus import event_bus
+            event_bus.emit("navigate_to", {"type": "task", "id": task.id})
+        elif action == action_edit:
+            self._edit_subtask(task)
+        elif action == action_alarm:
+            from gui.dialogs_qt.alarm_dialog_qt import AlarmDialogQt
+            dlg = AlarmDialogQt(self, task=task)
+            dlg.exec()
+            self.load_subtasks()
+        elif action == action_archive:
+            self.service.archive_task(task.id)
+            self.load_subtasks()
+        elif action == action_unarchive:
+            self.service.restore_task(task.id)
+            self.load_subtasks()
+        elif action == action_del:
+            self._delete_subtask(task)
+
+    def _change_subtask_status(self, task, new_status):
+        self.service.change_status(task, new_status)
+        self.load_subtasks()
+        from core.event_bus import event_bus
+        event_bus.emit("entity_updated")
+
+    def _edit_subtask(self, task):
+        from gui.dialogs_qt.task_dialog_qt import TaskDialogQt
+        def save_sub(edited, is_new, original_t=None):
+            self.service.update_task(edited, original_t)
+            self.load_subtasks()
+            from core.event_bus import event_bus
+            event_bus.emit("entity_updated")
+        dlg = TaskDialogQt(self, task=task, on_save=save_sub)
+        dlg.exec()
+
+    def _delete_subtask(self, task):
+        from services.link_service import LinkService
+        refs = LinkService().find_references_to_entity("task", task.id)
+        if refs:
+            from gui.dialogs_qt.reference_warning_dialog_qt import ReferenceWarningDialog
+            dlg = ReferenceWarningDialog("tarefa", task.title, refs, self, show_archive=True)
+            dlg.exec()
+            if dlg.action == "archive":
+                self.service.archive_task(task.id)
+                self.load_subtasks()
+                return
+            elif dlg.action == "delete_all":
+                LinkService().delete_all_references_to("task", task.id)
+            else:
+                return
+        from PySide6.QtWidgets import QMessageBox
+        resp = QMessageBox.question(self, "Confirmar Exclusão", f"Deseja excluir a subtarefa '{task.title}'?")
+        if resp == QMessageBox.Yes:
+            LinkService().delete_all_references_to("task", task.id)
+            self.service.soft_delete_task(task.id)
+            self.load_subtasks()
+            from core.event_bus import event_bus
+            event_bus.emit("entity_updated")
+
     def load_data(self):
+        self.load_subtasks()
         # Load Logs
         from database.repositories.activity_log_repository import ActivityLogRepository
         repo = ActivityLogRepository()
@@ -404,6 +722,19 @@ class TaskDetailQt(QWidget):
                     elif log.action == "UPDATED":
                         parts = []
                         for k, v in parsed.items():
+                            if k == "parent_task_id":
+                                to_val = v.get('to') if isinstance(v, dict) else v
+                                if not to_val:
+                                    parts.append("virou tarefa raiz")
+                                else:
+                                    try:
+                                        from database.repositories.task_repository import TaskRepository
+                                        parent = TaskRepository().get_by_id(int(to_val))
+                                        parent_name = f"'{parent.title}'" if parent else f"id {to_val}"
+                                    except Exception:
+                                        parent_name = f"id {to_val}"
+                                    parts.append(f"virou filho de {parent_name}")
+                                continue
                             k_pt = field_translations.get(k, k)
                             from_v = fmt_val(v.get('from'))
                             to_v = fmt_val(v.get('to'))
@@ -571,6 +902,8 @@ class TaskDetailQt(QWidget):
         self.load_agenda()
 
     def load_agenda(self):
+        if not self.isVisible():
+            return
         from services.alert_service import AlertService
         AlertService().mark_overdue_alerts()
         # Load Agenda for the project

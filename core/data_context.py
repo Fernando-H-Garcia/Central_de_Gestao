@@ -18,7 +18,7 @@ class DataSnapshot:
         return list(self.tasks_by_id.values())
         
     def get_tasks_by_project(self, project_id):
-        return [t for t in self.tasks_by_id.values() if t.project_id == project_id and t.parent_task_id is None]
+        return [t for t in self.tasks_by_id.values() if t.project_id == project_id]
         
     def get_subtasks(self, parent_task_id):
         return [t for t in self.tasks_by_id.values() if t.parent_task_id == parent_task_id]

@@ -127,7 +127,7 @@ class TaskService:
         snap = data_context.get_snapshot()
         if snap.tasks_by_id:
             return snap.get_tasks_by_project(project_id)
-        return [t for t in self.get_all_active() if t.project_id == project_id and t.parent_task_id is None]
+        return [t for t in self.get_all_active() if t.project_id == project_id]
         
     def get_subtasks(self, parent_task_id: int) -> List[Task]:
         from core.data_context import data_context
@@ -140,15 +140,62 @@ class TaskService:
         all_tasks = self.task_repo.get_all(include_archived=True, include_deleted=False)
         return [t for t in all_tasks if t.is_archived]
 
+    def _get_subtree_ids(self, task_id: int) -> List[int]:
+        """IDs de todas as tarefas descendentes (recursivamente) de task_id, incluindo arquivadas."""
+        all_tasks = self.task_repo.get_all(include_archived=True, include_deleted=False)
+        children = {}
+        for t in all_tasks:
+            if t.parent_task_id is not None:
+                children.setdefault(t.parent_task_id, []).append(t.id)
+        ids = []
+        stack = list(children.get(task_id, []))
+        while stack:
+            cur = stack.pop()
+            ids.append(cur)
+            stack.extend(children.get(cur, []))
+        return ids
+
+    def get_descendant_ids(self, task_id: int) -> List[int]:
+        return self._get_subtree_ids(task_id)
+
     def archive_task(self, task_id: int):
+        for st_id in self._get_subtree_ids(task_id):
+            self.task_repo.archive(st_id)
+            self._log_activity(st_id, "ARCHIVED")
         self.task_repo.archive(task_id)
         self._log_activity(task_id, "ARCHIVED")
 
     def restore_task(self, task_id: int):
+        for st_id in self._get_subtree_ids(task_id):
+            self.task_repo.restore(st_id)
+            self._log_activity(st_id, "RESTORED")
         self.task_repo.restore(task_id)
         self._log_activity(task_id, "RESTORED")
 
+    def move_task(self, task_id: int, new_parent_id):
+        """Reparenta uma tarefa/subtarefa. Retorna False se criaria ciclo (ex.: mover para própria sub)."""
+        if new_parent_id == task_id:
+            return False
+        if new_parent_id is not None:
+            if task_id in self._get_subtree_ids(new_parent_id):
+                return False
+            parent = self.task_repo.get_by_id(new_parent_id)
+            if parent is None:
+                return False
+        task = self.task_repo.get_by_id(task_id)
+        if task is None:
+            return False
+        old_parent = task.parent_task_id
+        task.parent_task_id = new_parent_id
+        self.task_repo.update(task)
+        self._log_activity(task_id, "UPDATED", {"parent_task_id": {"from": old_parent, "to": new_parent_id}})
+        return True
+
     def soft_delete_task(self, task_id: int):
+        subtree_ids = self._get_subtree_ids(task_id)
+        for st_id in subtree_ids:
+            self.soft_delete_task(st_id)
+            
         # Antes de remover as dependências, coletar as tarefas que dependiam DESTA
         # para poder desblocá-las depois (elas perdem o bloqueador).
         from database.repositories.task_dependency_repository import TaskDependencyRepository

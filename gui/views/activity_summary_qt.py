@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QEvent
 from PySide6.QtGui import QFont, QAction, QCursor
 from gui.components.page_header import PageHeader
+from gui.components.collapsible_section_qt import CollapsibleSection
 import json
 from datetime import datetime
 from collections import defaultdict
@@ -37,7 +38,21 @@ FIELD_TRANSLATIONS = {
     "alert_message": "mensagem do alerta",
     "context": "contexto",
     "project_id": "projeto",
+    "parent_task_id": "tarefa pai",
 }
+
+def _parent_task_title(task_id):
+    # Converte um id de tarefa pai (ou None) em um rótulo amigável.
+    if not task_id:
+        return "tarefa raiz"
+    try:
+        from database.repositories.task_repository import TaskRepository
+        parent = TaskRepository().get_by_id(int(task_id))
+        if parent:
+            return f"'{parent.title}'"
+    except Exception:
+        pass
+    return f"id {task_id}"
 
 def fmt_val(val):
     if val is None or val == "None" or str(val).strip() == "":
@@ -183,6 +198,10 @@ class ActivitySummaryQt(QWidget):
         elif log_action == "UPDATED":
             parts = []
             for k, v in parsed.items():
+                if k == "parent_task_id":
+                    to_val = v.get('to') if isinstance(v, dict) else v
+                    parts.append(f"virou {_parent_task_title(to_val)}")
+                    continue
                 k_pt = FIELD_TRANSLATIONS.get(k, k)
                 from_v = fmt_val(v.get('from'))
                 to_v = fmt_val(v.get('to'))
@@ -233,7 +252,7 @@ class ActivitySummaryQt(QWidget):
                     pname = proj_data["name"]
 
                     cursor.execute("""
-                        SELECT t.id as task_id, t.title as task_title, 
+                        SELECT t.id as task_id, t.title as task_title, t.parent_task_id,
                                al.id, al.action, al.changed_fields_json, al.created_at
                         FROM activity_logs al
                         JOIN tasks t ON t.id = al.entity_id AND al.entity_type = 'task'
@@ -245,69 +264,51 @@ class ActivitySummaryQt(QWidget):
                     if not rows:
                         continue
 
-                    # Group by task
+                    # Group by task, preserving hierarquia
                     task_groups = defaultdict(list)
+                    task_parent = {}
+                    task_title = {}
                     for row in rows:
                         task_groups[row["task_id"]].append(row)
+                        task_parent[row["task_id"]] = row["parent_task_id"]
+                        task_title[row["task_id"]] = row["task_title"]
 
                     has_any = True
 
-                    # Project header
-                    proj_header = QLabel(f"Projeto: {pname}")
-                    proj_font = QFont()
-                    proj_font.setPointSize(14)
-                    proj_font.setBold(True)
-                    proj_header.setFont(proj_font)
-                    proj_header.setStyleSheet("""
-                        QLabel {
-                            color: #e3a84a;
-                            padding: 8px 0 4px 0;
-                        }
-                        QLabel:hover {
-                            background-color: rgba(227, 168, 74, 0.12);
-                            border-radius: 4px;
-                        }
-                    """)
-                    proj_header.setCursor(Qt.PointingHandCursor)
-                    proj_header.setProperty("project_id", pid)
-                    proj_header.setContextMenuPolicy(Qt.CustomContextMenu)
-                    proj_header.customContextMenuRequested.connect(lambda pos, l=proj_header: self._show_project_menu(l, pos))
-                    proj_header.installEventFilter(self)
-                    self.results_layout.addWidget(proj_header)
+                    # Project collapsible section
+                    proj_section = CollapsibleSection(f"📁 Projeto: {pname}", default_collapsed=False, accent="#e3a84a")
+                    proj_section.header.setProperty("project_id", pid)
+                    proj_section.header.setContextMenuPolicy(Qt.CustomContextMenu)
+                    proj_section.header.customContextMenuRequested.connect(lambda pos, l=proj_section.header: self._show_project_menu(l, pos))
+                    proj_section.header.installEventFilter(self)
+                    self.results_layout.addWidget(proj_section)
 
-                    for task_id in sorted(task_groups.keys()):
-                        logs = task_groups[task_id][:limit]
-                        task_title = logs[0]["task_title"]
+                    children = defaultdict(list)
+                    roots = []
+                    for tid in task_groups.keys():
+                        pid_par = task_parent.get(tid)
+                        if pid_par is not None and pid_par in task_groups:
+                            children[pid_par].append(tid)
+                        else:
+                            roots.append(tid)
 
-                        # Task header
-                        task_lbl = QLabel(task_title)
-                        task_font = QFont()
-                        task_font.setPointSize(12)
-                        task_font.setBold(True)
-                        task_lbl.setFont(task_font)
-                        task_lbl.setStyleSheet("""
-                            QLabel {
-                                color: #e67e22;
-                                padding: 2px 0 2px 20px;
-                            }
-                            QLabel:hover {
-                                background-color: rgba(230, 126, 34, 0.12);
-                                border-radius: 4px;
-                            }
-                        """)
-                        task_lbl.setCursor(Qt.PointingHandCursor)
-                        task_lbl.setProperty("task_id", task_id)
-                        task_lbl.setContextMenuPolicy(Qt.CustomContextMenu)
-                        task_lbl.customContextMenuRequested.connect(lambda pos, l=task_lbl: self._show_task_menu(l, pos))
-                        task_lbl.installEventFilter(self)
-                        self.results_layout.addWidget(task_lbl)
+                    def render_task(tid, depth):
+                        logs = task_groups[tid][:limit]
+                        title = task_title[tid]
+
+                        task_section = CollapsibleSection(title, default_collapsed=False, accent="#e67e22", depth=depth)
+                        task_section.header.setProperty("task_id", tid)
+                        task_section.header.setContextMenuPolicy(Qt.CustomContextMenu)
+                        task_section.header.customContextMenuRequested.connect(lambda pos, l=task_section.header: self._show_task_menu(l, pos))
+                        task_section.header.installEventFilter(self)
+                        block_layout = task_section.body_layout
 
                         for log in logs:
                             action = log["action"]
                             action_pt = ACTION_TRANSLATION.get(action.upper(), action)
                             color = COLOR_MAPPING.get(action_pt, "#ffffff")
                             raw_details = log["changed_fields_json"] or ""
-                            details = self._format_details(log["action"], raw_details, task_title)
+                            details = self._format_details(log["action"], raw_details, title)
 
                             # Format date as Brazilian
                             try:
@@ -319,7 +320,8 @@ class ActivitySummaryQt(QWidget):
                             # Render with active links
                             html = render_links_as_html(details) or details
                             styled_html = (
-                                f'<div style="padding: 2px 40px;">'
+                                f'<div style="padding: 2px 0 2px 6px;'
+                                f' border-left: 3px solid {color}; border-radius: 2px;">'
                                 f'<span style="color: #2ecc71;">[{date_str}]</span> '
                                 f'<span style="color: {color}; font-weight: bold;">{action_pt}</span>: '
                                 f'<span style="color: #e0e0e0;">{html}</span>'
@@ -332,7 +334,15 @@ class ActivitySummaryQt(QWidget):
                             lbl.linkActivated.connect(self._on_link_clicked_str)
                             lbl.setStyleSheet("color: #e0e0e0; font-size: 12px; padding: 0px; margin: 0px; background: transparent;")
                             lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-                            self.results_layout.addWidget(lbl)
+                            block_layout.addWidget(lbl)
+
+                        for sub in sorted(children.get(tid, []), key=lambda x: task_title.get(x, "")):
+                            block_layout.addWidget(render_task(sub, depth + 1))
+
+                        return task_section
+
+                    for t_root in sorted(roots, key=lambda x: task_title.get(x, "")):
+                        proj_section.body_layout.addWidget(render_task(t_root, 0))
 
                 if not has_any:
                     no_data = QLabel("Nenhum registro encontrado.")
@@ -379,7 +389,7 @@ class ActivitySummaryQt(QWidget):
         event_bus.emit("navigate_to", {"type": t_type, "id": t_id})
 
     def eventFilter(self, obj, event):
-        if event.type() == QEvent.MouseButtonDblClick and isinstance(obj, QLabel):
+        if event.type() == QEvent.MouseButtonDblClick and isinstance(obj, QWidget):
             pid = obj.property("project_id")
             tid = obj.property("task_id")
             if pid:

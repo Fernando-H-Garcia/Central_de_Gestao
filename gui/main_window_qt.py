@@ -24,6 +24,9 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(1000, 700)
         self._layout_fixed = False
         self._nav_history = []
+        self._current_target = None
+        self._project_views = {}
+        self._task_views = {}
         self._window_visible_logged = False
         self._paint_logged = False
         
@@ -212,88 +215,87 @@ class MainWindow(QMainWindow):
         main_layout.addWidget(self.stacked_widget, stretch=1)
         
     def change_page(self, idx):
-        self._nav_history.append(self.stacked_widget.currentWidget())
+        self._push_target(self._current_target)
+        self._show_page(idx)
+        
+    def _push_target(self, target):
+        if target is None:
+            return
+        if self._nav_history and self._nav_history[-1] == target:
+            return
+        self._nav_history.append(target)
+
+    def _show_page(self, idx):
+        self._current_target = ("page", idx)
         for i, btn in self.nav_buttons.items():
             btn.setChecked(i == idx)
         self.stacked_widget.setCurrentIndex(idx)
-        
-    def _restore_nav_button(self, idx):
-        nav_items = {
-            0: "Monitor",
-            1: "Projetos",
-            2: "Resumo Atividades",
-            3: "Agenda Geral",
-            4: "Documentação"
-        }
-        item_name = nav_items.get(idx)
-        if idx in self.nav_buttons:
-            self.nav_buttons[idx].setChecked(True)
+
+    def _deselect_nav_buttons(self):
+        self.btn_group.setExclusive(False)
+        for btn in self.btn_group.buttons():
+            btn.setChecked(False)
+        self.btn_group.setExclusive(True)
+
+    def _show_project(self, project_id):
+        from gui.views.project_360_qt import Project360Qt
+
+        target = ("project", project_id)
+        view = self._project_views.get(project_id)
+        if view is None:
+            view = Project360Qt(project_id)
+            view.go_back.connect(self._navigate_back)
+            view.open_task_detail_signal.connect(lambda tid: self.show_task_detail(tid, origin_widget=view))
+            self.stacked_widget.addWidget(view)
+            self._project_views[project_id] = view
+
+        self._current_target = target
+        self._deselect_nav_buttons()
+        self.stacked_widget.setCurrentWidget(view)
 
     def show_project_360(self, project_id, origin_widget=None):
-        from gui.views.project_360_qt import Project360Qt
-        
-        current = self.stacked_widget.currentWidget()
-        if not isinstance(current, Project360Qt):
-            self._nav_history.append(current)
-        
-        # Deselect sidebar buttons since we are in a sub-view
-        self.btn_group.setExclusive(False)
-        for btn in self.btn_group.buttons():
-            btn.setChecked(False)
-        self.btn_group.setExclusive(True)
-        
-        # Check if project 360 is already open, if not create it
-        if hasattr(self, 'project_360_view'):
-            self.stacked_widget.removeWidget(self.project_360_view)
-            self.project_360_view.deleteLater()
-            
-        self.project_360_view = Project360Qt(project_id)
-        
-        self.project_360_view.go_back.connect(self._navigate_back)
-        self.project_360_view.open_task_detail_signal.connect(lambda tid: self.show_task_detail(tid, origin_widget=self.project_360_view))
-        
-        self.stacked_widget.addWidget(self.project_360_view)
-        self.stacked_widget.setCurrentWidget(self.project_360_view)
-        
-    def show_task_detail(self, task_id, origin_widget=None):
+        if self._current_target != ("project", project_id):
+            self._push_target(self._current_target)
+        self._show_project(project_id)
+
+    def _show_task(self, task_id):
         from gui.views.task_detail_qt import TaskDetailQt
-        
-        current = self.stacked_widget.currentWidget()
-        if not isinstance(current, TaskDetailQt):
-            self._nav_history.append(current)
-        
-        # Deselect sidebar buttons since we are in a sub-view
-        self.btn_group.setExclusive(False)
-        for btn in self.btn_group.buttons():
-            btn.setChecked(False)
-        self.btn_group.setExclusive(True)
-        
-        if hasattr(self, 'task_detail_view'):
-            try:
-                self.stacked_widget.removeWidget(self.task_detail_view)
-                self.task_detail_view.deleteLater()
-            except RuntimeError:
-                pass
-                
-        self.task_detail_view = TaskDetailQt(task_id)
-        
-        self.task_detail_view.go_back.connect(self._navigate_back)
-            
-        self.stacked_widget.addWidget(self.task_detail_view)
-        self.stacked_widget.setCurrentWidget(self.task_detail_view)
-        
-    def _navigate_back(self):
-        while self._nav_history:
-            prev_widget = self._nav_history.pop()
-            try:
-                idx = self.stacked_widget.indexOf(prev_widget)
-            except RuntimeError:
-                continue  # widget was deleted, skip
-            if idx >= 0:
-                self.stacked_widget.setCurrentIndex(idx)
-                if idx < 5:
-                    self._restore_nav_button(idx)
+
+        target = ("task", task_id)
+        view = self._task_views.get(task_id)
+        if view is None:
+            view = TaskDetailQt(task_id)
+            if view.task is None:
                 return
+            view.go_back.connect(self._navigate_back)
+            self.stacked_widget.addWidget(view)
+            self._task_views[task_id] = view
+
+        self._current_target = target
+        self._deselect_nav_buttons()
+        self.stacked_widget.setCurrentWidget(view)
+
+    def show_task_detail(self, task_id, origin_widget=None):
+        if self._current_target != ("task", task_id):
+            self._push_target(self._current_target)
+        self._show_task(task_id)
+
+    def _navigate_back(self):
+        current = self._current_target
+        while self._nav_history:
+            target = self._nav_history.pop()
+            if target == current:
+                continue
+            kind = target[0]
+            if kind == "page":
+                self._show_page(target[1])
+            elif kind == "project":
+                self._show_project(target[1])
+            elif kind == "task":
+                self._show_task(target[1])
+            else:
+                continue
+            return
 
     def load_stylesheet(self):
         pass
