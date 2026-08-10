@@ -112,6 +112,17 @@ class AlertService:
         pending.sort(key=lambda a: (a.alert_date, a.alert_time or '23:59'))
         return pending[:limit]
 
+    def get_active_alarms_all(self, task_service) -> List[Alert]:
+        """Returns all active (pending/overdue and past scheduled time) alarms for ALL tasks,
+        regardless of which screen is currently visible."""
+        tasks = task_service.get_all_active()
+        active = []
+        for t in tasks:
+            active.extend(self.get_active_alerts_for_task(t.id))
+        priority_order = {'critical': 0, 'high': 1, 'medium': 2, 'low': 3}
+        active.sort(key=lambda a: (priority_order.get(a.priority, 9), a.alert_date, a.alert_time or '23:59'))
+        return active
+
     def get_active_alarms_for_project(self, project_id: int, task_service) -> List[Alert]:
         """Returns all active (pending/overdue and past scheduled time) alarms for all tasks in a project."""
         tasks = task_service.get_tasks_by_project(project_id)

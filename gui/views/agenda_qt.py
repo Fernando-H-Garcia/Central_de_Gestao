@@ -60,9 +60,10 @@ class AgendaQt(QWidget):
         # Sub-tab Alarmes
         tab_alarmes = QWidget()
         layout_alarmes = QVBoxLayout(tab_alarmes)
-        from gui.components.alarm_cards_qt import AlarmCardsWidget
-        self.tree_alarms = AlarmCardsWidget(grouping="project", main_window=self.window(), parent=self)
-        layout_alarmes.addWidget(self.tree_alarms, stretch=1)
+        self.project_alarm_tabs = QTabWidget()
+        self.project_alarm_tabs.setStyleSheet(self._nested_tab_style())
+        # Cada projeto com alarmes vira uma sub-aba aqui
+        layout_alarmes.addWidget(self.project_alarm_tabs, stretch=1)
         self.agenda_tabs.addTab(tab_alarmes, "Alarmes")
 
         # Sub-tab Eventos
@@ -77,12 +78,30 @@ class AgendaQt(QWidget):
         btn_layout.addWidget(self.btn_new)
         layout_eventos.addLayout(btn_layout)
         
-        from gui.components.agenda_tree_qt import AgendaTreeWidget
-        self.tree = AgendaTreeWidget(grouping="project", main_window=self.window(), parent=self)
-        layout_eventos.addWidget(self.tree, stretch=1)
+        self.project_event_tabs = QTabWidget()
+        self.project_event_tabs.setStyleSheet(self._nested_tab_style())
+        # Cada projeto com eventos vira uma sub-aba aqui
+        layout_eventos.addWidget(self.project_event_tabs, stretch=1)
         self.agenda_tabs.addTab(tab_eventos, "Eventos")
         
         main_layout.addWidget(self.agenda_tabs, stretch=1)
+
+    def _nested_tab_style(self):
+        return """
+            QTabWidget::pane { border: 1px solid #2a2a3f; border-top: none; }
+            QTabBar::tab {
+                background: #14142a;
+                color: #888;
+                padding: 8px 18px;
+                border: 1px solid #2a2a3f;
+                border-bottom: none;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+                font-weight: bold;
+            }
+            QTabBar::tab:selected { background: #2a2a3f; color: #fff; }
+            QTabBar::tab:hover:!selected { color: #d8d8f0; }
+        """
         
     def new_event(self):
         try:
@@ -103,18 +122,61 @@ class AgendaQt(QWidget):
                 pass
 
 
+    def _project_active(self, project_repo, pid):
+        """Retorna True apenas se o projeto existe e não está arquivado/excluído."""
+        if not pid:
+            return True
+        p = project_repo.get_by_id(pid)
+        if p is None:
+            return False
+        return not (getattr(p, "is_archived", False) or getattr(p, "deleted_at", None) is not None)
+
     def load_data(self):
         try:
-            events = self.service.list_active()
             from services.project_service import ProjectService
             from services.task_service import TaskService
             from services.alert_service import AlertService
-            self.tree.populate(events, ProjectService().project_repo, TaskService().task_repo)
-            
-            # Load all active alarms for the general view
+
+            project_repo = ProjectService().project_repo
+            task_repo = TaskService().task_repo
+
+            # ── Eventos: agrupa por projeto → sub-aba em Eventos ──
+            events = self.service.list_active()
+            event_groups = {}
+            for ev in events:
+                pid = ev.project_id if ev.project_id else 0
+                # Pula eventos de projetos excluídos/arquivados (mesma regra do widget)
+                if not self._project_active(project_repo, pid):
+                    continue
+                event_groups.setdefault(pid, []).append(ev)
+            self._rebuild_project_tabs(
+                self.project_event_tabs, event_groups, project_repo, kind="events",
+                task_repo=task_repo,
+            )
+
+            # ── Alarmes: agrupa por projeto → sub-aba em Alarmes ──
             alert_service = AlertService()
             all_alarms = [a for a in alert_service.alert_repo.get_all(include_archived=False, include_deleted=False) if a.status in ('pending', 'overdue')]
-            self.tree_alarms.populate(all_alarms)
+            alarm_groups = {}
+            for al in all_alarms:
+                pid = 0
+                if al.entity_type == "task":
+                    task = task_repo.get_by_id(al.entity_id)
+                    # Pula alarmes de tarefas excluídas/arquivadas ou de projetos inativos
+                    if not task or getattr(task, "is_archived", False) or getattr(task, "deleted_at", None) is not None:
+                        continue
+                    pid = task.project_id if task.project_id else 0
+                    if not self._project_active(project_repo, pid):
+                        continue
+                elif al.entity_type == "project":
+                    pid = al.entity_id
+                    if not self._project_active(project_repo, pid):
+                        continue
+                alarm_groups.setdefault(pid, []).append(al)
+            self._rebuild_project_tabs(
+                self.project_alarm_tabs, alarm_groups, project_repo, kind="alarms",
+                task_repo=task_repo,
+            )
         except Exception as e:
             print("Erro ao carregar dados:", e)
             import traceback
@@ -127,3 +189,47 @@ class AgendaQt(QWidget):
                     traceback.print_exc(file=f)
             except:
                 pass
+
+    def _rebuild_project_tabs(self, project_tabs, groups, project_repo, kind, **kw):
+        """Reconstrói as sub-abas de projeto (uma por projeto) para alarmes ou eventos."""
+        from PySide6.QtWidgets import QTabWidget
+        
+        # Ordena projetos por nome (Sem Projeto por último)
+        proj_name = {}
+        for pid in groups:
+            if pid == 0:
+                proj_name[pid] = "Sem Projeto"
+            else:
+                p = project_repo.get_by_id(pid)
+                proj_name[pid] = p.name if p else f"Projeto {pid}"
+        sorted_pids = sorted(proj_name.keys(), key=lambda pid: (proj_name[pid].lower() == "sem projeto", proj_name[pid].lower()))
+        
+        # Remove tabs antigos
+        while project_tabs.count():
+            w = project_tabs.widget(0)
+            project_tabs.removeTab(0)
+            if w is not None:
+                w.deleteLater()
+        
+        from gui.components.alarm_cards_qt import AlarmCardsWidget
+        from gui.components.agenda_tree_qt import AgendaTreeWidget
+        
+        for pid in sorted_pids:
+            if kind == "alarms":
+                widget = AlarmCardsWidget(
+                    grouping="date",
+                    filter_project_id=pid,
+                    main_window=self.window(),
+                    parent=self,
+                )
+                widget.populate(groups[pid])
+            else:
+                widget = AgendaTreeWidget(
+                    grouping="date",
+                    filter_project_id=pid,
+                    main_window=self.window(),
+                    parent=self,
+                )
+                widget.populate(groups[pid], project_repo, kw["task_repo"])
+            title = f"{proj_name[pid]}{' (' + str(len(groups[pid])) + ')'}"
+            project_tabs.addTab(widget, title)

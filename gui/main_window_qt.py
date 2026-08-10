@@ -32,9 +32,71 @@ class MainWindow(QMainWindow):
         
         self.setup_ui()
         self.load_stylesheet()
+        self._setup_global_alarm_timer()
         
         from core.event_bus import event_bus
         event_bus.subscribe("navigate_to", self._on_global_navigate)
+
+    def _setup_global_alarm_timer(self):
+        """Global alarm monitor: fires regardless of which screen is visible."""
+        self._global_alarm_popup_open = False
+        self._global_alarm_stuck_since = None
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(500, self._check_global_alarms)
+        self._global_alarm_timer = QTimer(self)
+        self._global_alarm_timer.timeout.connect(self._check_global_alarms)
+        self._global_alarm_timer.start(10000)
+
+    def _check_global_alarms(self):
+        """Periodic global alarm check independent of the currently visible view."""
+        if self._global_alarm_popup_open:
+            import time
+            if self._global_alarm_stuck_since is None:
+                self._global_alarm_stuck_since = time.time()
+            elif time.time() - self._global_alarm_stuck_since > 60:
+                self._global_alarm_popup_open = False
+                self._global_alarm_stuck_since = None
+            return
+        self._global_alarm_stuck_since = None
+        try:
+            from services.alert_service import AlertService
+            from services.task_service import TaskService
+            self._global_alarm_popup_open = True
+            alert_service = AlertService()
+            task_service = TaskService()
+            alert_service.mark_overdue_alerts()
+            alarms = alert_service.get_active_alarms_all(task_service)
+            if not alarms:
+                return
+
+            task_map = {}
+            try:
+                from models.task import Task
+                tasks = task_service.get_all_active()
+                task_map = {t.id: t for t in tasks}
+            except Exception:
+                task_map = {}
+
+            for alarm in alarms:
+                t = task_map.get(alarm.entity_id)
+                alarm._task_title = t.title if t else f"Tarefa #{alarm.entity_id}"
+
+            from gui.dialogs_qt.alarm_popup_qt import AlarmPopupQt
+            popup = AlarmPopupQt(alarms, task_map, parent=self)
+            popup.exec()
+        except Exception:
+            import traceback, os
+            from config import LOGS_DIR
+            log_path = os.path.join(LOGS_DIR, "app_errors.log")
+            try:
+                with open(log_path, "a") as f:
+                    f.write("\nCRASH IN _check_global_alarms:\n")
+                    traceback.print_exc(file=f)
+            except Exception:
+                pass
+        finally:
+            self._global_alarm_popup_open = False
+            self._global_alarm_stuck_since = None
 
     def showEvent(self, event):
         super().showEvent(event)

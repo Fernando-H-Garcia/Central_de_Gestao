@@ -69,10 +69,10 @@ class TaskDetailQt(QWidget):
         # Header
         header_layout = QHBoxLayout()
         
-        btn_back = QPushButton("← Voltar")
-        btn_back.setObjectName("secondary")
-        btn_back.clicked.connect(self.go_back.emit)
-        header_layout.addWidget(btn_back)
+        self.btn_back = QPushButton("← Voltar")
+        self.btn_back.setObjectName("secondary")
+        self.btn_back.clicked.connect(self._on_back_clicked)
+        header_layout.addWidget(self.btn_back)
         
         self.lbl_title = QLabel(f"Tarefa #{self.task.id}: {self.task.title}")
         self.lbl_title.setObjectName("header")
@@ -124,6 +124,7 @@ class TaskDetailQt(QWidget):
         self.tabs.addTab(self.tab_agenda, "Agenda")
 
         main_layout.addWidget(self.tabs)
+        self._init_tab_navigation()
 
         
     def setup_geral_tab(self):
@@ -518,6 +519,60 @@ class TaskDetailQt(QWidget):
         from core.event_bus import event_bus
         event_bus.emit("navigate_to", {"type": "task", "id": task.id})
 
+    # ── Navegação de abas como sub-janelas (Voltar volta entre abas) ──
+    def _init_tab_navigation(self):
+        """Registra mudanças de aba (e sub-abas da Agenda) numa pilha de posições.
+        O Voltar consome essa pilha primeiro; esgotada, emite go_back
+        (volta para a janela anterior)."""
+        self._pos_history = []           # lista de (aba_principal, sub_aba_agenda)
+        self._suppress_tab_nav = False   # ignora mudanças programáticas
+        self._cur_main_idx = self.tabs.currentIndex()
+        self._cur_agenda_idx = self.agenda_tabs.currentIndex()
+        self.tabs.currentChanged.connect(self._on_main_tab_changed)
+        self.agenda_tabs.currentChanged.connect(self._on_agenda_tab_changed)
+
+    def _push_pos(self, main_idx, agenda_idx):
+        if main_idx is None:
+            main_idx = self._cur_main_idx
+        if agenda_idx is None:
+            agenda_idx = self._cur_agenda_idx
+        if self._pos_history and self._pos_history[-1] == (main_idx, agenda_idx):
+            return
+        if self._pos_history and self._pos_history[-1] == (self._cur_main_idx, self._cur_agenda_idx):
+            return
+        self._pos_history.append((main_idx, agenda_idx))
+
+    def _on_main_tab_changed(self, new_idx):
+        if self._suppress_tab_nav:
+            return
+        if new_idx == self._cur_main_idx:
+            return
+        self._push_pos(self._cur_main_idx, None)
+        self._cur_main_idx = new_idx
+
+    def _on_agenda_tab_changed(self, new_idx):
+        if self._suppress_tab_nav:
+            return
+        if new_idx == self._cur_agenda_idx:
+            return
+        self._push_pos(self._cur_main_idx, self._cur_agenda_idx)
+        self._cur_agenda_idx = new_idx
+
+    def _on_back_clicked(self):
+        """Voltar dentro das abas/sub-abas primeiro; depois window back."""
+        while self._pos_history:
+            main_idx, agenda_idx = self._pos_history.pop()
+            if (main_idx, agenda_idx) == (self._cur_main_idx, self._cur_agenda_idx):
+                continue
+            self._suppress_tab_nav = True
+            self.tabs.setCurrentIndex(main_idx)
+            self.agenda_tabs.setCurrentIndex(agenda_idx)
+            self._cur_main_idx = self.tabs.currentIndex()
+            self._cur_agenda_idx = self.agenda_tabs.currentIndex()
+            self._suppress_tab_nav = False
+            return
+        self.go_back.emit()
+
     def _subtask_at(self, pos):
         item = self.tbl_subtasks.itemAt(pos)
         if item is None:
@@ -802,13 +857,6 @@ class TaskDetailQt(QWidget):
         layout_alarmes.setContentsMargins(4, 4, 4, 4)
 
         alarm_header = QHBoxLayout()
-        self._filter_alarms_only_task = False
-        self.btn_filter_alarms = QPushButton("📋 Filtrar: Todas do Projeto")
-        self.btn_filter_alarms.setObjectName("secondary")
-        self.btn_filter_alarms.setCheckable(True)
-        self.btn_filter_alarms.setChecked(False)
-        self.btn_filter_alarms.clicked.connect(self._toggle_alarm_filter)
-        alarm_header.addWidget(self.btn_filter_alarms)
         alarm_header.addStretch()
         self.btn_new_alarm = QPushButton("🔔 + Novo Alarme")
         self.btn_new_alarm.setObjectName("secondary")
@@ -828,13 +876,6 @@ class TaskDetailQt(QWidget):
         layout_eventos.setContentsMargins(4, 4, 4, 4)
         
         header_layout = QHBoxLayout()
-        self._filter_events_only_task = False
-        self.btn_filter_events = QPushButton("📋 Filtrar: Todas do Projeto")
-        self.btn_filter_events.setObjectName("secondary")
-        self.btn_filter_events.setCheckable(True)
-        self.btn_filter_events.setChecked(False)
-        self.btn_filter_events.clicked.connect(self._toggle_event_filter)
-        header_layout.addWidget(self.btn_filter_events)
         header_layout.addStretch()
         self.btn_new_event = QPushButton("🔔 + Novo Evento (Alerta)")
         self.btn_new_event.setObjectName("secondary")
@@ -885,22 +926,6 @@ class TaskDetailQt(QWidget):
             except:
                 pass
         
-    def _toggle_alarm_filter(self):
-        self._filter_alarms_only_task = self.btn_filter_alarms.isChecked()
-        self.btn_filter_alarms.setText(
-            "📋 Filtrar: Só desta Tarefa" if self._filter_alarms_only_task
-            else "📋 Filtrar: Todas do Projeto"
-        )
-        self.load_agenda()
-
-    def _toggle_event_filter(self):
-        self._filter_events_only_task = self.btn_filter_events.isChecked()
-        self.btn_filter_events.setText(
-            "📋 Filtrar: Só desta Tarefa" if self._filter_events_only_task
-            else "📋 Filtrar: Todas do Projeto"
-        )
-        self.load_agenda()
-
     def load_agenda(self):
         if not self.isVisible():
             return
@@ -911,23 +936,22 @@ class TaskDetailQt(QWidget):
             events = [e for e in self.event_service.list_active() if e.project_id == self.task.project_id]
             from services.project_service import ProjectService
             from services.task_service import TaskService
-            self.tree_agenda.filter_task_id = self.task.id if self._filter_events_only_task else None
             self.tree_agenda.populate(events, ProjectService().project_repo, TaskService().task_repo)
         except Exception:
             import traceback
             traceback.print_exc()
 
-        # Load Alarms
+        # Load Alarms — somente desta tarefa + descendentes (sem alarmes do pai)
         try:
             from services.alert_service import AlertService
             alert_service = AlertService()
-            task_ids = [t.id for t in self.service.get_all_active() if t.project_id == self.task.project_id]
+            subtree_ids = {self.task.id} | set(self.service.get_descendant_ids(self.task.id))
             all_alarms = alert_service.alert_repo.get_all(include_archived=False, include_deleted=False)
-            task_alarms = [a for a in all_alarms if a.entity_type == "task" and a.entity_id in task_ids and a.status in ('pending', 'overdue')]
-            proj_alarms = [a for a in all_alarms if a.entity_type == "project" and a.entity_id == self.task.project_id and a.status in ('pending', 'overdue')]
-            alarms = task_alarms + proj_alarms
-            self.tree_alarms.filter_task_id = self.task.id if self._filter_alarms_only_task else None
-            self.tree_alarms.populate(alarms)
+            task_alarms = [
+                a for a in all_alarms
+                if a.entity_type == "task" and a.entity_id in subtree_ids and a.status in ('pending', 'overdue')
+            ]
+            self.tree_alarms.populate(task_alarms)
         except Exception:
             import traceback
             traceback.print_exc()

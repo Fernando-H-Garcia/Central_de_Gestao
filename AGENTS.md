@@ -22,6 +22,16 @@
 
 ## Progress
 ### Done
+- **Voltar navega por abas como sub-janelas** (`project_360_qt.py`, `task_detail_qt.py`)
+  - `_init_tab_navigation` registra mudanças de aba principal (`self.tabs`) e sub-abas da Agenda (`self.agenda_tabs`) numa pilha de posições `(aba_principal, sub_aba_agenda)`
+  - `_on_back_clicked` (conectado ao botão Voltar) consome a pilha primeiro: volta Tarefas→Ideias→Voltar=Tarefas; Agenda→Eventos→Voltar=Alarmes; Agenda→Voltar=Ideias; só quando a pilha esgota emite `go_back` (volta pra janela anterior)
+  - `_suppress_tab_nav` evita registrar mudanças programáticas feitas pelo próprio Voltar
+- **Agenda Geral com sub-abas por projeto** (`gui/views/agenda_qt.py`)
+  - Aba "Alarmes" e aba "Eventos" agora contêm um `QTabWidget` interno (`project_alarm_tabs` / `project_event_tabs`) com UMA sub-aba por projeto que possui itens
+  - `load_data` agrupa alarmes/eventos por projeto (tarefa filha → projeto da tarefa; alarme de projeto → próprio; `project_id` nulo → "Sem Projeto"); `project_repo` resolve os nomes
+  - `_rebuild_project_tabs` remove os tabs antigos (via `removeTab` + `deleteLater`), ordena por nome (Sem Projeto por último) e cria `AlarmCardsWidget`/`AgendaTreeWidget` com `grouping="date"`, `filter_project_id=<projeto>` e o lote já filtrado do grupo
+  - Título do tab: `Nome do Projeto (contagem)`
+  - **`_project_active`** descarta itens de projetos excluídos/arquivados no agrupamento (tabs fantasmas de resquícios de teste — ex.: "projeto 2", "outro projeto teste" — não aparecem mais; mesma regra de validação que os widgets aplicam no conteúdo, aplicada antes de criar a aba)
 - `complete_alert_silent` and `snooze_alert_silent` methods added to `AlertService` (write DB, no event emit)
 - `_handle_snooze` custom path defers DB write with `QTimer.singleShot(0, …)` to avoid crash during popup close
 - `_handle_complete` defers `self.accept()` with `QTimer.singleShot(0, …)` to prevent segfault
@@ -135,7 +145,27 @@
 - **Fix: setas de expansão recortadas em árvores profundas** (`gui/components/drag_drop_tree_qt.py`)
   - **Causa**: Qt desenha a seta no início da 1ª coluna, deslocada pela indentação acumulada (`indent * depth`). A coluna 0 (ID) tinha largura fixa (~100px) e indentação `20px/nível`; a partir de ~5 níveis a seta saía da coluna e era recortada (sumia)
   - **Fix**: nova função `fit_branch_arrows(tree)` reduz a indentação gradualmente (20→16→14→12px conforme a profundidade) e alarga a coluna 0 (`indent*max_depth + 30`) para a seta sempre caber; aplicada no fim do `load_data` do 360/tasks_qt e do `load_subtasks` do task_detail
+- **Listas de tarefas iniciam EXPANDIDAS** (`project_360_qt.py`)
+  - O 360 era a única view que iniciava recolhida (`collapseAll()` + restauração de `expanded_ids`); trocado para `expandAll()` logo após `fit_branch_arrows`
+  - Removida a coleta/restauração de expansões prévias (`expanded_ids`) — ficaria código morto com expandAll sempre
+  - `tasks_qt` e `task_detail` já usavam `expandAll()`; o `itemExpanded`/`_on_item_expanded` continua funcionando para expansão em cascata manual
+- **Fantasma do drag translúcido e deslocado** (`gui/components/drag_drop_tree_qt.py`)
+  - Sobrescreve `startDrag` no `DragDropTreeWidget`: renderiza a linha arrastada inteira com opacidade global (`painter.setOpacity(0.55)`) — antes o Qt só aplicava transparência em badge/status e deixava título/período sólidos
+  - Hotspot deslocado para a direita (`QPoint(60, h/2)`) para o fantasma não tapar a área de destino do drop
+  - MIME data via `model().mimeData([index])` para manter `InternalMove` funcionando
+- **Alarmes do TaskDetail filtrados por tarefa + descendentes** (`gui/views/task_detail_qt.py`)
+  - Removidos os toggles "Filtrar: Todas do Projeto / Só desta Tarefa" das sub-abas Alarmes e Eventos
+  - Alarmes agora mostram só os da tarefa aberta + subárvore (`subtree_ids = {task.id} ∪ get_descendant_ids`); na tela de um filho NÃO aparecem alarmes do pai; sem alarmes de projeto (`proj_alarms` removidos)
+  - Eventos continuam mostrando o projeto todo (decisão do usuário — apenas alarmes foram escopados)
   - Não há limite de profundidade no código — as setas continuam aparecendo em qualquer nível
+- **Alarme global — dispara em QUALQUER tela do app** (era só na Visão 360 do próprio projeto)
+  - `AlertService.get_active_alarms_all(task_service)`: escaneia TODAS as tarefas ativas (não só do projeto aberto), ordena por prioridade/data
+  - `main_window_qt.py`: `_setup_global_alarm_timer()` cria um `QTimer` global (10s) + `QTimer.singleShot(500)` no boot; `_check_global_alarms()` roda **sem depender de `isVisible()`**, com anti-stuck (reset se popup aberto > 60s) e log de exceção em `app_errors.log`
+  - Popup usa `AlarmPopupQt` com `parent=self` (MainWindow)
+  - `project_360_qt.py`: **removido** o agendamento local de alarme (timer + singleShot 400ms + `_check_alarms_periodically`) para evitar duplo-popup — o global é agora a fonte única
+- **Comportamento da seta na árvore 360 sob filtro de status — INTENCIONAL, não alterar**
+  - A seta (▸/▾) só aparece quando um item tem **filho visível no filtro ativo**; se todos os descendentes têm outro status, o Qt naturalmente não desenha a seta
+  - Quando o pai é filtrado para fora, as subtarefas são promovidas à raiz (órfãs) — confirmado com o usuário que desse jeito está correto; não "melhorar" a hierarquia sob filtro
 
 ### In Progress
 - (none)
@@ -223,6 +253,9 @@
 - `find_references_to_entity` also scans wiki page content for `{{uuid}}` patterns to find file references not tracked in `entity_links`
 - `KnowledgePageService` uses `self.page_repo` (not `self.repository`); `AttachmentService` uses `self.repository`
 - Segfault in `_handle_complete` / `_handle_snooze` was caused by calling `self.accept()` inside the button slot while widget destruction was pending; fixed by deferring with `QTimer.singleShot(0, …)`
+- **Banco do projeto (`database/novo_cerebro.db`) é cópia do banco instalado real** (schema v21, migrations 1-21 idênticas, inclui resquícios de teste). Backup original: `database/novo_cerebro.db.bak_20260807_175806`. `ensure_seed_db()` não sobrescreve banco existente; `run_migrations()` aplica só versões novas. Migrações validadas por simulação sobre cópia, sem tocar no instalado (`%LOCALAPPDATA%\CentralGestao`)
+- **Resquícios de teste em agregações por FK** (Agenda Geral, etc.): itens órfãos apontando para projeto/tarefa excluídos geravam abas fantasma ("projeto 2", "outro projeto teste", "para testar Eventos"). Regra: validar `is_archived`/`deleted_at` da entidade pai ANTES de criar sub-aba/agrupamento (helper `_project_active`). Não confiar só no filtro interno do widget — a aba é criada antes dele filtrar
+- **Não duplicar arg posicional + keyword num helper**: `_rebuild_project_tabs(..., project_repo, kind="events", ..., project_repo=project_repo)` lança `TypeError: got multiple values for argument`. Ao encaminhar kwargs, remover o dup
 
 ## Build Procedure (EXE + Installer)
 

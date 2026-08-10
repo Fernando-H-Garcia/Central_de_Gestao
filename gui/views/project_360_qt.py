@@ -54,13 +54,10 @@ class Project360Qt(QWidget):
         self.load_data()
         self.restore_sort_order()
         
-        from PySide6.QtCore import QTimer
-        # Verificar alarmes ao abrir o projeto (com pequeno atraso para UI estar pronta)
-        QTimer.singleShot(400, self._check_and_show_alarms)
-        # Verificar periodicamente a cada 10s
-        self._alarm_timer = QTimer(self)
-        self._alarm_timer.timeout.connect(self._check_alarms_periodically)
-        self._alarm_timer.start(10000)
+        # Alarme agora é disparado globalmente no MainWindow (_check_global_alarms),
+        # independente de qual tela está visível. Nada é agendado aqui para
+        # evitar duplo-popup (Project360 + global).
+        self._alarm_popup_open = False
         self._alarm_stuck_since = None
         
         event_bus.subscribe("snapshot_updated", self.safe_load_data)
@@ -144,7 +141,7 @@ class Project360Qt(QWidget):
         
         self.btn_back = QPushButton("← Voltar")
         self.btn_back.setObjectName("secondary")
-        self.btn_back.clicked.connect(self.go_back.emit)
+        self.btn_back.clicked.connect(self._on_back_clicked)
         header_layout.addWidget(self.btn_back)
         
         self.lbl_title = QLabel("Visão 360°")
@@ -234,9 +231,8 @@ class Project360Qt(QWidget):
         self.setup_agenda_tab()
         self.tabs.addTab(self.tab_agenda, "Agenda")
         
-
-        
         main_layout.addWidget(self.tabs, stretch=1)
+        self._init_tab_navigation()
 
     def setup_tasks_tab(self):
         layout = QVBoxLayout(self.tab_tasks)
@@ -322,6 +318,61 @@ class Project360Qt(QWidget):
         if not task_id_str: return
         task_id = int(task_id_str)
         self.open_task_detail_signal.emit(task_id)
+
+    # ── Navegação de abas como sub-janelas (Voltar volta entre abas) ──
+    def _init_tab_navigation(self):
+        """Registra mudanças de aba (e sub-abas da Agenda) numa pilha de posições.
+        O Voltar consome essa pilha primeiro; esgotada, emite go_back
+        (volta para a janela anterior)."""
+        self._pos_history = []           # lista de (aba_principal, sub_aba_agenda)
+        self._suppress_tab_nav = False   # ignora mudanças programáticas
+        self._cur_main_idx = self.tabs.currentIndex()
+        self._cur_agenda_idx = self.agenda_tabs.currentIndex()
+        self.tabs.currentChanged.connect(self._on_main_tab_changed)
+        self.agenda_tabs.currentChanged.connect(self._on_agenda_tab_changed)
+
+    def _push_pos(self, main_idx, agenda_idx):
+        if main_idx is None:
+            main_idx = self._cur_main_idx
+        if agenda_idx is None:
+            agenda_idx = self._cur_agenda_idx
+        # Evita historico duplicado se a posicao ja for a corrente
+        if self._pos_history and self._pos_history[-1] == (main_idx, agenda_idx):
+            return
+        if self._pos_history and self._pos_history[-1] == (self._cur_main_idx, self._cur_agenda_idx):
+            return
+        self._pos_history.append((main_idx, agenda_idx))
+
+    def _on_main_tab_changed(self, new_idx):
+        if self._suppress_tab_nav:
+            return
+        if new_idx == self._cur_main_idx:
+            return
+        self._push_pos(self._cur_main_idx, None)
+        self._cur_main_idx = new_idx
+
+    def _on_agenda_tab_changed(self, new_idx):
+        if self._suppress_tab_nav:
+            return
+        if new_idx == self._cur_agenda_idx:
+            return
+        self._push_pos(self._cur_main_idx, self._cur_agenda_idx)
+        self._cur_agenda_idx = new_idx
+
+    def _on_back_clicked(self):
+        """Voltar dentro das abas/sub-abas primeiro; depois window back."""
+        while self._pos_history:
+            main_idx, agenda_idx = self._pos_history.pop()
+            if (main_idx, agenda_idx) == (self._cur_main_idx, self._cur_agenda_idx):
+                continue
+            self._suppress_tab_nav = True
+            self.tabs.setCurrentIndex(main_idx)
+            self.agenda_tabs.setCurrentIndex(agenda_idx)
+            self._cur_main_idx = self.tabs.currentIndex()
+            self._cur_agenda_idx = self.agenda_tabs.currentIndex()
+            self._suppress_tab_nav = False
+            return
+        self.go_back.emit()
 
     def setup_agenda_tab(self):
         layout = QVBoxLayout(self.tab_agenda)
@@ -489,19 +540,6 @@ class Project360Qt(QWidget):
         
         self.tbl_tasks.setUpdatesEnabled(False)
         try:
-            # Preservar expansão da árvore entre recargas (senão o load_data colapsaria tudo)
-            expanded_ids = set()
-            _root = self.tbl_tasks.invisibleRootItem()
-            def _collect_expanded(parent):
-                for i in range(parent.childCount()):
-                    item = parent.child(i)
-                    if item.isExpanded():
-                        t = item.data(0, Qt.UserRole)
-                        if t:
-                            expanded_ids.add(t.id)
-                    _collect_expanded(item)
-            _collect_expanded(_root)
-
             print(f"[DEBUG] load_data: populating {len(project_tasks)} tasks into tree")
             self.tbl_tasks.clear()
             
@@ -621,17 +659,7 @@ class Project360Qt(QWidget):
             
         from gui.components.drag_drop_tree_qt import fit_branch_arrows
         fit_branch_arrows(self.tbl_tasks)
-        self.tbl_tasks.collapseAll()
-        if expanded_ids:
-            _root2 = self.tbl_tasks.invisibleRootItem()
-            def _restore_expand(parent):
-                for i in range(parent.childCount()):
-                    item = parent.child(i)
-                    t = item.data(0, Qt.UserRole)
-                    if t and t.id in expanded_ids:
-                        item.setExpanded(True)
-                    _restore_expand(item)
-            _restore_expand(_root2)
+        self.tbl_tasks.expandAll()
         self.restore_sort_order()
             
         # Load Agenda

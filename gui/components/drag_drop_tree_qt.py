@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import QTreeWidget, QAbstractItemView, QTreeWidgetItem, QTreeWidgetItemIterator
-from PySide6.QtCore import Qt, Signal, QTimer
+from PySide6.QtCore import Qt, Signal, QTimer, QPoint, QMimeData
+from PySide6.QtGui import QDrag, QPainter, QPixmap, QRegion
 
 class SortableTreeWidgetItem(QTreeWidgetItem):
     def __init__(self, parent=None, sort_values=None):
@@ -31,7 +32,7 @@ class DragDropTreeWidget(QTreeWidget):
         self.setDropIndicatorShown(True)
         self.setDragDropOverwriteMode(False)
 
-        # Em árvores "locais" (ex.: detalhe de tarefa) os itens do topo são filhos
+# Em árvores "locais" (ex.: detalhe de tarefa) os itens do topo são filhos
         # de uma tarefa âncora e NÃO devem virar tarefa raiz do projeto no drop.
         # None = a raiz da árvore é a raiz do projeto (comportamento padrão em
         # Project360/Tasks). Use set_drop_root_parent para limitar o drop.
@@ -41,6 +42,48 @@ class DragDropTreeWidget(QTreeWidget):
         """Define a tarefa que é o 'pai' dos itens de nível topo desta árvore.
         Drops no vazio/topo mantêm o item dentro dessa tarefa (não promovem à raiz)."""
         self._drop_root_parent_id = task_id
+
+    def startDrag(self, actions):
+        """Desenha o item arrastado com opacidade global (translúcido) e deslocado
+        à direita do cursor, para não tapar a área de destino.
+
+        O fantasma padrão do Qt só aplica transparência em legendas/badges (status,
+        prioridade) e deixa título/período sólidos — aqui renderizamos a linha
+        inteira com um alpha único.
+        """
+        items = self.selectedItems()
+        if not items:
+            super().startDrag(actions)
+            return
+
+        item = items[0]
+        rect = self.visualItemRect(item).intersected(self.viewport().rect())
+        if rect.isNull() or rect.width() <= 0 or rect.height() <= 0:
+            super().startDrag(actions)
+            return
+
+        sel_idx = self.indexFromItem(item)
+
+        mime = None
+        try:
+            mime = self.model().mimeData([sel_idx]) if sel_idx.isValid() else None
+        except Exception:
+            mime = None
+
+        pixmap = QPixmap(rect.size())
+        pixmap.fill(Qt.transparent)
+        painter = QPainter(pixmap)
+        painter.setOpacity(0.55)
+        self.viewport().render(painter, QPoint(0, 0), QRegion(rect))
+        painter.end()
+
+        drag = QDrag(self)
+        if mime is not None:
+            drag.setMimeData(mime)
+        drag.setPixmap(pixmap)
+        # Desloca o fantasma para a direita (x=60) e centraliza verticalmente
+        drag.setHotSpot(QPoint(60, rect.height() // 2))
+        drag.exec(actions, Qt.MoveAction)
 
     def _nearest_row_item(self, pos):
         """Retorna o item cuja linha (visualItemRect) está mais próxima ACIMA do ponto.
