@@ -478,3 +478,56 @@ def style_calendar_today(date_edit):
     def on_page_changed(year, month):
         cal.setDateTextFormat(QDate.currentDate(), today_fmt)
     cal.currentPageChanged.connect(on_page_changed)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# BRANCH ARROWS (expandir/colapsar) EM FUNDO ESCURO
+# ═══════════════════════════════════════════════════════════════════════
+# O QSS não controla as setas de expandir/collapsar de QTreeWidget/QTreeView:
+# elas são desenhadas pelo estilo nativo (windowsvista no Windows), que usa
+# setas escuras — invisíveis sobre fundo escuro. Este proxy redesenha o
+# primitivo PE_IndicatorBranch com uma seta leve (tom de cinza claro).
+from PySide6.QtWidgets import QStyle, QStyleOption
+from PySide6.QtWidgets import QProxyStyle
+from PySide6.QtGui import QPolygonF, QPainterPath
+from PySide6.QtCore import QPointF
+
+BRANCH_ARROW_COLOR = QColor("#cfcfdf")
+
+class LightBranchStyle(QProxyStyle):
+    def drawPrimitive(self, element, option, painter, widget=None):
+        if element == QStyle.PE_IndicatorBranch:
+            # Como QSS não estiliza branch, e o estilo nativo desenha seta
+            # escura, ignoramos o desenho base e desenhamos uma seta clara.
+            state = option.state
+            rect = option.rect
+            painter.save()
+            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(BRANCH_ARROW_COLOR)
+
+            cx = rect.x() + rect.width() / 2
+            cy = rect.y() + rect.height() / 2
+            r = min(rect.width(), rect.height()) * 0.22
+
+            if state & QStyle.State_Children:
+                if state & QStyle.State_Open:
+                    # seta para baixo (colapsar)
+                    tri = QPolygonF([
+                        QPointF(cx - r, cy - r * 0.6),
+                        QPointF(cx + r, cy - r * 0.6),
+                        QPointF(cx, cy + r * 1.0),
+                    ])
+                else:
+                    # seta para a direita (expandir)
+                    tri = QPolygonF([
+                        QPointF(cx - r * 0.6, cy - r),
+                        QPointF(cx - r * 0.6, cy + r),
+                        QPointF(cx + r * 1.0, cy),
+                    ])
+                path = QPainterPath()
+                path.addPolygon(tri)
+                painter.drawPath(path)
+            painter.restore()
+            return
+        super().drawPrimitive(element, option, painter, widget)

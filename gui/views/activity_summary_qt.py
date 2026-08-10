@@ -29,6 +29,10 @@ COLOR_MAPPING = {
     "RESTAURADO": "#4caf50",
 }
 
+# Cores alternadas por nível de aninhamento: cada filho usa cor diferente do
+# pai (laranja raiz → azul → roxo → verde → volta a laranja).
+DEPTH_ACCENTS = ["#e67e22", "#4a9eff", "#b06ab3", "#26c6a0"]
+
 FIELD_TRANSLATIONS = {
     "title": "título",
     "due_date": "prazo",
@@ -296,7 +300,8 @@ class ActivitySummaryQt(QWidget):
                         logs = task_groups[tid][:limit]
                         title = task_title[tid]
 
-                        task_section = CollapsibleSection(title, default_collapsed=False, accent="#e67e22", depth=depth)
+                        accent = DEPTH_ACCENTS[depth % len(DEPTH_ACCENTS)]
+                        task_section = CollapsibleSection(title, default_collapsed=False, accent=accent, depth=depth)
                         task_section.header.setProperty("task_id", tid)
                         task_section.header.setContextMenuPolicy(Qt.CustomContextMenu)
                         task_section.header.customContextMenuRequested.connect(lambda pos, l=task_section.header: self._show_task_menu(l, pos))

@@ -111,6 +111,9 @@ def main():
 
         qt_app = QApplication(sys.argv)
 
+        from gui.theme import LightBranchStyle
+        qt_app.setStyle(LightBranchStyle(qt_app.style()))
+
         from gui.theme import GLOBAL_STYLE
         qt_app.setStyleSheet(GLOBAL_STYLE)
 
