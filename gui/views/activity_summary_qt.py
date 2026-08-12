@@ -30,8 +30,15 @@ COLOR_MAPPING = {
 }
 
 # Cores alternadas por nível de aninhamento: cada filho usa cor diferente do
-# pai (laranja raiz → azul → roxo → verde → volta a laranja).
-DEPTH_ACCENTS = ["#e67e22", "#4a9eff", "#b06ab3", "#26c6a0"]
+# pai. Tupla (cor do destaque, cor de fundo).
+DEPTH_PALETTE = [
+    ("#D99A3E", "#211A14"),  # Pai
+    ("#5B9BD5", "#111A23"),  # Filho 1
+    ("#62B58A", "#121E19"),  # Filho 2
+    ("#A77BC7", "#1B1620"),  # Filho 3
+    ("#C47A72", "#211716"),  # Filho 4
+    ("#5FAFAF", "#121D1D"),  # Filho 5
+]
 
 FIELD_TRANSLATIONS = {
     "title": "título",
@@ -113,6 +120,25 @@ class ActivitySummaryQt(QWidget):
         col_reg.addWidget(lbl_reg)
         col_reg.addWidget(self.spin_count)
 
+        btn_concluidos = QPushButton("✅ Exibir concluídos: OFF")
+        btn_concluidos.setCheckable(True)
+        btn_concluidos.setObjectName("secondary")
+        btn_concluidos.setFixedWidth(180)
+        btn_concluidos.setStyleSheet("""
+            QPushButton {
+                padding: 6px 14px; border-radius: 5px; font-weight: bold;
+                background-color: #2b8c52; color: #fff; border: none;
+            }
+            QPushButton:hover { background-color: #3bbf6e; }
+            QPushButton:checked { background-color: #2b8c52; color: #fff; border: none; }
+            QPushButton:checked:hover { background-color: #3bbf6e; }
+            QPushButton:!checked { background-color: transparent; color: #aaa; border: 1px solid #555; }
+            QPushButton:!checked:hover { background-color: #2d2d55; color: #fff; border: 1px solid #4a6fe3; }
+            QPushButton:pressed { background-color: #3bbf6e; }
+        """)
+        btn_concluidos.clicked.connect(self._toggle_concluidos)
+        self.btn_concluidos = btn_concluidos
+
         btn_buscar = QPushButton("🔍 Buscar")
         btn_buscar.setObjectName("secondary")
         btn_buscar.setFixedWidth(120)
@@ -123,6 +149,7 @@ class ActivitySummaryQt(QWidget):
         panel_layout.addStretch()
         panel_layout.addLayout(col_proj)
         panel_layout.addLayout(col_reg)
+        panel_layout.addWidget(btn_concluidos)
         panel_layout.addWidget(btn_buscar)
         panel_layout.addStretch()
 
@@ -144,6 +171,11 @@ class ActivitySummaryQt(QWidget):
         hint.setAlignment(Qt.AlignCenter)
         self.results_layout.addWidget(hint)
         self.results_layout.addStretch()
+
+    def _toggle_concluidos(self):
+        on = self.btn_concluidos.isChecked()
+        self.btn_concluidos.setText(f"✅ Exibir concluídos: {'ON' if on else 'OFF'}")
+        self._buscar()
 
     def _load_projects(self):
         self.cmb_project.clear()
@@ -256,7 +288,7 @@ class ActivitySummaryQt(QWidget):
                     pname = proj_data["name"]
 
                     cursor.execute("""
-                        SELECT t.id as task_id, t.title as task_title, t.parent_task_id,
+                        SELECT t.id as task_id, t.title as task_title, t.parent_task_id, t.status as task_status,
                                al.id, al.action, al.changed_fields_json, al.created_at
                         FROM activity_logs al
                         JOIN tasks t ON t.id = al.entity_id AND al.entity_type = 'task'
@@ -268,14 +300,24 @@ class ActivitySummaryQt(QWidget):
                     if not rows:
                         continue
 
+                    # Filtro: se "Exibir concluídos" estiver OFF, remove tarefas concluídas
+                    show_concluidos = self.btn_concluidos.isChecked()
+                    if not show_concluidos:
+                        rows = [r for r in rows if (r["task_status"] or "").strip() != "Concluído"]
+
+                    if not rows:
+                        continue
+
                     # Group by task, preserving hierarquia
                     task_groups = defaultdict(list)
                     task_parent = {}
                     task_title = {}
+                    task_status = {}
                     for row in rows:
                         task_groups[row["task_id"]].append(row)
                         task_parent[row["task_id"]] = row["parent_task_id"]
                         task_title[row["task_id"]] = row["task_title"]
+                        task_status[row["task_id"]] = row["task_status"]
 
                     has_any = True
 
@@ -300,12 +342,31 @@ class ActivitySummaryQt(QWidget):
                         logs = task_groups[tid][:limit]
                         title = task_title[tid]
 
-                        accent = DEPTH_ACCENTS[depth % len(DEPTH_ACCENTS)]
-                        task_section = CollapsibleSection(title, default_collapsed=False, accent=accent, depth=depth)
+                        accent, bg_color = DEPTH_PALETTE[depth % len(DEPTH_PALETTE)]
+                        is_concluida = (task_status.get(tid, "") or "").strip() == "Concluído"
+                        if is_concluida:
+                            accent = "#27ae60"
+                            bg_color = "#12241A"
+
+                        task_section = CollapsibleSection(title, default_collapsed=False, accent=accent, depth=depth, bg=bg_color)
                         task_section.header.setProperty("task_id", tid)
                         task_section.header.setContextMenuPolicy(Qt.CustomContextMenu)
                         task_section.header.customContextMenuRequested.connect(lambda pos, l=task_section.header: self._show_task_menu(l, pos))
                         task_section.header.installEventFilter(self)
+                        if is_concluida:
+                            task_section.setObjectName("task_concluida")
+                            task_section.body.setObjectName("task_concluida_body")
+                            task_section.setStyleSheet(
+                                "QWidget#task_concluida { background: transparent; }"
+                                "QWidget#task_concluida_body { background: rgba(39, 174, 96, 0.10);"
+                                " border-left: 3px solid #27ae60; border-radius: 6px;"
+                                " padding: 4px 6px 6px 6px; }"
+                            )
+                        else:
+                            task_section.body.setStyleSheet(
+                                f"QWidget {{ background: {bg_color}; border-radius: 6px;"
+                                f" border-left: 3px solid {accent}; padding: 4px 6px 6px 6px; }}"
+                            )
                         block_layout = task_section.body_layout
 
                         for log in logs:
@@ -327,9 +388,9 @@ class ActivitySummaryQt(QWidget):
                             styled_html = (
                                 f'<div style="padding: 2px 0 2px 6px;'
                                 f' border-left: 3px solid {color}; border-radius: 2px;">'
-                                f'<span style="color: #2ecc71;">[{date_str}]</span> '
+                                f'<span style="color: #9aa0a6;">[{date_str}]</span> '
                                 f'<span style="color: {color}; font-weight: bold;">{action_pt}</span>: '
-                                f'<span style="color: #e0e0e0;">{html}</span>'
+                                f'<span style="color: #cdd3dc;">{html}</span>'
                                 f'</div>'
                             )
 

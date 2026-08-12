@@ -11,12 +11,13 @@ class CollapsibleSection(QWidget):
     conteúdo está contido dentro do bloco de um nível superior.
     """
 
-    def __init__(self, title="", parent=None, default_collapsed=False, accent="#e67e22", depth=0):
+    def __init__(self, title="", parent=None, default_collapsed=False, accent="#e67e22", depth=0, bg=None):
         super().__init__(parent)
         self._collapsed = bool(default_collapsed)
         self._title = title
         self._accent = accent
         self._depth = max(0, int(depth))
+        self._bg = bg
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -44,6 +45,8 @@ class CollapsibleSection(QWidget):
 
     def _header_colors(self):
         # Cor do cabeçalho varia por nível para facilitar a leitura da cascata.
+        if self._bg is not None:
+            return self._bg
         if self._depth == 0:
             bg = f"rgba({self._rgb()}, 0.10)"
         elif self._depth == 1:
@@ -53,6 +56,17 @@ class CollapsibleSection(QWidget):
         else:
             bg = f"rgba({self._rgb()}, 0.04)"
         return bg
+
+    def _hover_color(self):
+        # Hover: se tem fundo fixo, clareia um pouco; senão usa a transparência do accent.
+        if self._bg is not None:
+            return f"rgba({self._rgb_bg()}, 0.30)"
+        return f"rgba({self._rgb()}, 0.16)"
+
+    def _pressed_color(self):
+        if self._bg is not None:
+            return f"rgba({self._rgb_bg()}, 0.40)"
+        return f"rgba({self._rgb()}, 0.22)"
 
     def _header_css(self):
         bg = self._header_colors()
@@ -68,10 +82,10 @@ class CollapsibleSection(QWidget):
                 text-align: left;
             }}
             QPushButton:hover {{
-                background: rgba({self._rgb()}, 0.16);
+                background: {self._hover_color()};
             }}
             QPushButton:pressed {{
-                background: rgba({self._rgb()}, 0.22);
+                background: {self._pressed_color()};
             }}
         """
 
@@ -84,6 +98,16 @@ class CollapsibleSection(QWidget):
             return f"{r}, {g}, {b}"
         except Exception:
             return "230, 126, 34"
+
+    def _rgb_bg(self):
+        hexv = self._bg.lstrip("#")
+        try:
+            r = int(hexv[0:2], 16)
+            g = int(hexv[2:4], 16)
+            b = int(hexv[4:6], 16)
+            return f"{r}, {g}, {b}"
+        except Exception:
+            return "33, 26, 20"
 
     def set_depth(self, depth):
         self._depth = max(0, int(depth))

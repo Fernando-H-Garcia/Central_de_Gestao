@@ -19,6 +19,7 @@
 - Activity log links (`[[ ]]`, `{{ }}`) must be clickable; edit disabled for auto-generated logs, only MANUAL/COMENTÁRIO are editable
 - Every `QDateEdit`/`QDateTimeEdit` calendar popup must highlight today's date in blue
 - Calendar styling must work in dark theme
+- **Botões toggle (ativar/desativar, `QPushButton` checkable)**: devem seguir o padrão de estado — LIGADO = fundo preenchido colorido + texto branco (realça semântica, ex.: verde `#2b8c52` para "concluídos", hover `#3bbf6e`); DESLIGADO = transparente + borda `#555` + texto `#aaa` (hover: fundo `#2d2d55` + borda `#4a6fe3`); sufixo do texto indicando o estado (`OFF`/`ON`)
 
 ## Progress
 ### Done
