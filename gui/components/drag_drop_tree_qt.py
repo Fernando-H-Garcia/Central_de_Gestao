@@ -20,37 +20,18 @@ class SortableTreeWidgetItem(QTreeWidgetItem):
                 return str(val1) < str(val2)
         return self.text(column) < other.text(column)
 
-class DragDropTreeWidget(QTreeWidget):
-    item_moved = Signal(int, object) # task_id, new_parent_id (ou None para raiz)
+class TranslucentDragMixin:
+    """Fantasma de drag translúcido para QTreeWidget.
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.setDragEnabled(True)
-        self.setAcceptDrops(True)
-        self.setDragDropMode(QAbstractItemView.InternalMove)
-        self.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.setDropIndicatorShown(True)
-        self.setDragDropOverwriteMode(False)
+    O fantasma padrão do Qt só aplica transparência em legendas/badges (status,
+    prioridade) e deixa título/período sólidos. Esta mixin renderiza a linha
+    arrastada inteira com um alpha único (opacidade global) e desloca o hotspot
+    à direita do cursor, para não tapar a área de destino do drop.
 
-# Em árvores "locais" (ex.: detalhe de tarefa) os itens do topo são filhos
-        # de uma tarefa âncora e NÃO devem virar tarefa raiz do projeto no drop.
-        # None = a raiz da árvore é a raiz do projeto (comportamento padrão em
-        # Project360/Tasks). Use set_drop_root_parent para limitar o drop.
-        self._drop_root_parent_id = None
-
-    def set_drop_root_parent(self, task_id):
-        """Define a tarefa que é o 'pai' dos itens de nível topo desta árvore.
-        Drops no vazio/topo mantêm o item dentro dessa tarefa (não promovem à raiz)."""
-        self._drop_root_parent_id = task_id
+    Use como primeira base: class MeuTree(TranslucentDragMixin, QTreeWidget).
+    """
 
     def startDrag(self, actions):
-        """Desenha o item arrastado com opacidade global (translúcido) e deslocado
-        à direita do cursor, para não tapar a área de destino.
-
-        O fantasma padrão do Qt só aplica transparência em legendas/badges (status,
-        prioridade) e deixa título/período sólidos — aqui renderizamos a linha
-        inteira com um alpha único.
-        """
         items = self.selectedItems()
         if not items:
             super().startDrag(actions)
@@ -84,6 +65,29 @@ class DragDropTreeWidget(QTreeWidget):
         # Desloca o fantasma para a direita (x=60) e centraliza verticalmente
         drag.setHotSpot(QPoint(60, rect.height() // 2))
         drag.exec(actions, Qt.MoveAction)
+
+class DragDropTreeWidget(TranslucentDragMixin, QTreeWidget):
+    item_moved = Signal(int, object) # task_id, new_parent_id (ou None para raiz)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QAbstractItemView.InternalMove)
+        self.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.setDropIndicatorShown(True)
+        self.setDragDropOverwriteMode(False)
+
+# Em árvores "locais" (ex.: detalhe de tarefa) os itens do topo são filhos
+        # de uma tarefa âncora e NÃO devem virar tarefa raiz do projeto no drop.
+        # None = a raiz da árvore é a raiz do projeto (comportamento padrão em
+        # Project360/Tasks). Use set_drop_root_parent para limitar o drop.
+        self._drop_root_parent_id = None
+
+    def set_drop_root_parent(self, task_id):
+        """Define a tarefa que é o 'pai' dos itens de nível topo desta árvore.
+        Drops no vazio/topo mantêm o item dentro dessa tarefa (não promovem à raiz)."""
+        self._drop_root_parent_id = task_id
 
     def _nearest_row_item(self, pos):
         """Retorna o item cuja linha (visualItemRect) está mais próxima ACIMA do ponto.

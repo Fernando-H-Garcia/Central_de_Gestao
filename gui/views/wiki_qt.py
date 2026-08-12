@@ -8,8 +8,9 @@ from PySide6.QtWidgets import (
     QAbstractItemView
 )
 from PySide6.QtCore import Qt, QTimer, QEvent, QRect, QSize
-from PySide6.QtGui import QAction, QFont, QFontMetrics, QTextCursor, QKeyEvent, QPainter, QDropEvent
+from PySide6.QtGui import QAction, QFont, QFontMetrics, QTextCursor, QKeyEvent, QPainter, QDropEvent, QBrush, QColor
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
+from gui.components.drag_drop_tree_qt import TranslucentDragMixin
 from services.knowledge_page_service import KnowledgePageService
 
 ENTITY_TYPE_LABELS = {
@@ -29,8 +30,16 @@ class WordWrapDelegate(QStyledItemDelegate):
         rect = option.rect
         if option.state & QStyle.State_Selected:
             painter.fillRect(rect, option.palette.highlight())
+        else:
+            bg = index.data(Qt.BackgroundRole)
+            if isinstance(bg, QBrush):
+                painter.fillRect(rect, bg)
         rect.adjust(4, 2, -4, -2)
-        painter.setPen(option.palette.windowText().color())
+        fg = index.data(Qt.ForegroundRole)
+        if isinstance(fg, QBrush):
+            painter.setPen(fg.color())
+        else:
+            painter.setPen(option.palette.windowText().color())
         painter.drawText(rect, Qt.TextWordWrap | Qt.AlignLeft | Qt.AlignVCenter, text)
         painter.restore()
 
@@ -44,7 +53,7 @@ class WordWrapDelegate(QStyledItemDelegate):
         return QSize(tw + 8, r.height() + 10)
 
 
-class WikiTreeWidget(QTreeWidget):
+class WikiTreeWidget(TranslucentDragMixin, QTreeWidget):
     def __init__(self, wiki_view=None):
         super().__init__()
         self._wiki_view = wiki_view
@@ -67,10 +76,9 @@ class WikiTreeWidget(QTreeWidget):
             return
 
         target = self.itemAt(event.position().toPoint())
+
+        # Drop em espaço vazio → mover para a raiz (remover pai)
         if not target:
-            if dragged.parent() is not None:
-                event.ignore()
-                return
             super().dropEvent(event)
             if self._wiki_view:
                 self._wiki_view._after_page_moved()
@@ -92,8 +100,11 @@ class WikiTreeWidget(QTreeWidget):
 
         same_level = (dragged_parent is None and target_parent is None) or \
                      (dragged_parent is not None and target_parent is not None and dragged_parent is target_parent)
+        # Permite "tirar de dentro": arrastar uma página filha para junto de um
+        # item da raiz (abaixo/acima) a promove de volta ao nível raiz.
+        allow_out = target_parent is None and dragged_parent is not None
 
-        if same_level:
+        if same_level or allow_out:
             super().dropEvent(event)
             if self._wiki_view:
                 self._wiki_view._after_page_moved()
@@ -109,6 +120,7 @@ class WikiQt(QWidget):
         self._original_page = None
         self._is_preview = True
         self.show_archived = False
+        self._selected_page = None
 
         self.setup_ui()
         self.load_pages()
@@ -185,7 +197,7 @@ class WikiQt(QWidget):
 
         btn_new = QPushButton("📄 + Nova Página")
         btn_new.setObjectName("secondary")
-        btn_new.clicked.connect(self._new_page)
+        btn_new.clicked.connect(lambda: self._new_page())
         sidebar_layout.addWidget(btn_new)
 
         self.btn_archived = QPushButton("📦 Arquivados: OFF")
@@ -217,6 +229,7 @@ class WikiQt(QWidget):
         self.tree.itemClicked.connect(self._on_tree_item_clicked)
         self.tree.setContextMenuPolicy(Qt.CustomContextMenu)
         self.tree.customContextMenuRequested.connect(self._tree_context_menu)
+        self.tree.viewport().installEventFilter(self)
         sidebar_layout.addWidget(self.tree, stretch=1)
 
         editor_container = QWidget()
@@ -806,6 +819,16 @@ class WikiQt(QWidget):
         from PySide6.QtCore import QEvent
         from PySide6.QtGui import QKeyEvent
 
+        # Clique em área vazia da árvore → perde a seleção
+        if hasattr(self, 'tree') and obj is self.tree.viewport():
+            if event.type() == QEvent.MouseButtonPress:
+                pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
+                if self.tree.itemAt(pos) is None:
+                    self.tree.clearSelection()
+                    self.tree.setCurrentItem(None)
+                    self._selected_page = None
+            return super().eventFilter(obj, event)
+
         if not hasattr(self, 'text_edit'):
             return super().eventFilter(obj, event)
 
@@ -1109,6 +1132,8 @@ class WikiQt(QWidget):
             else:
                 self.tree.addTopLevelItem(item)
 
+        self._apply_depth_indicators()
+
         self.tree.expandAll()
         self._filter_tree(self.search_bar.text())
 
@@ -1124,6 +1149,30 @@ class WikiQt(QWidget):
     def _after_page_moved(self):
         self._save_page_order()
         self._populate_parent_combo()
+        self._apply_depth_indicators()
+
+    def _apply_depth_indicators(self):
+        def apply_depth(item, depth):
+            if depth > 0:
+                prefix = ("    " * (depth - 1)) + "└─ "
+                page = item.data(0, Qt.UserRole)
+                base = ("⭐ " if page.is_favorite else "📄 ") + page.title + (" 📦ARQUIVADO" if getattr(page, 'is_archived', False) else "")
+                item.setText(0, prefix + base)
+                title_color = "#b06ab3" if depth >= 2 else "#e67e22"
+                item.setForeground(0, QBrush(QColor(title_color)))
+                bg_alpha = 22 if depth >= 2 else 18
+                bg_rgb = (176, 106, 179) if depth >= 2 else (230, 126, 34)
+                item.setBackground(0, QBrush(QColor(*bg_rgb, bg_alpha)))
+            else:
+                page = item.data(0, Qt.UserRole)
+                base = ("⭐ " if page.is_favorite else "📄 ") + page.title + (" 📦ARQUIVADO" if getattr(page, 'is_archived', False) else "")
+                item.setText(0, base)
+                item.setData(0, Qt.ForegroundRole, None)
+                item.setData(0, Qt.BackgroundRole, None)
+            for j in range(item.childCount()):
+                apply_depth(item.child(j), depth + 1)
+        for i in range(self.tree.topLevelItemCount()):
+            apply_depth(self.tree.topLevelItem(i), 0)
 
     def _save_page_order(self):
         order = 0
@@ -1161,6 +1210,7 @@ class WikiQt(QWidget):
     def _on_tree_item_clicked(self, item):
         page = item.data(0, Qt.UserRole)
         if page:
+            self._selected_page = page
             self._open_page(page)
 
     def _open_page_by_id(self, page_id: int, edit_mode=False):
@@ -1497,12 +1547,22 @@ class WikiQt(QWidget):
                 menu.addAction(del_a)
         else:
             new_a = QAction("+ Nova Página", self)
-            new_a.triggered.connect(self._new_page)
+            new_a.triggered.connect(lambda: self._new_page())
             menu.addAction(new_a)
 
         menu.exec_(self.tree.viewport().mapToGlobal(pos))
 
     def _new_page(self, parent_page=None):
+        if not parent_page:
+            # Sem pai explícito → usa a página selecionada na árvore como pai.
+            # O clicque no botão "+ Nova Página" NÃO deve limpar a seleção;
+            # usa-se a referência capturada no clique do item (currentItem pode
+            # ficar nulo se o botão/foco roubar a seleção antes do handler).
+            parent_page = self._selected_page
+            if parent_page is None:
+                cur = self.tree.currentItem()
+                if cur is not None:
+                    parent_page = cur.data(0, Qt.UserRole)
         dlg = _NewPageDialog(self, parent_page=parent_page)
         if dlg.exec() == QDialog.Accepted:
             title = dlg.title
