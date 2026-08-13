@@ -708,6 +708,7 @@ class WikiQt(QWidget):
         global_pos = self.text_edit.viewport().mapToGlobal(cursor_rect.bottomLeft())
         popup.move(global_pos)
         popup.show()
+        lst.installEventFilter(self)
         lst.setFocus()
         lst.setCurrentRow(0)
 
@@ -813,7 +814,7 @@ class WikiQt(QWidget):
             data = item.data(Qt.UserRole)
             if data:
                 title = data.get("title", "").lower()
-                item.setHidden(query not in title)
+                item.setHidden(not title.startswith(query))
 
     def eventFilter(self, obj, event):
         from PySide6.QtCore import QEvent
@@ -831,6 +832,29 @@ class WikiQt(QWidget):
 
         if not hasattr(self, 'text_edit'):
             return super().eventFilter(obj, event)
+
+        # Foco na lista do autocomplete: caracteres digitados e Backspace
+        # devem ir para o editor (o QListWidget não aceita texto por padrão)
+        if (event.type() == QEvent.KeyPress and self._autocomplete_popup
+                and obj in (self._autocomplete_list, self._autocomplete_list.viewport())):
+            ke = event
+            from PySide6.QtGui import QTextCursor
+            tc = self.text_edit.textCursor()
+            if ke.key() == Qt.Key_Backspace:
+                pos = tc.position()
+                if pos > self._autocomplete_trigger + 2:
+                    tc.setPosition(pos - 1)
+                    tc.setPosition(pos, QTextCursor.KeepAnchor)
+                    tc.removeSelectedText()
+                    self.text_edit.setTextCursor(tc)
+                    self._update_autocomplete_filter()
+                return True
+            txt = ke.text()
+            if txt and txt.isprintable():
+                tc.insertText(txt)
+                self.text_edit.setTextCursor(tc)
+                self._update_autocomplete_filter()
+                return True
 
         if obj == self.text_edit:
             if event.type() == QEvent.KeyRelease:
