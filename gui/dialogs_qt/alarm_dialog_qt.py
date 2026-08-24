@@ -5,7 +5,8 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, QDate, QTime
 from gui.theme import (
-    set_combobox_colors, ENERGY_COLORS, apply_combobox_dynamic_color, get_energy_color
+    set_combobox_colors, ENERGY_COLORS, apply_combobox_dynamic_color, get_energy_color,
+    CHECKBOX_STYLE
 )
 from services.alert_service import AlertService
 
@@ -92,6 +93,7 @@ class AlarmDialogQt(QDialog):
         # Hora (opcional)
         row_time = QHBoxLayout()
         self.chk_time = QCheckBox("Hora específica:")
+        self.chk_time.setStyleSheet(CHECKBOX_STYLE)
         self.chk_time.setChecked(False)
         self.ent_time = QTimeEdit()
         self.ent_time.setTime(QTime(9, 0))

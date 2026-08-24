@@ -140,21 +140,14 @@ class AgendaTreeWidget(QTreeWidget):
                     continue
                 if self.filter_project_id and ev.project_id != self.filter_project_id:
                     continue
-                d = ev.start_datetime.split("T")[0] if ev.start_datetime else "Sem Data"
+                d = ev.start_datetime.split("T")[0].split(" ")[0] if ev.start_datetime else "Sem Data"
                 if d not in date_groups:
                     date_groups[d] = []
                 date_groups[d].append(ev)
                 
             for d, evs in date_groups.items():
-                # Format date string nicely if possible
-                display_date = d
-                try:
-                    from datetime import datetime
-                    if d != "Sem Data":
-                        dt = datetime.strptime(d, "%Y-%m-%d")
-                        display_date = dt.strftime("%d/%m/%Y")
-                except:
-                    pass
+                # Formata a data do cabeçalho do grupo (dd/mm/aaaa)
+                display_date = self._format_event_date(d) if d != "Sem Data" else d
                     
                 date_item = QTreeWidgetItem(self, [display_date, str(len(evs)) + " eventos", "", "", ""])
                 for col in range(5):
@@ -172,12 +165,7 @@ class AgendaTreeWidget(QTreeWidget):
     def _add_event_item(self, parent_item, ev, get_task_name_func):
         date_str = ""
         if ev.start_datetime:
-            try:
-                from datetime import datetime
-                dt = datetime.fromisoformat(ev.start_datetime)
-                date_str = dt.strftime("%d/%m/%Y %H:%M")
-            except:
-                date_str = ev.start_datetime
+            date_str = self._format_event_date(ev.start_datetime)
 
         t_name = get_task_name_func(ev.task_id) if ev.task_id else ""
         
@@ -211,6 +199,39 @@ class AgendaTreeWidget(QTreeWidget):
             dim_color = Qt.darkGray
             for col in range(4):
                 item.setForeground(col, dim_color)
+
+    @staticmethod
+    def _format_event_date(value) -> str:
+        """Formata a data do evento como dd/mm/aaaa HH:MM — tolerante a variações do BD."""
+        from datetime import datetime
+        s = str(value).strip()
+        if not s:
+            return ""
+        dt = None
+        try:
+            dt = datetime.fromisoformat(s)
+        except ValueError:
+            for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M",
+                        "%Y-%m-%dT%H:%M:%S.%f", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+                try:
+                    dt = datetime.strptime(s, fmt)
+                    break
+                except ValueError:
+                    continue
+        if dt:
+            out = dt.strftime("%d/%m/%Y")
+            if dt.hour or dt.minute:
+                out += " " + dt.strftime("%H:%M")
+            return out
+        # último recurso: reformata só a parte da data (aaaa-mm-dd → dd/mm/aaaa)
+        date_part, _, time_part = s.partition(" ")
+        parts = date_part.split("-")
+        if len(parts) == 3 and len(parts[0]) == 4:
+            out = f"{parts[2]}/{parts[1]}/{parts[0]}"
+            if time_part:
+                out += " " + time_part[:5]
+            return out
+        return s
 
     def handle_double_click(self, item, column):
         data = item.data(0, Qt.UserRole)

@@ -13,9 +13,12 @@ from gui.theme import TEXT_DISABLED, ACCENT_BLUE
 class TimelineViewQt(QWidget):
     open_task_detail_signal = Signal(int)
     edit_task_signal = Signal(object)   # Task (raw) — abre TaskDialogQt no host
+    create_alarm_signal = Signal(object)  # Task (raw) — abre AlarmDialogQt no host
+    create_event_signal = Signal(object)  # Task (raw) — abre EventDialogQt no host
     event_clicked = Signal(object)  # TimelineEvent
     event_moved_signal = Signal(object, object, object)  # TimelineEvent, novo início, novo fim
     edit_event_signal = Signal(object)  # TimelineEvent — abre editor no host
+    delete_event_signal = Signal(object)  # TimelineEvent — exclui no host
     alarm_clicked = Signal(object)  # compat
     task_moved = Signal(int, object, object)
 
@@ -110,10 +113,13 @@ class TimelineViewQt(QWidget):
         self.tree = GanttTree(self.geometry)
         self.tree.open_task_requested.connect(self._emit_open_task)
         self.tree.edit_task_requested.connect(self.edit_task_signal.emit)
+        self.tree.create_alarm_requested.connect(self.create_alarm_signal.emit)
+        self.tree.create_event_requested.connect(self.create_event_signal.emit)
         self.tree.item_clicked.connect(self._on_tree_item_clicked)
         self.tree.event_clicked.connect(self._on_tree_event_clicked)
         self.tree.event_moved.connect(self.event_moved_signal.emit)
         self.tree.edit_event_requested.connect(self.edit_event_signal.emit)
+        self.tree.delete_event_requested.connect(self.delete_event_signal.emit)
         self.tree.task_moved.connect(self.task_moved.emit)
         self.tree.pan_triggered.connect(self._on_pan_triggered)
         self.tree.ctrl_zoom_requested.connect(self._on_ctrl_zoom)

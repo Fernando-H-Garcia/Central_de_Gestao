@@ -385,6 +385,19 @@ ENERGY_COLORS = {
     "Crítica": ERROR_RED,
 }
 
+# Checkbox visível no tema escuro (texto branco + indicador claro)
+CHECKBOX_STYLE = """
+QCheckBox { color: #ffffff; }
+QCheckBox::indicator {
+    width: 15px; height: 15px;
+    border: 1px solid #9a9ab8; border-radius: 3px;
+    background-color: #2a2a3f;
+}
+QCheckBox::indicator:checked {
+    background-color: #4a6fe3; border-color: #6a8fe3;
+}
+"""
+
 
 def get_status_color(status: str) -> str:
     return STATUS_COLORS.get(status, TEXT_PRIMARY)

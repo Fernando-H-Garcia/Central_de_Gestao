@@ -48,6 +48,11 @@ class GanttTree(QTreeWidget):
     # Contexto/duplo clique: carrega o Task (raw_task); cai para int id se indisponível
     open_task_requested = Signal(object)
     edit_task_requested = Signal(object)
+    # Criar alarme/evento vinculados à tarefa (menu de contexto)
+    create_alarm_requested = Signal(object)
+    create_event_requested = Signal(object)
+    # Excluir alarme/evento (menu de contexto no ícone)
+    delete_event_requested = Signal(object)
     # Alarmes/Eventos: arraste (TimelineEvent, novo início, novo fim) e edição
     event_moved = Signal(object, object, object)
     edit_event_requested = Signal(object)
@@ -66,8 +71,8 @@ class GanttTree(QTreeWidget):
         self._hover_ev = None        # evento/alarme sob o mouse (destaque hover)
         self._drag_bar = None   # {"item", "start", "end", "start_x"}
         self._drag_event = None  # {"ev", "start_x", "orig_dt", "orig_end", "snap_day"}
-        self._pending_ev_click = None  # clique em evento aguardando (para não conflitar com duplo clique)
         self._drag_pos = None   # posição atual do mouse durante arraste (indicador flutuante)
+        self._guide_x = None    # linha-guia vertical que segue o mouse na timeline
         # Tooltip persistente: QToolTip some pelo timeout do sistema — reexibimos
         # num timer enquanto o mouse continuar sobre o mesmo item
         self._tip_text = None
@@ -179,6 +184,8 @@ class GanttTree(QTreeWidget):
             self._draw_bars(painter, tl_rect)
             self._draw_events(painter, tl_rect)
             self._draw_today_line(painter, tl_rect)
+            # linha-guia vertical que segue o mouse (com data/hora no topo)
+            self._draw_mouse_guide(painter, tl_rect)
             # janeleinha flutuante com as datas da posição durante o arraste
             self._draw_drag_info(painter)
         finally:
@@ -355,7 +362,8 @@ class GanttTree(QTreeWidget):
         painter.restore()
 
     def _draw_milestone(self, painter: QPainter, item: TimelineItem, row_rect: QRectF, eff_start):
-        """Losango na data inicial, repetido todo mês por toda a área VISÍVEL."""
+        """Losango na data inicial, repetido todo mês por toda a área VISÍVEL,
+        com linha tracejada verde conectando os losangos."""
         color = QColor(SUCCESS_GREEN)  # marco tem cor própria (verde), independente do status
         cy = row_rect.y() + row_rect.height() / 2
         is_selected = (self.selected_item_id == item.id)
@@ -363,27 +371,45 @@ class GanttTree(QTreeWidget):
 
         painter.save()
         painter.setClipRect(row_rect.adjusted(-1, 0, 1, 0))
+
+        # coleta as posições visíveis dos losangos
+        positions = []
         d = eff_start
         while True:
             cx = self._x_view(self.geometry.date_to_x(d))
             if cx > row_rect.right() + 20:
                 break
             if cx >= row_rect.left() - 20:
-                size = 9 if (is_selected or is_hovered) else 8
-                painter.save()
-                painter.translate(cx, cy)
-                painter.rotate(45)
-                if is_selected or is_hovered:
-                    painter.setPen(QPen(QColor(255, 255, 255, 200)))
-                    pen = painter.pen()
-                    pen.setWidth(2)
-                    painter.setPen(pen)
-                else:
-                    painter.setPen(Qt.NoPen)
-                painter.setBrush(color)
-                painter.drawRect(-size, -size, size * 2, size * 2)
-                painter.restore()
+                positions.append(cx)
             d = self._add_month(d)
+
+        # linha tracejada SEMPRE visível: percorre toda a área visível a partir da
+        # data do marco (alinhada à malha mensal) — não some quando só 1 losango
+        # está na tela (ex.: zoom entre dois marcadores)
+        line_start = max(row_rect.left(), self._x_view(self.geometry.date_to_x(eff_start)))
+        if line_start < row_rect.right():
+            pen = QPen(color)
+            pen.setWidth(1)
+            pen.setStyle(Qt.DashLine)
+            painter.setPen(pen)
+            painter.setBrush(Qt.NoBrush)
+            painter.drawLine(int(line_start), int(cy), int(row_rect.right()), int(cy))
+
+        for cx in positions:
+            size = 9 if (is_selected or is_hovered) else 8
+            painter.save()
+            painter.translate(cx, cy)
+            painter.rotate(45)
+            if is_selected or is_hovered:
+                painter.setPen(QPen(QColor(255, 255, 255, 200)))
+                pen = painter.pen()
+                pen.setWidth(2)
+                painter.setPen(pen)
+            else:
+                painter.setPen(Qt.NoPen)
+            painter.setBrush(color)
+            painter.drawRect(-size, -size, size * 2, size * 2)
+            painter.restore()
         painter.restore()
 
     def _draw_parent_bar(self, painter: QPainter, item: TimelineItem, row_rect: QRectF,
@@ -542,11 +568,69 @@ class GanttTree(QTreeWidget):
             if self._drag_event.get("snap_day"):
                 # alarme "dia todo": só a data muda
                 return f"🔔 {ev.datetime.strftime('%d/%m/%Y')} (dia todo)"
-            txt = f"{'🔔' if ev.event_type == 'alarm' else '●'} {ev.datetime.strftime('%d/%m/%Y %H:%M')}"
+            mode = self._drag_event.get("mode", "move")
+            fmt_dt = "%d/%m/%Y %H:%M"
+            if mode == "resize_start":
+                txt = f"⏮ Início: {ev.datetime.strftime(fmt_dt)}"
+                if ev.end_datetime:
+                    txt += f"   ·   Fim: {ev.end_datetime.strftime(fmt_dt)} (fixo)"
+                return txt
+            if mode == "resize_end":
+                txt = f"⏭ Fim: {ev.end_datetime.strftime(fmt_dt) if ev.end_datetime else '—'}"
+                txt += f"   ·   Início: {ev.datetime.strftime(fmt_dt)} (fixo)"
+                return txt
+            txt = f"{'🔔' if ev.event_type == 'alarm' else '●'} {ev.datetime.strftime(fmt_dt)}"
             if ev.end_datetime:
-                txt += f"  →  {ev.end_datetime.strftime('%d/%m/%Y %H:%M')}"
+                txt += f"  →  {ev.end_datetime.strftime(fmt_dt)}"
             return txt
         return None
+
+    def _update_guide(self, pos):
+        """Rastreia o mouse na área da timeline para a linha-guia vertical."""
+        new_x = pos.x() if pos.x() >= self.timeline_left() else None
+        if new_x != self._guide_x:
+            self._guide_x = new_x
+            self.viewport().update()
+
+    def _datetime_at_x(self, content_x: float) -> datetime.datetime:
+        """Data/hora (com fração do dia) na posição de conteúdo x."""
+        days = content_x / max(0.0001, self.geometry.pixels_per_day)
+        base = datetime.datetime.combine(self.geometry.anchor_date, datetime.time.min)
+        return base + datetime.timedelta(days=days)
+
+    def _draw_mouse_guide(self, painter: QPainter, tl_rect: QRectF):
+        if self._guide_x is None:
+            return
+        x = float(self._guide_x)
+        if not (tl_rect.left() <= x <= tl_rect.right()):
+            return
+        painter.save()
+        # linha vertical sutil
+        pen = QPen(QColor(255, 255, 255, 70))
+        pen.setWidth(1)
+        painter.setPen(pen)
+        painter.drawLine(int(x), int(tl_rect.top()), int(x), int(tl_rect.bottom()))
+
+        # etiqueta com o dia/hora daquela posição
+        dt = self._datetime_at_x(x - tl_rect.left() + self._offset_x)
+        txt = dt.strftime("%d/%m/%Y %H:%M")
+        painter.setFont(QFont("Segoe UI", 8))
+        fm = painter.fontMetrics()
+        pad_x, pad_y = 6, 3
+        w = fm.horizontalAdvance(txt) + pad_x * 2
+        h = fm.height() + pad_y * 2
+        bx = min(max(tl_rect.left() + 2, x - w / 2), tl_rect.right() - w - 2)
+        by = tl_rect.top() + 2
+        rect = QRectF(bx, by, w, h)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor("#1e1e3a"))
+        painter.drawRoundedRect(rect, 4, 4)
+        painter.setPen(QPen(QColor(ACCENT_BLUE)))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRoundedRect(rect, 4, 4)
+        painter.setPen(QColor("#ffffff"))
+        painter.drawText(rect, Qt.AlignCenter, txt)
+        painter.restore()
 
     def _draw_drag_info(self, painter: QPainter):
         if not self._has_dragged or self._drag_pos is None:
@@ -635,6 +719,62 @@ class GanttTree(QTreeWidget):
                 return ev
         return None
 
+    def _event_with_zone(self, pos):
+        """Evento sob o cursor + zona (resize_start/resize_end/move).
+        Pontas têm prioridade sobre o corpo — permite pegar o fim de eventos longos."""
+        rows = {}
+        for t_item, vrect in self._visible_rows():
+            rows[t_item.id] = vrect.center().y()
+        move_candidate = None
+        for ev in self.events:
+            if ev.event_type == "event" and not self.show_events:
+                continue
+            if ev.event_type == "alarm" and not self.show_alarms:
+                continue
+            y = rows.get(ev.task_id)
+            if y is None or abs(pos.y() - y) > 14:
+                continue
+            x_start = self._x_view(self.geometry.datetime_to_x(ev.datetime))
+            if ev.end_datetime and ev.end_datetime > ev.datetime:
+                x_end = self._x_view(self.geometry.datetime_to_x(ev.end_datetime))
+                if abs(pos.x() - x_start) <= 7:
+                    return ev, "resize_start"
+                if abs(pos.x() - x_end) <= 7:
+                    return ev, "resize_end"
+                if x_start <= pos.x() <= x_end and move_candidate is None:
+                    move_candidate = ev
+            else:
+                if (pos.x() - x_start) ** 2 + (pos.y() - y) ** 2 < 144 and move_candidate is None:
+                    move_candidate = ev
+        if move_candidate is not None:
+            return move_candidate, "move"
+        return None, None
+
+    def _event_edge_zone(self, pos, ev):
+        """Zona de resize do evento: 'resize_start'/'resize_end' nas pontas, 'move' no meio/sem duração."""
+        if ev is None:
+            return None
+        rows = {}
+        for t_item, vrect in self._visible_rows():
+            rows[t_item.id] = vrect.center().y()
+        y = rows.get(ev.task_id)
+        if y is None or abs(pos.y() - y) > 14:
+            return None
+        x_start = self._x_view(self.geometry.datetime_to_x(ev.datetime))
+        if ev.end_datetime and ev.end_datetime > ev.datetime:
+            x_end = self._x_view(self.geometry.datetime_to_x(ev.end_datetime))
+            if abs(pos.x() - x_start) <= 7:
+                return "resize_start"
+            if abs(pos.x() - x_end) <= 7:
+                return "resize_end"
+            if x_start <= pos.x() <= x_end:
+                return "move"
+            return None
+        # alarme/evento pontual: ícone inteiro move
+        if (pos.x() - x_start) ** 2 + (pos.y() - y) ** 2 < 144:
+            return "move"
+        return None
+
     def mousePressEvent(self, event):
         if event.button() != Qt.LeftButton:
             super().mousePressEvent(event)
@@ -650,9 +790,10 @@ class GanttTree(QTreeWidget):
             self.setCurrentIndex(index.sibling(index.row(), 0))
 
         # Alarme/Evento sob o cursor têm prioridade (ícones pequenos, difíceis de acertar)
-        ev = self._event_at(pos)
+        ev, ev_mode = self._event_with_zone(pos)
         self._hide_tooltip()
         if ev is not None:
+            ev_mode = ev_mode or "move"
             # alarme sem hora específica ("dia todo") arrasta só em dias inteiros
             snap_day = False
             if ev.event_type == "alarm":
@@ -664,10 +805,11 @@ class GanttTree(QTreeWidget):
                 "orig_dt": ev.datetime,
                 "orig_end": ev.end_datetime,
                 "snap_day": snap_day,
+                "mode": ev_mode,
             }
             self._has_dragged = False
             self._drag_pos = pos
-            self.setCursor(Qt.ClosedHandCursor)
+            self.setCursor(Qt.ClosedHandCursor if ev_mode == "move" else Qt.SizeHorCursor)
             return
 
         if t_item and self._hit_bar(pos, t_item):
@@ -727,6 +869,7 @@ class GanttTree(QTreeWidget):
 
     def mouseMoveEvent(self, event):
         pos = event.position().toPoint()
+        self._update_guide(pos)
 
         if self._drag_event is not None:
             delta_px = pos.x() - self._drag_event["start_x"]
@@ -742,9 +885,17 @@ class GanttTree(QTreeWidget):
                 else:
                     delta = datetime.timedelta(days=raw_days)
                 ev = info["ev"]
-                ev.datetime = info["orig_dt"] + delta
-                if info["orig_end"] is not None:
-                    ev.end_datetime = info["orig_end"] + delta
+                mode = info.get("mode", "move")
+                if mode == "resize_start":
+                    # só o início muda — fim fixo
+                    ev.datetime = info["orig_dt"] + delta
+                elif mode == "resize_end" and info["orig_end"] is not None:
+                    # só o fim muda — início fixo (nunca antes do início)
+                    ev.end_datetime = max(info["orig_end"] + delta, ev.datetime)
+                else:
+                    ev.datetime = info["orig_dt"] + delta
+                    if info["orig_end"] is not None:
+                        ev.end_datetime = info["orig_end"] + delta
                 self._hover_ev = ev
                 self._drag_pos = pos
                 self.viewport().update()
@@ -791,15 +942,17 @@ class GanttTree(QTreeWidget):
             index = self.indexAt(pos)
             t_item = index.sibling(index.row(), 0).data(Qt.UserRole) if index.isValid() else None
 
-            ev = self._event_at(pos)
+            ev, ev_zone = self._event_with_zone(pos)
             over_bar = bool(t_item and self._hit_range(pos, t_item))
 
             # faixa de AVISO (filhas estouram o prazo do pai) tem tooltip próprio —
-            # mas a ZONA DE RESIZE da ponta do pai tem prioridade sobre ela
+            # MAS é a menor prioridade: perde para borda de resize do pai E para
+            # qualquer zona de evento/alarme (ex.: ponta de evento sobre a faixa)
             edge_mode_hover = self._hit_parent_edge(pos, t_item) if t_item else None
             over_rect = self._overrun_rect(t_item, index) if t_item else None
             over_warning = bool(
-                over_rect and over_rect.adjusted(-4, -8, 4, 8).contains(pos) and not edge_mode_hover
+                over_rect and over_rect.adjusted(-4, -8, 4, 8).contains(pos)
+                and not edge_mode_hover and ev is None
             )
 
             # atualiza estado de hover (repinta só quando muda)
@@ -831,6 +984,11 @@ class GanttTree(QTreeWidget):
             elif t_item and self._hit_parent_edge(pos, t_item):
                 # pai: pontas da barra dele redimensionam o prazo próprio
                 self.setCursor(Qt.SizeHorCursor)
+            elif ev is not None and ev_zone in ("resize_start", "resize_end"):
+                # pontas do evento com duração → redimensionar início/fim
+                self.setCursor(Qt.SizeHorCursor)
+            elif ev is not None:
+                self.setCursor(Qt.OpenHandCursor)
             else:
                 self.unsetCursor()
 
@@ -850,6 +1008,9 @@ class GanttTree(QTreeWidget):
         super().mouseMoveEvent(event)
 
     def leaveEvent(self, event):
+        if self._guide_x is not None:
+            self._guide_x = None
+            self.viewport().update()
         if self._hover_item_id is not None or self._hover_ev is not None:
             self._hover_item_id = None
             self._hover_ev = None
@@ -869,14 +1030,17 @@ class GanttTree(QTreeWidget):
             self._drag_event = None
             self._drag_pos = None
             ev = info["ev"]
-            if self._has_dragged and ev.datetime != info["orig_dt"]:
+            if self._has_dragged and (
+                ev.datetime != info["orig_dt"]
+                or (info["orig_end"] is not None and ev.end_datetime != info["orig_end"])
+                or (info["orig_end"] is None and ev.end_datetime is not None)
+            ):
                 # arraste confirmado — host persiste (emite depois de soltar)
                 self.viewport().update()
                 QTimer.singleShot(0, lambda: self.event_moved.emit(ev, ev.datetime, ev.end_datetime))
             else:
-                # clique simples no ícone: detalhe — adia p/ não conflitar com duplo clique
-                self._pending_ev_click = ev
-                QTimer.singleShot(280, lambda: self._fire_pending_ev_click(ev))
+                # clique simples no alarme/evento: NÃO faz nada (editor só no duplo clique/menu)
+                self.viewport().update()
             self._has_dragged = False
             return
 
@@ -954,18 +1118,11 @@ class GanttTree(QTreeWidget):
         self._tip_timer.start()
         QToolTip.showText(self._tip_global, tooltip, self)
 
-    def _fire_pending_ev_click(self, ev):
-        """Emite o clique de evento só se não virou duplo clique."""
-        if self._pending_ev_click is ev:
-            self._pending_ev_click = None
-            self.event_clicked.emit(ev)
-
     def mouseDoubleClickEvent(self, event):
         pos = event.position().toPoint()
         # alarme/evento → abre a EDIÇÃO
         ev = self._event_at(pos)
         if ev is not None:
-            self._pending_ev_click = None
             self.edit_event_requested.emit(ev)
             return
         index = self.indexAt(pos)
@@ -997,11 +1154,15 @@ class GanttTree(QTreeWidget):
             menu = QMenu(self)
             act_edit = menu.addAction(f"✏️ Editar {kind}")
             act_open = menu.addAction("👁️ Abrir Tarefa") if ev.task_id else None
+            menu.addSeparator()
+            act_del = menu.addAction(f"🗑️ Excluir {kind}")
             chosen = menu.exec(event.globalPos())
             if chosen == act_edit:
                 self.edit_event_requested.emit(ev)
             elif act_open is not None and chosen == act_open:
                 self.open_task_requested.emit(ev.task_id)
+            elif chosen == act_del:
+                self.delete_event_requested.emit(ev)
             return
 
         index = self.indexAt(pos)
@@ -1016,11 +1177,18 @@ class GanttTree(QTreeWidget):
         menu = QMenu(self)
         act_open = menu.addAction("👁️ Abrir Tarefa")
         act_edit = menu.addAction("✏️ Editar Tarefa")
+        menu.addSeparator()
+        act_alarm = menu.addAction("🔔 Criar Alarme")
+        act_event = menu.addAction("📅 Criar Evento")
         chosen = menu.exec(event.globalPos())
         if chosen == act_open:
             self.open_task_requested.emit(t_item.raw_task if t_item.raw_task is not None else t_item.id)
         elif chosen == act_edit:
             self.edit_task_requested.emit(t_item.raw_task if t_item.raw_task is not None else t_item.id)
+        elif chosen == act_alarm:
+            self.create_alarm_requested.emit(t_item.raw_task if t_item.raw_task is not None else t_item.id)
+        elif chosen == act_event:
+            self.create_event_requested.emit(t_item.raw_task if t_item.raw_task is not None else t_item.id)
 
     def _refresh_tooltip(self):
         """Reexibe o tooltip enquanto o hover continuar ativo (some só ao tirar o mouse)."""

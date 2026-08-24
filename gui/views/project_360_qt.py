@@ -227,9 +227,12 @@ class Project360Qt(QWidget):
         self.tab_timeline = TimelineViewQt(parent=self)
         self.tab_timeline.open_task_detail_signal.connect(self.open_task_detail_signal.emit)
         self.tab_timeline.edit_task_signal.connect(self._edit_task_from_timeline)
+        self.tab_timeline.create_alarm_signal.connect(self._create_alarm_from_timeline)
+        self.tab_timeline.create_event_signal.connect(self._create_event_from_timeline)
         self.tab_timeline.event_clicked.connect(self._on_timeline_event_clicked)
         self.tab_timeline.event_moved_signal.connect(self._on_timeline_event_moved)
         self.tab_timeline.edit_event_signal.connect(self._on_timeline_edit_event)
+        self.tab_timeline.delete_event_signal.connect(self._delete_timeline_event)
         self.tab_timeline.task_moved.connect(self._on_timeline_task_moved)
         self.tabs.addTab(self.tab_timeline, "Planejamento")
         
@@ -689,34 +692,9 @@ class Project360Qt(QWidget):
             traceback.print_exc()
 
     def _on_timeline_event_clicked(self, ev):
-        try:
-            if ev.event_type == "alarm":
-                a = ev.raw_entity
-                title = getattr(a, 'title', ev.title)
-                date_str = ev.datetime.strftime("%d/%m/%Y %H:%M")
-                related = f"Tarefa #{ev.task_id}" if ev.task_id else f"Projeto #{ev.project_id}" if ev.project_id else "—"
-                sev = getattr(a, 'priority', getattr(a, 'severity', '—'))
-                status = getattr(a, 'status', '—')
-                from PySide6.QtWidgets import QMessageBox, QPushButton
-                box = QMessageBox(self)
-                box.setWindowTitle("Alarme")
-                box.setText(f"<b>{title}</b><br/>Data: {date_str}<br/>Relacionado: {related}<br/>Severidade: {sev}<br/>Status: {status}")
-                btn_open = box.addButton("Abrir alarme", QMessageBox.AcceptRole)
-                box.addButton("Fechar", QMessageBox.RejectRole)
-                box.exec()
-                if box.clickedButton() == btn_open and ev.task_id:
-                    self.open_task_detail_signal.emit(ev.task_id)
-            else:
-                # evento — clicar abre detalhe do evento se vinculado
-                if ev.task_id:
-                    self.open_task_detail_signal.emit(ev.task_id)
-                else:
-                    from PySide6.QtWidgets import QMessageBox
-                    QMessageBox.information(self, "Evento", f"<b>{ev.title}</b><br/>{ev.datetime.strftime('%d/%m/%Y %H:%M')}")
-
-        except Exception:
-            import traceback
-            traceback.print_exc()
+        """Clique simples no alarme/evento: NÃO faz nada (intencional).
+        Editor abre no duplo clique ou no menu de contexto → 'Abrir'."""
+        pass
 
     def _on_timeline_event_moved(self, ev, new_start, new_end):
         """Persiste o arraste de um alarme/evento na timeline."""
@@ -787,6 +765,67 @@ class Project360Qt(QWidget):
     def _emit_updated(self):
         from core.event_bus import event_bus
         event_bus.emit("entity_updated")
+
+    def _create_alarm_from_timeline(self, task_or_id):
+        """Menu de contexto do Planejamento → 🔔 Criar Alarme na tarefa."""
+        try:
+            task = self._resolve_timeline_task(task_or_id)
+            if task is None:
+                return
+            from gui.dialogs_qt.alarm_dialog_qt import AlarmDialogQt
+            dialog = AlarmDialogQt(self, task=task)
+            dialog.exec()
+            self.load_data()
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def _create_event_from_timeline(self, task_or_id):
+        """Menu de contexto do Planejamento → 📅 Criar Evento na tarefa."""
+        try:
+            task = self._resolve_timeline_task(task_or_id)
+            if task is None:
+                return
+            from gui.dialogs_qt.event_dialog_qt import EventDialogQt
+            dialog = EventDialogQt(self, project_id=task.project_id, task_id=task.id)
+            if dialog.exec():
+                self.load_data()
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def _resolve_timeline_task(self, task_or_id):
+        if task_or_id is None:
+            return None
+        if isinstance(task_or_id, int):
+            return self.task_service.task_repo.get_by_id(task_or_id)
+        return task_or_id
+
+    def _delete_timeline_event(self, ev):
+        """Menu de contexto da timeline → 🗑️ Excluir alarme/evento (com confirmação)."""
+        try:
+            kind = "o alarme" if ev.event_type == "alarm" else "o evento"
+            from PySide6.QtWidgets import QMessageBox
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Confirmar")
+            msg.setText(f"Deseja mesmo excluir {kind} <b>{ev.title}</b>?")
+            btn_sim = msg.addButton("Sim", QMessageBox.YesRole)
+            msg.addButton("Não", QMessageBox.RejectRole)
+            msg.exec()
+            if msg.clickedButton() != btn_sim:
+                return
+            if ev.event_type == "alarm":
+                from services.alert_service import AlertService
+                AlertService().delete_alert(ev.id)
+            else:
+                from services.event_service import EventService
+                EventService().delete(ev.id)
+            from core.event_bus import event_bus
+            event_bus.emit("entity_updated")
+            self.load_data()
+        except Exception:
+            import traceback
+            traceback.print_exc()
 
     def _on_timeline_task_moved(self, task_id, new_start, new_end):
         try:

@@ -6,7 +6,7 @@ from PySide6.QtCore import Qt, QDate
 from models.entities import Task
 from services.project_service import ProjectService
 import copy
-from gui.theme import set_combobox_colors, STATUS_COLORS, ENERGY_COLORS, apply_combobox_dynamic_color, get_status_color, get_energy_color, style_calendar_today
+from gui.theme import set_combobox_colors, STATUS_COLORS, ENERGY_COLORS, apply_combobox_dynamic_color, get_status_color, get_energy_color, style_calendar_today, CHECKBOX_STYLE
 
 class TaskDialogQt(QDialog):
     def __init__(self, parent=None, task: Task = None, on_save=None):
@@ -95,17 +95,7 @@ class TaskDialogQt(QDialog):
 
         # Milestone Checkbox (antes da data final — marco não tem prazo)
         self.chk_milestone = QCheckBox("É um Marco (Milestone - Sem duração/esforço)")
-        self.chk_milestone.setStyleSheet("""
-            QCheckBox { color: #ffffff; }
-            QCheckBox::indicator {
-                width: 15px; height: 15px;
-                border: 1px solid #9a9ab8; border-radius: 3px;
-                background-color: #2a2a3f;
-            }
-            QCheckBox::indicator:checked {
-                background-color: #4a6fe3; border-color: #6a8fe3;
-            }
-        """)
+        self.chk_milestone.setStyleSheet(CHECKBOX_STYLE)
         layout.addWidget(self.chk_milestone)
 
         layout.addWidget(QLabel("Data Fim (Prazo):"))
