@@ -23,6 +23,33 @@
 
 ## Progress
 ### Done
+- **Planejamento (Gantt) UNIFICADO em um único widget** (`gui/components/timeline/gantt_tree_qt.py` novo, `timeline_view_qt.py` reescrito, `timeline_header.py` ajustado)
+  - Motivação: sincronização árvore↔canvas nunca ficava perfeita; usuário pediu UMA coluna única
+  - `GanttTree(QTreeWidget)` = árvore + timeline embutida: col 0 título, col 1 resumo, col 2 linha do tempo (barras/grid/eventos/hoje pintados no `paintEvent` por cima da árvore, a partir de `timeline_left() = columnWidth(0)+columnWidth(1)`)
+  - SEM splitter/QScrollArea/canvas/segunda scrollbar vertical — rolagem vertical é a nativa da árvore; impossível dessincronizar
+  - Interações na área da timeline: clique seleciona a linha, duplo clique abre tarefa, arrastar barra muda datas (`task_moved`, preview com `_delta` durante drag), arrastar vazio faz pan horizontal (`pan_triggered`), tooltips de evento/barra
+  - `TimelineHeader.set_left_margin(m)` desenha dias/meses/HOJE somente sobre a coluna da timeline (`_sync_header_margin` após `fit_branch_arrows`); HOJE na faixa inferior do header (abaixo dos dias, acima da 1ª tarefa); TODOS os dias exibidos sem pular — número vertical quando ppd < 14px
+  - **`go_to_today` com lead-in de passado**: hoje fica a 40% da largura visível (não mais no centro), entrando até 1 mês de datas antes de hoje à esquerda (`lead_px = min(30×ppd, 40% da área)`)
+  - **Ctrl + roda = zoom contínuo** (`gantt_tree_qt.py` `wheelEvent` → signal `ctrl_zoom_requested` → `_on_ctrl_zoom` na view): fator 1.15/step, piso 1.0 teto 200 px/dia, data do centro visível ancorada; filtros Dia/Semana/Mês restauram as escalas fixas (50/15/5); range horizontal = `anchor_date` (hoje−730d) até hoje+1095d (`update_h_scrollbar` usa 1825×ppd) — passado navegável em qualquer zoom
+  - **Escadinha de números no header** (`timeline_header.py`): intervalo dos dias conforme ppd — ≥13: diário; ≥6,5: 2 em 2; ≥4,33: 3 em 3; ≥1,86: segundas-feiras; abaixo: só o 1º dia do mês (nada sobrepõe durante o zoom contínuo); rótulos de mês/ano em DOIS níveis (cima/baixo) com detecção de colisão — se não couber em nenhum nível, o rótulo é suprimido (nada sobrepõe no zoom mínimo)
+  - Filtros (Concluídas/Milestones/Tarefas/Eventos/Alarmes) usam `setHidden` nativo — barras somem junto
+  - **Hover na timeline**: `_hover_item_id`/`_hover_ev` rastreados no `mouseMoveEvent` (limpos no `leaveEvent`); barra em hover ganha glow translúcido + contorno branco; evento/alarme em hover ganha halo circular; hover usa `_hit_range` (inclui pais/marcos, que não arrastam — só folhas usam `_hit_bar`); **tooltip persistente** (`_tip_timer` 1s reexibe via `QToolTip.showText` enquanto hover ativo — some só ao tirar o mouse/arrastar; `_hide_tooltip` limpa estado)
+  - **Menu de contexto + duplo clique** (`gantt_tree_qt.py`, `timeline_view_qt.py`, `project_360_qt.py`): botão direito em qualquer coluna → menu com "👁️ Abrir Tarefa" / "✏️ Editar Tarefa"; DUPLO CLIQUE abre a EDIÇÃO (TaskDialogQt) — `setExpandsOnDoubleClick(False)` para não conflitar com expandir/recolher (expansão só pela seta); signals `open_task_requested`/`edit_task_requested` carregam `raw_task` (fallback int id); view encaminha via `edit_task_signal`; host resolve int→repo
+  - **Arraste + edição de alarmes/eventos na timeline** (`gantt_tree_qt.py`, `timeline_view_qt.py`, `project_360_qt.py`): press sobre ▲/● inicia drag (`_drag_event`, preview mutando `ev.datetime`/`end_datetime` com delta fracionário — preserva hora); release emite `event_moved(ev, novo_início, novo_fim)`; clique simples sem arrastar emite `event_clicked` com atraso de 280ms (`_pending_ev_click`) para não conflitar com duplo clique; duplo clique/menu de contexto no ícone abre editor (`AlarmDialogQt(alarm=…)` / `EventDialogQt(agenda_event=…)`); persistência em `_on_timeline_event_moved` (alarme: `alert_date`/`alert_time` + overdue→pending; evento: `start_datetime`/`end_datetime` ISO)
+  - **Indicador flutuante de arraste** (`gantt_tree_qt.py` `_draw_drag_info`): janeleinha azul junto ao cursor mostrando a posição atual — tarefa: `📅 dd/mm/aaaa → dd/mm/aaaa`; alarme dia todo (sem `alert_time`): `🔔 dd/mm/aaaa (dia todo)` e **snap em dias inteiros** (hora nunca muda); alarme com hora / evento: data+hora livre preservando horário, com `→ fim` quando tem duração; some no release
+  - API de `TimelineViewQt` preservada (populate/set_events/signals) — project_360 não mudou
+  - `timeline_canvas.py` ficou órfão (mantido no disco por referência)
+- **Popup de alarmes: "Abrir Tarefa" + nome da tarefa correto** (`gui/dialogs_qt/alarm_popup_qt.py`, `main_window_qt.py`, `project_360_qt.py`)
+  - **Causa do número em vez do nome**: alarmes ativos apontando para tarefas soft-deleted (ex.: tasks 53/55/56 com `deleted_at`); `task_map` vinha de `get_all_active()` (filtra deleted) → lookup falhava → fallback `"Tarefa #N"`
+  - Fix: `resolve_task_title(task_id)` no popup usa `TaskService().task_repo.get_by_id()` direto (não filtra deleted) — mostra `"Título (tarefa excluída)"` para excluídas; fallback só se repo falhar
+  - Novo botão `📋 Abrir Tarefa` no `AlarmCard`; popup ganhou signal `open_task_requested(int)` — fecha o modal (`accept()`) e emite via `QTimer.singleShot(0, …)` para não travar navegação durante `exec()`
+  - Conexões: `main_window._check_global_alarms` → `show_task_detail`; `project_360._check_and_show_alarms` → `open_task_detail_signal.emit`
+- **Timeline: alinhamento tarefa↔barra + scroll sincronizado** (`gui/components/timeline/timeline_view_qt.py`, `timeline_canvas.py`)
+  - Causa raiz da dessincronia: canvas tinha `QScrollArea` própria e sync por **proporção** (`value/max`) — alturas de conteúdo divergiam (canvas tinha piso de 400px)
+  - Árvore agora é FONTE ÚNICA de scroll vertical; canvas espelha offset em pixels via `set_scroll_y` (1:1, sem ratio); removidos `_on_tree_scroll`/`_on_canvas_scroll`
+  - `setUniformRowHeights(True)` garante linha da árvore = `row_height` (40px) exata do canvas → barra alinha horizontalmente com a tarefa
+  - Canvas: pintura em coords de conteúdo com `painter.translate(0, -_scroll_y)`; hit-test/tooltips/duplo clique ajustados (`pos.y() + _scroll_y`); altura = `n_linhas × 40px` (piso 400px removido)
+  - Roda do mouse sobre o canvas repassa à árvore (`wheelEvent` → signal `wheel_scrolled`)
 - **Voltar navega por abas como sub-janelas** (`project_360_qt.py`, `task_detail_qt.py`)
   - `_init_tab_navigation` registra mudanças de aba principal (`self.tabs`) e sub-abas da Agenda (`self.agenda_tabs`) numa pilha de posições `(aba_principal, sub_aba_agenda)`
   - `_on_back_clicked` (conectado ao botão Voltar) consome a pilha primeiro: volta Tarefas→Ideias→Voltar=Tarefas; Agenda→Eventos→Voltar=Alarmes; Agenda→Voltar=Ideias; só quando a pilha esgota emite `go_back` (volta pra janela anterior)
@@ -235,6 +262,57 @@
 3. Barra lateral e cabeçalhos
 4. Tabelas e listas
 5. Aplicar gradualmente em todas as telas
+
+## Timeline/Gantt ("Planejamento") – Plano de Evolução
+
+### Avaliação do usuário (baseline)
+- Conceito 9/10 · Hierarquia 9/10 · Timeline 8/10 · Legibilidade 7,5/10 · Poluição visual 7/10
+- **Prioridade: melhorar semântica visual, NÃO adicionar componentes** (tela já densa)
+- Estado atual: implementação existente em `gui/components/timeline/` (custom painting no `TimelineCanvas`), aba "Planejamento" em `project_360_qt.py` (linhas ~224-228, ~632-666), mapeamento via `TimelineMapper` (tasks/events/alarms), agregação de datas do pai via `TimelineAggregation` (MIN filhas → MAX filhas).
+
+### Ajustes solicitados (feedback do usuário)
+1. **Tarefa pai como resumo executivo** — na árvore: `▼ Robustez engate/desengate` + linha de resumo `3 tarefas · 2 concluídas · 67% · 21/08 → 09/09`; barra do pai no canvas **sempre = MIN(início das filhas) → MAX(fim das filhas)** (a agregação já faz isso; falta a barra proeminente + texto de resumo).
+2. **Cor por significado, não identidade** — hierarquia: pai roxo/azul forte → filho mesma família mais claro → neto mais discreto; **semântica de estado sobrepõe**: concluído verde, atrasado vermelho, em risco amarelo/laranja; marco = losango/triângulo, alarme amarelo, evento cinza/azul. (Hoje `_draw_bar` usa `get_status_color` por status; falta a família por nível e estados derivados.)
+3. **Linguagem visual consistente** — legenda única: `▲` alarme · `●` evento · `◆` marco · `│` hoje; **objetos clicáveis abrem diálogo de detalhe** (ex.: card de alarme com título/data/relacionado/severidade/status/botão `[Abrir alarme]`).
+4. **Linha "Hoje" mais proeminente** + etiqueta `HOJE · 20 AGO` (hoje há só a linha azul 2px).
+5. **Resumo na tarefa pai** — `3 tarefas · 0 concluídas · 1 em andamento · 2 atrasadas` ou `45% 3/6` (contagens por estado na linha do pai).
+
+### Fase 1 – Hierarquia
+- Expandir/recolher: já existe (árvore + `itemExpanded/Collapsed` → `_update_visible_items`)
+- Indentação + prefixo `└─`: já existe (cores por profundidade na árvore)
+- **Linha vertical conectando pai↔filhos** (novo): guia visual de parentesco no painel esquerdo
+- **Pai como resumo**: linha de resumo agregado (ajuste 1 + 5); barra do pai deve ocupar o span inteiro das filhas com visual de "soma" (mais larga/preenchida, não tracejado fino)
+- Progresso agregado do pai: já existe (`TimelineAggregation` + mapper `done/total`)
+
+### Fase 2 – Timeline (canvas)
+- Tarefa (barra), período, marco (losango), evento (círculo), alarme (triângulo): **já desenhados** no `TimelineCanvas`
+- Linha Hoje: ajuste 4 (prominence + etiqueta)
+- Tooltip: já existe (eventos/alarmes primeiro, depois barras) — revisar conteúdo
+- **Seleção** (novo): hoje a árvore é `NoSelection`; adicionar seleção da linha ao clicar (destacar barra + linha da árvore)
+
+### Fase 3 – Estados (semântica de cor)
+- Estados explícitos atuais: Pendente, Em Andamento, Pausado, Aguardando, Bloqueado, Concluído (theme `STATUS_COLORS`)
+- **Estados derivados a calcular** no mapper: `ATRASADA` (end < hoje e não Concluída), `EM RISCO` (prazo próximo / progresso baixo), `NÃO INICIADA` (sem início)
+- Paleta por significado (ajuste 2): hierarquia (família de cor por nível) × estado (verde/vermelho/amarelo-laranja); marco sempre distinto
+- Linguagem visual consolidada (ajuste 3): legenda única ▲ ● ◆ │
+
+### Fase 4 – Interação
+- Clique tarefa → detalhes: **duplo clique já abre** (`open_task_detail_signal`); adicionar clique único → seleção + painel/abrir
+- Clique alarme → abre `AlarmPopupQt`/detalhe do alarme (card com título/data/relacionado/severidade/status/`[Abrir alarme]`)
+- Clique marco → abre a tarefa-marco
+- **Arrastar barra → alterar prazo** (novo; persistir via task service)
+- **Redimensionar barra → alterar início/fim** (novo)
+- Expand/recolher, zoom Dia/Semana/Mês, Ir para Hoje: já existem na toolbar
+
+### Arquitetura (manter)
+- **Custom painting com `QPainter`/`paintEvent`** — NÃO criar dezenas de QWidgets para itens da timeline (padrão já seguido em `TimelineCanvas`)
+- Estrutura: `TimelineViewQt` | painel esquerdo árvore de tarefas (`QTreeWidget` como hierarquia) + `TimelineHeader` + `TimelineCanvas` (direita), scroll vertical sincronizado, `h_scrollbar` custom
+- Datas derivadas de manual vs agregadas já distinguidas em `TimelineItem` (`manual_start/end` vs `start/end`) — usar para traço (manual) vs barra de resumo (agregado)
+
+### Restrições
+- Não adicionar componentes/toolbars novas só por estética; priorizar semântica visual
+- Não alterar regras de negócio (datas, agregação, persistência de drag/resize deve passar pelos serviços existentes)
+- Não alterar a estrutura de pastas `gui/components/timeline/` sem necessidade
 
 ## Key Decisions
 - Autosave removed entirely because it conflicted with "Descartar" — the 1.5s timer would save content before the user could switch pages, making discard impossible

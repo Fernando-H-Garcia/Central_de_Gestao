@@ -83,6 +83,7 @@ class MainWindow(QMainWindow):
 
             from gui.dialogs_qt.alarm_popup_qt import AlarmPopupQt
             popup = AlarmPopupQt(alarms, task_map, parent=self)
+            popup.open_task_requested.connect(self.show_task_detail)
             popup.exec()
         except Exception:
             import traceback, os

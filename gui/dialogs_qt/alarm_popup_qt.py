@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QWidget, QFrame, QMenu
 )
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont
 import os
 import traceback
@@ -16,6 +16,21 @@ import traceback
 from gui.theme import ENERGY_COLORS, get_energy_color, style_calendar_today
 from services.alert_service import AlertService
 from services.task_service import TaskService
+
+
+def resolve_task_title(task_id) -> str:
+    """Resolve o título da tarefa pelo id — funciona mesmo para tarefas
+    arquivadas ou excluídas (soft delete), pois usa o repo direto."""
+    try:
+        t = TaskService().task_repo.get_by_id(task_id)
+        if t:
+            title = getattr(t, "title", None) or f"Tarefa #{task_id}"
+            if getattr(t, "deleted_at", None):
+                return f"{title} (tarefa excluída)"
+            return title
+    except Exception:
+        pass
+    return f"Tarefa #{task_id}"
 
 # Mapeamento BD → exibição PT
 PRIORITY_LABELS = {
@@ -51,11 +66,13 @@ def play_alarm_sound():
 class AlarmCard(QFrame):
     """Card visual para um único alarme no popup."""
 
-    def __init__(self, alarm, task_title: str, on_complete, on_snooze, parent=None):
+    def __init__(self, alarm, task_title: str, on_complete, on_snooze, on_open_task=None, parent=None):
         super().__init__(parent)
         self.alarm = alarm
         self.on_complete = on_complete
         self.on_snooze = on_snooze
+        self.on_open_task = on_open_task
+        self._task_title = task_title
         self.setObjectName("alarm_card")
         self.setFrameShape(QFrame.StyledPanel)
         self.setStyleSheet("""
@@ -96,7 +113,7 @@ class AlarmCard(QFrame):
         layout.addLayout(top)
 
         # Tarefa vinculada
-        lbl_task = QLabel(f"📋 Tarefa: <i>{self.alarm._task_title}</i>")
+        lbl_task = QLabel(f"📋 Tarefa: <i>{self._task_title}</i>")
         lbl_task.setStyleSheet("color: #aaa; font-size: 11px;")
         lbl_task.setWordWrap(True)
         layout.addWidget(lbl_task)
@@ -134,6 +151,15 @@ class AlarmCard(QFrame):
 
         btn_row.addWidget(btn_complete)
         btn_row.addWidget(btn_snooze)
+
+        if self.on_open_task is not None:
+            btn_open_task = QPushButton("📋 Abrir Tarefa")
+            btn_open_task.setMinimumHeight(36)
+            btn_open_task.clicked.connect(
+                lambda: self.on_open_task(self.alarm.entity_id)
+            )
+            btn_row.addWidget(btn_open_task)
+
         btn_row.addStretch()
         layout.addLayout(btn_row)
 
@@ -147,6 +173,10 @@ class AlarmCard(QFrame):
 
 class AlarmPopupQt(QDialog):
     """Popup principal que exibe todos os alarmes ativos de um projeto."""
+
+    # Emitido quando o usuário clica em "Abrir Tarefa" (task_id).
+    # O popup se fecha antes de emitir para não bloquear a navegação (modal exec()).
+    open_task_requested = Signal(int)
 
     def __init__(self, alarms: list, task_map: dict, parent=None):
         """
@@ -188,11 +218,19 @@ class AlarmPopupQt(QDialog):
         self.cards_layout.setSpacing(6)
 
         for alarm in self.alarms:
+            # Resolve o título SEMPRE pelo repo (pega tarefas arquivadas/excluídas também).
+            # O fallback "Tarefa #N" dos chamadores só vale se o repo falhar.
+            task_title = resolve_task_title(alarm.entity_id)
+            if task_title.startswith("Tarefa #") and hasattr(alarm, "_task_title"):
+                injected = getattr(alarm, "_task_title", None)
+                if injected and not str(injected).startswith("Tarefa #"):
+                    task_title = injected
             card = AlarmCard(
                 alarm=alarm,
-                task_title=alarm._task_title,
+                task_title=task_title,
                 on_complete=self._handle_complete,
                 on_snooze=self._handle_snooze,
+                on_open_task=self._handle_open_task,
             )
             self._cards[alarm.id] = card
             self.cards_layout.addWidget(card)
@@ -213,6 +251,21 @@ class AlarmPopupQt(QDialog):
             card.setVisible(False)
             self.cards_layout.removeWidget(card)
             card.deleteLater()
+
+    def _handle_open_task(self, task_id: int):
+        """Fecha o popup (modal) e emite o pedido de navegação depois."""
+        try:
+            self.accept()
+            QTimer.singleShot(0, lambda tid=task_id: self.open_task_requested.emit(tid))
+        except Exception:
+            from config import LOGS_DIR
+            log_path = os.path.join(LOGS_DIR, "app_errors.log")
+            try:
+                with open(log_path, "a") as f:
+                    f.write("\nCRASH IN _handle_open_task:\n")
+                    traceback.print_exc(file=f)
+            except:
+                pass
 
     def _handle_complete(self, alarm_id: int):
         try:

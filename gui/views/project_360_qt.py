@@ -1,4 +1,4 @@
-﻿from PySide6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
     QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView, QProgressBar,
     QAbstractItemView, QMenu, QTreeWidget, QMessageBox
@@ -115,6 +115,7 @@ class Project360Qt(QWidget):
 
             from gui.dialogs_qt.alarm_popup_qt import AlarmPopupQt
             popup = AlarmPopupQt(alarms, task_map, parent=self)
+            popup.open_task_requested.connect(self.open_task_detail_signal.emit)
             popup.exec()
             self.load_data()
         except Exception:
@@ -221,15 +222,24 @@ class Project360Qt(QWidget):
         self.setup_tasks_tab()
         self.tabs.addTab(self.tab_tasks, "Tarefas")
         
+        # Planejamento Tab
+        from gui.components.timeline.timeline_view_qt import TimelineViewQt
+        self.tab_timeline = TimelineViewQt(parent=self)
+        self.tab_timeline.open_task_detail_signal.connect(self.open_task_detail_signal.emit)
+        self.tab_timeline.edit_task_signal.connect(self._edit_task_from_timeline)
+        self.tab_timeline.event_clicked.connect(self._on_timeline_event_clicked)
+        self.tab_timeline.event_moved_signal.connect(self._on_timeline_event_moved)
+        self.tab_timeline.edit_event_signal.connect(self._on_timeline_edit_event)
+        self.tab_timeline.task_moved.connect(self._on_timeline_task_moved)
+        self.tabs.addTab(self.tab_timeline, "Planejamento")
+        
         # Ideias Tab
         from gui.views.ideas_qt import IdeasQt
         self.tab_ideas = IdeasQt(project_id=self.project_id)
         self.tabs.addTab(self.tab_ideas, "Ideias")
         
-        # Agenda Tab
-        self.tab_agenda = QWidget()
-        self.setup_agenda_tab()
-        self.tabs.addTab(self.tab_agenda, "Agenda")
+        # Alarmes e Eventos no nível das abas principais (aba Agenda removida)
+        self.setup_agenda_tabs()
         
         main_layout.addWidget(self.tabs, stretch=1)
         self._init_tab_navigation()
@@ -321,90 +331,55 @@ class Project360Qt(QWidget):
 
     # ── Navegação de abas como sub-janelas (Voltar volta entre abas) ──
     def _init_tab_navigation(self):
-        """Registra mudanças de aba (e sub-abas da Agenda) numa pilha de posições.
+        """Registra mudanças de aba principal numa pilha de posições.
         O Voltar consome essa pilha primeiro; esgotada, emite go_back
         (volta para a janela anterior)."""
-        self._pos_history = []           # lista de (aba_principal, sub_aba_agenda)
+        self._pos_history = []           # lista de índices de aba principal
         self._suppress_tab_nav = False   # ignora mudanças programáticas
         self._cur_main_idx = self.tabs.currentIndex()
-        self._cur_agenda_idx = self.agenda_tabs.currentIndex()
         self.tabs.currentChanged.connect(self._on_main_tab_changed)
-        self.agenda_tabs.currentChanged.connect(self._on_agenda_tab_changed)
 
-    def _push_pos(self, main_idx, agenda_idx):
+    def _push_pos(self, main_idx):
         if main_idx is None:
             main_idx = self._cur_main_idx
-        if agenda_idx is None:
-            agenda_idx = self._cur_agenda_idx
         # Evita historico duplicado se a posicao ja for a corrente
-        if self._pos_history and self._pos_history[-1] == (main_idx, agenda_idx):
+        if self._pos_history and self._pos_history[-1] == main_idx:
             return
-        if self._pos_history and self._pos_history[-1] == (self._cur_main_idx, self._cur_agenda_idx):
+        if self._pos_history and self._pos_history[-1] == self._cur_main_idx:
             return
-        self._pos_history.append((main_idx, agenda_idx))
+        self._pos_history.append(main_idx)
 
     def _on_main_tab_changed(self, new_idx):
         if self._suppress_tab_nav:
             return
         if new_idx == self._cur_main_idx:
             return
-        self._push_pos(self._cur_main_idx, None)
+        self._push_pos(self._cur_main_idx)
         self._cur_main_idx = new_idx
 
-    def _on_agenda_tab_changed(self, new_idx):
-        if self._suppress_tab_nav:
-            return
-        if new_idx == self._cur_agenda_idx:
-            return
-        self._push_pos(self._cur_main_idx, self._cur_agenda_idx)
-        self._cur_agenda_idx = new_idx
-
     def _on_back_clicked(self):
-        """Voltar dentro das abas/sub-abas primeiro; depois window back."""
+        """Voltar dentro das abas primeiro; depois window back."""
         while self._pos_history:
-            main_idx, agenda_idx = self._pos_history.pop()
-            if (main_idx, agenda_idx) == (self._cur_main_idx, self._cur_agenda_idx):
+            idx = self._pos_history.pop()
+            if idx == self._cur_main_idx:
                 continue
             self._suppress_tab_nav = True
-            self.tabs.setCurrentIndex(main_idx)
-            self.agenda_tabs.setCurrentIndex(agenda_idx)
+            self.tabs.setCurrentIndex(idx)
             self._cur_main_idx = self.tabs.currentIndex()
-            self._cur_agenda_idx = self.agenda_tabs.currentIndex()
             self._suppress_tab_nav = False
             return
         self.go_back.emit()
 
-    def setup_agenda_tab(self):
-        layout = QVBoxLayout(self.tab_agenda)
-        
-        self.agenda_tabs = QTabWidget()
-        self.agenda_tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #2a2a3f; }
-            QTabBar::tab {
-                background: #1c1c2e;
-                color: #888;
-                padding: 10px 20px;
-                border: 1px solid #2a2a3f;
-                border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-            }
-            QTabBar::tab:selected {
-                background: #2a2a3f;
-                color: #fff;
-                font-weight: bold;
-            }
-        """)
-        
-        # Sub-tab Alarmes
+    def setup_agenda_tabs(self):
+        # Aba Alarmes
         tab_alarmes = QWidget()
         layout_alarmes = QVBoxLayout(tab_alarmes)
         from gui.components.alarm_cards_qt import AlarmCardsWidget
         self.tree_alarms = AlarmCardsWidget(grouping="date", filter_project_id=self.project_id, main_window=self.window(), parent=self)
         layout_alarmes.addWidget(self.tree_alarms)
-        self.agenda_tabs.addTab(tab_alarmes, "Alarmes")
+        self.tabs.addTab(tab_alarmes, "Alarmes")
 
-        # Sub-tab Eventos
+        # Aba Eventos
         tab_eventos = QWidget()
         layout_eventos = QVBoxLayout(tab_eventos)
         
@@ -419,9 +394,7 @@ class Project360Qt(QWidget):
         from gui.components.agenda_tree_qt import AgendaTreeWidget
         self.tree_agenda = AgendaTreeWidget(grouping="date", filter_project_id=self.project_id, main_window=self.window(), parent=self)
         layout_eventos.addWidget(self.tree_agenda)
-        self.agenda_tabs.addTab(tab_eventos, "Eventos")
-        
-        layout.addWidget(self.agenda_tabs)
+        self.tabs.addTab(tab_eventos, "Eventos")
         
 
 
@@ -662,13 +635,40 @@ class Project360Qt(QWidget):
         self.tbl_tasks.expandAll()
         self.restore_sort_order()
             
+        # Popula a aba Planejamento (Timeline) — usa todas as tarefas (inclui Concluídas, filtro fica no checkbox)
+        try:
+            from gui.components.timeline.timeline_mapper import TimelineMapper
+            tl_main = [t for t in tasks if not getattr(t, 'parent_task_id', None)]
+            tl_by_parent = {}
+            for t in tasks:
+                pid = getattr(t, 'parent_task_id', None)
+                if pid is not None:
+                    tl_by_parent.setdefault(pid, []).append(t)
+            if self.show_archived_tasks:
+                # quando mostra arquivadas, tasks já é o conjunto arquivado
+                tl_main = [t for t in tasks if not getattr(t, 'parent_task_id', None)]
+                tl_by_parent = {}
+                for t in tasks:
+                    pid = getattr(t, 'parent_task_id', None)
+                    if pid is not None:
+                        tl_by_parent.setdefault(pid, []).append(t)
+            timeline_items = TimelineMapper.map_tasks_to_timeline(tl_main, tl_by_parent)
+            self.tab_timeline.populate(timeline_items)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
         # Load Agenda
         try:
             events = [e for e in self.event_service.list_active() if e.project_id == self.project_id]
             self.tree_agenda.populate(events, self.project_service.project_repo, self.task_service.task_repo)
+            
+            from gui.components.timeline.timeline_mapper import TimelineMapper
+            t_events = TimelineMapper.map_events_to_timeline(events)
         except Exception:
             import traceback
             traceback.print_exc()
+            t_events = []
 
         # Load Alarms
         try:
@@ -678,6 +678,133 @@ class Project360Qt(QWidget):
             proj_alarms = [a for a in all_alarms if a.entity_type == "project" and a.entity_id == self.project_id and a.status in ('pending', 'overdue')]
             alarms = task_alarms + proj_alarms
             self.tree_alarms.populate(alarms)
+            
+            from gui.components.timeline.timeline_mapper import TimelineMapper
+            t_alarms = TimelineMapper.map_alarms_to_timeline(alarms)
+            
+            # Send events and alarms to Timeline
+            self.tab_timeline.set_events(t_events + t_alarms)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def _on_timeline_event_clicked(self, ev):
+        try:
+            if ev.event_type == "alarm":
+                a = ev.raw_entity
+                title = getattr(a, 'title', ev.title)
+                date_str = ev.datetime.strftime("%d/%m/%Y %H:%M")
+                related = f"Tarefa #{ev.task_id}" if ev.task_id else f"Projeto #{ev.project_id}" if ev.project_id else "—"
+                sev = getattr(a, 'priority', getattr(a, 'severity', '—'))
+                status = getattr(a, 'status', '—')
+                from PySide6.QtWidgets import QMessageBox, QPushButton
+                box = QMessageBox(self)
+                box.setWindowTitle("Alarme")
+                box.setText(f"<b>{title}</b><br/>Data: {date_str}<br/>Relacionado: {related}<br/>Severidade: {sev}<br/>Status: {status}")
+                btn_open = box.addButton("Abrir alarme", QMessageBox.AcceptRole)
+                box.addButton("Fechar", QMessageBox.RejectRole)
+                box.exec()
+                if box.clickedButton() == btn_open and ev.task_id:
+                    self.open_task_detail_signal.emit(ev.task_id)
+            else:
+                # evento — clicar abre detalhe do evento se vinculado
+                if ev.task_id:
+                    self.open_task_detail_signal.emit(ev.task_id)
+                else:
+                    from PySide6.QtWidgets import QMessageBox
+                    QMessageBox.information(self, "Evento", f"<b>{ev.title}</b><br/>{ev.datetime.strftime('%d/%m/%Y %H:%M')}")
+
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def _on_timeline_event_moved(self, ev, new_start, new_end):
+        """Persiste o arraste de um alarme/evento na timeline."""
+        try:
+            import copy
+            if ev.event_type == "alarm":
+                from services.alert_service import AlertService
+                svc = AlertService()
+                a = svc.get_alert(ev.id)
+                if not a:
+                    return
+                orig = copy.deepcopy(a)
+                a.alert_date = new_start.strftime("%Y-%m-%d")
+                a.alert_time = new_start.strftime("%H:%M") or None
+                if getattr(a, "status", None) == "overdue":
+                    a.status = "pending"
+                svc.update_alert(a, orig)
+            else:
+                from services.event_service import EventService
+                svc = EventService()
+                e = svc.repo.get_by_id(ev.id)
+                if not e:
+                    return
+                orig = copy.deepcopy(e)
+                e.start_datetime = new_start.isoformat(sep=" ", timespec="minutes")
+                if new_end is not None:
+                    e.end_datetime = new_end.isoformat(sep=" ", timespec="minutes")
+                svc.update(e, orig)
+            from core.event_bus import event_bus
+            event_bus.emit("entity_updated")
+            self.load_data()
+        except Exception:
+            import traceback
+            from PySide6.QtWidgets import QMessageBox
+            traceback.print_exc()
+            QMessageBox.critical(self, "Erro", "Não foi possível mover o item na linha do tempo.")
+            self.load_data()
+
+    def _on_timeline_edit_event(self, ev):
+        """Duplo clique / menu de contexto em alarme ou evento → abre o editor."""
+        try:
+            if ev.event_type == "alarm":
+                from services.alert_service import AlertService
+                svc = AlertService()
+                a = svc.get_alert(ev.id)
+                if not a:
+                    return
+                task = None
+                if getattr(a, "entity_type", "") == "task" and a.entity_id:
+                    task = self.task_service.task_repo.get_by_id(a.entity_id)
+                from gui.dialogs_qt.alarm_dialog_qt import AlarmDialogQt
+                dlg = AlarmDialogQt(self, task=task, alarm=a,
+                                    on_save=lambda *_: (self._emit_updated(), self.load_data()))
+                dlg.exec()
+            else:
+                from services.event_service import EventService
+                e = EventService().repo.get_by_id(ev.id)
+                if not e:
+                    return
+                from gui.dialogs_qt.event_dialog_qt import EventDialogQt
+                dlg = EventDialogQt(self, agenda_event=e)
+                if dlg.exec():
+                    self.load_data()
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def _emit_updated(self):
+        from core.event_bus import event_bus
+        event_bus.emit("entity_updated")
+
+    def _on_timeline_task_moved(self, task_id, new_start, new_end):
+        try:
+            # persiste novo prazo arrastado na timeline
+            import copy, datetime
+            orig = self.task_service.task_repo.get_by_id(task_id)
+            if not orig:
+                return
+            edited = copy.copy(orig)
+            # Task usa datetime — converte date para datetime se necessário
+            if isinstance(new_start, datetime.date) and not isinstance(new_start, datetime.datetime):
+                new_start = datetime.datetime.combine(new_start, datetime.datetime.min.time())
+            if isinstance(new_end, datetime.date) and not isinstance(new_end, datetime.datetime):
+                new_end = datetime.datetime.combine(new_end, datetime.datetime.min.time())
+            edited.start_date = new_start
+            edited.due_date = new_end
+            self.task_service.update_task(edited, orig)
+            self.load_data()
         except Exception:
             import traceback
             traceback.print_exc()
@@ -716,6 +843,25 @@ class Project360Qt(QWidget):
     def edit_task(self, item):
         task = item.data(0, Qt.UserRole)
         if not task: return
+        from gui.dialogs_qt.task_dialog_qt import TaskDialogQt
+        def save_task(edited, is_new, original_t=None):
+            self.task_service.update_task(edited, original_t)
+            from core.event_bus import event_bus
+            event_bus.emit("entity_updated")
+            self.load_data()
+        dialog = TaskDialogQt(self, task, save_task)
+        dialog.exec()
+
+    def _edit_task_from_timeline(self, task_or_id):
+        """Abre a edição da tarefa vinda do Planejamento (duplo clique ou menu de contexto)."""
+        if task_or_id is None:
+            return
+        if isinstance(task_or_id, int):
+            task = self.task_service.task_repo.get_by_id(task_or_id)
+        else:
+            task = task_or_id
+        if task is None:
+            return
         from gui.dialogs_qt.task_dialog_qt import TaskDialogQt
         def save_task(edited, is_new, original_t=None):
             self.task_service.update_task(edited, original_t)

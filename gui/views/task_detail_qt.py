@@ -119,9 +119,8 @@ class TaskDetailQt(QWidget):
         self.tab_ideas = IdeasQt(project_id=self.task.project_id, task_id=self.task_id)
         self.tabs.addTab(self.tab_ideas, "Ideias")
         
-        self.tab_agenda = QWidget()
-        self.setup_agenda_tab()
-        self.tabs.addTab(self.tab_agenda, "Agenda")
+        # Alarmes e Eventos no nível das abas principais (aba Agenda removida)
+        self.setup_agenda_tabs()
 
         main_layout.addWidget(self.tabs)
         self._init_tab_navigation()
@@ -167,17 +166,16 @@ class TaskDetailQt(QWidget):
         self.txt_desc.setMaximumHeight(80)
         layout.addWidget(self.txt_desc)
         
+        header_sub = QHBoxLayout()
         lbl_sub = QLabel("Subtarefas:")
         lbl_sub.setStyleSheet("font-weight: bold; margin-top: 10px;")
-        layout.addWidget(lbl_sub)
-        
-        toolbar_sub = QHBoxLayout()
+        header_sub.addWidget(lbl_sub)
+        header_sub.addStretch()
         btn_add_sub = QPushButton("➕ Nova Subtarefa")
         btn_add_sub.setObjectName("secondary")
         btn_add_sub.clicked.connect(self.new_subtask)
-        toolbar_sub.addStretch()
-        toolbar_sub.addWidget(btn_add_sub)
-        layout.addLayout(toolbar_sub)
+        header_sub.addWidget(btn_add_sub)
+        layout.addLayout(header_sub)
         
         from gui.components.drag_drop_tree_qt import DragDropTreeWidget
         self.tbl_subtasks = DragDropTreeWidget()
@@ -202,19 +200,17 @@ class TaskDetailQt(QWidget):
         self.tbl_subtasks.setItemDelegateForColumn(4, ProgressBarDelegate(parent=self.tbl_subtasks))
         layout.addWidget(self.tbl_subtasks)
         
-        # Add a visual label for logs
+        # Header com título e botão na mesma linha
+        header_logs = QHBoxLayout()
         lbl_logs = QLabel("Atividades / Logs:")
         lbl_logs.setStyleSheet("font-weight: bold; margin-top: 10px;")
-        layout.addWidget(lbl_logs)
-        
-        # Toolbar
-        toolbar = QHBoxLayout()
+        header_logs.addWidget(lbl_logs)
+        header_logs.addStretch()
         btn_add = QPushButton("📝 + Nova Atividade")
         btn_add.setObjectName("secondary")
         btn_add.clicked.connect(self.add_activity)
-        toolbar.addStretch()
-        toolbar.addWidget(btn_add)
-        layout.addLayout(toolbar)
+        header_logs.addWidget(btn_add)
+        layout.addLayout(header_logs)
         
         self.tbl_logs = QTableWidget()
         self.tbl_logs.setColumnCount(3)
@@ -521,54 +517,40 @@ class TaskDetailQt(QWidget):
 
     # ── Navegação de abas como sub-janelas (Voltar volta entre abas) ──
     def _init_tab_navigation(self):
-        """Registra mudanças de aba (e sub-abas da Agenda) numa pilha de posições.
+        """Registra mudanças de aba principal numa pilha de posições.
         O Voltar consome essa pilha primeiro; esgotada, emite go_back
         (volta para a janela anterior)."""
-        self._pos_history = []           # lista de (aba_principal, sub_aba_agenda)
+        self._pos_history = []           # lista de índices de aba principal
         self._suppress_tab_nav = False   # ignora mudanças programáticas
         self._cur_main_idx = self.tabs.currentIndex()
-        self._cur_agenda_idx = self.agenda_tabs.currentIndex()
         self.tabs.currentChanged.connect(self._on_main_tab_changed)
-        self.agenda_tabs.currentChanged.connect(self._on_agenda_tab_changed)
 
-    def _push_pos(self, main_idx, agenda_idx):
+    def _push_pos(self, main_idx):
         if main_idx is None:
             main_idx = self._cur_main_idx
-        if agenda_idx is None:
-            agenda_idx = self._cur_agenda_idx
-        if self._pos_history and self._pos_history[-1] == (main_idx, agenda_idx):
+        if self._pos_history and self._pos_history[-1] == main_idx:
             return
-        if self._pos_history and self._pos_history[-1] == (self._cur_main_idx, self._cur_agenda_idx):
+        if self._pos_history and self._pos_history[-1] == self._cur_main_idx:
             return
-        self._pos_history.append((main_idx, agenda_idx))
+        self._pos_history.append(main_idx)
 
     def _on_main_tab_changed(self, new_idx):
         if self._suppress_tab_nav:
             return
         if new_idx == self._cur_main_idx:
             return
-        self._push_pos(self._cur_main_idx, None)
+        self._push_pos(self._cur_main_idx)
         self._cur_main_idx = new_idx
 
-    def _on_agenda_tab_changed(self, new_idx):
-        if self._suppress_tab_nav:
-            return
-        if new_idx == self._cur_agenda_idx:
-            return
-        self._push_pos(self._cur_main_idx, self._cur_agenda_idx)
-        self._cur_agenda_idx = new_idx
-
     def _on_back_clicked(self):
-        """Voltar dentro das abas/sub-abas primeiro; depois window back."""
+        """Voltar dentro das abas primeiro; depois window back."""
         while self._pos_history:
-            main_idx, agenda_idx = self._pos_history.pop()
-            if (main_idx, agenda_idx) == (self._cur_main_idx, self._cur_agenda_idx):
+            idx = self._pos_history.pop()
+            if idx == self._cur_main_idx:
                 continue
             self._suppress_tab_nav = True
-            self.tabs.setCurrentIndex(main_idx)
-            self.agenda_tabs.setCurrentIndex(agenda_idx)
+            self.tabs.setCurrentIndex(idx)
             self._cur_main_idx = self.tabs.currentIndex()
-            self._cur_agenda_idx = self.agenda_tabs.currentIndex()
             self._suppress_tab_nav = False
             return
         self.go_back.emit()
@@ -828,29 +810,8 @@ class TaskDetailQt(QWidget):
         self.load_agenda()
         QTimer.singleShot(0, self._adjust_all_rows)
 
-    def setup_agenda_tab(self):
-        layout = QVBoxLayout(self.tab_agenda)
-        
-        self.agenda_tabs = QTabWidget()
-        self.agenda_tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #2a2a3f; }
-            QTabBar::tab {
-                background: #1c1c2e;
-                color: #888;
-                padding: 10px 20px;
-                border: 1px solid #2a2a3f;
-                border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-            }
-            QTabBar::tab:selected {
-                background: #2a2a3f;
-                color: #fff;
-                font-weight: bold;
-            }
-        """)
-        
-        # Sub-tab Alarmes
+    def setup_agenda_tabs(self):
+        # Aba Alarmes
         tab_alarmes = QWidget()
         layout_alarmes = QVBoxLayout(tab_alarmes)
         layout_alarmes.setSpacing(8)
@@ -867,9 +828,9 @@ class TaskDetailQt(QWidget):
         from gui.components.alarm_cards_qt import AlarmCardsWidget
         self.tree_alarms = AlarmCardsWidget(grouping="date", filter_project_id=self.task.project_id, filter_task_id=None, highlight_task_id=self.task.id, main_window=self.window(), parent=self)
         layout_alarmes.addWidget(self.tree_alarms)
-        self.agenda_tabs.addTab(tab_alarmes, "Alarmes")
+        self.tabs.addTab(tab_alarmes, "Alarmes")
         
-        # Sub-tab Eventos
+        # Aba Eventos
         tab_eventos = QWidget()
         layout_eventos = QVBoxLayout(tab_eventos)
         layout_eventos.setSpacing(8)
@@ -886,9 +847,7 @@ class TaskDetailQt(QWidget):
         from gui.components.agenda_tree_qt import AgendaTreeWidget
         self.tree_agenda = AgendaTreeWidget(grouping="date", filter_project_id=self.task.project_id, filter_task_id=None, highlight_task_id=self.task.id, main_window=self.window(), parent=self)
         layout_eventos.addWidget(self.tree_agenda)
-        self.agenda_tabs.addTab(tab_eventos, "Eventos")
-        
-        layout.addWidget(self.agenda_tabs)
+        self.tabs.addTab(tab_eventos, "Eventos")
         
     def new_agenda_event(self):
         try:

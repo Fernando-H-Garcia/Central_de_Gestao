@@ -12,6 +12,7 @@ from PySide6.QtGui import QAction, QFont, QFontMetrics, QTextCursor, QKeyEvent, 
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
 from gui.components.drag_drop_tree_qt import TranslucentDragMixin
 from services.knowledge_page_service import KnowledgePageService
+import re
 
 ENTITY_TYPE_LABELS = {
     "project": "Projeto", "task": "Tarefa", "idea": "Ideia",
@@ -21,6 +22,40 @@ ENTITY_ICONS = {
     "project": "📁", "task": "📋", "idea": "💡",
     "wiki": "📖", "knowledge_page": "📖", "note": "📝",
 }
+
+
+def _strip_rich_colors(html: str) -> str:
+    """Remove cores de texto e fundo do HTML colado para manter a legibilidade
+    no tema escuro — conteúdo externo costuma vir com texto preto (#000)."""
+    prop_re = re.compile(
+        r"(?i)(?:^|;)\s*(?:-webkit-text-fill-color|background-color|background|color)\s*:\s*[^;]*;?"
+    )
+
+    def _clean_style(m):
+        cleaned = prop_re.sub("", m.group(1)).strip().strip(";")
+        return f'style="{cleaned}"' if cleaned else ""
+
+    html = re.sub(r'(?i)style="([^"]*)"', _clean_style, html)
+    html = re.sub(r'(?i)\s(?:color|bgcolor)="[^"]*"', "", html)
+    return html
+
+
+class SanitizedTextEdit(QTextEdit):
+    """QTextEdit que limpa cores de texto/fundo de conteúdo colado externo,
+    evitando texto preto ilegível no tema escuro."""
+
+    def insertFromMimeData(self, source):
+        if source.hasHtml():
+            from PySide6.QtCore import QMimeData
+            cleaned = _strip_rich_colors(source.html())
+            md = QMimeData()
+            md.setHtml(cleaned)
+            if source.hasText():
+                md.setText(source.text())
+            if source.hasUrls():
+                md.setUrls(source.urls())
+            source = md
+        super().insertFromMimeData(source)
 
 
 class WordWrapDelegate(QStyledItemDelegate):
@@ -447,7 +482,7 @@ class WikiQt(QWidget):
         self._fmt_topbar = top_fmt
         editor_col.addWidget(top_fmt)
 
-        self.text_edit = QTextEdit()
+        self.text_edit = SanitizedTextEdit()
         self.text_edit.setPlaceholderText(
             "Escreva sua documentação em Markdown...\n\n"
             "# Título\n## Sub-título\n**negrito**, *itálico*, `código`\n"
