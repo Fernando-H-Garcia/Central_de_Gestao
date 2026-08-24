@@ -22,7 +22,15 @@ class TimelineViewQt(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.geometry = TimelineGeometry()
+        self._pending_center = True   # recentra em Hoje no primeiro layout real
         self.setup_ui()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # populate roda antes do layout definitivo — recentra quando a largura real chegar
+        if self._pending_center and self.isVisible() and self.width() > 100:
+            self._pending_center = False
+            self.go_to_today()
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)

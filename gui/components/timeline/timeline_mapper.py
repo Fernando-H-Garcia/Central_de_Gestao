@@ -78,7 +78,7 @@ class TimelineMapper:
     @staticmethod
     def _finalize_states(t_item: TimelineItem):
         """
-        Pós-ordem: calcula o estado derivado (ATRASADA / EM RISCO / NÃO INICIADA)
+        Pós-ordem: calcula o estado derivado (ATRASADA / Tempo esgotando / NÃO INICIADA)
         e agrega as contagens de estados da subárvore para pais.
         """
         today = datetime.date.today()
@@ -92,7 +92,7 @@ class TimelineMapper:
             if eff_end is not None and eff_end < today:
                 derived = "ATRASADA"
             elif eff_end is not None and (eff_end - today).days <= 3:
-                derived = "EM RISCO"
+                derived = "Tempo esgotando"
             elif eff_start is None:
                 derived = "NÃO INICIADA"
         t_item.derived_status = derived
@@ -153,7 +153,7 @@ class TimelineMapper:
             if eff_end is not None and eff_end < today:
                 derived = "ATRASADA"
             elif eff_end is not None and (eff_end - today).days <= 3:
-                derived = "EM RISCO"
+                derived = "Tempo esgotando"
             elif eff_start is None:
                 derived = "NÃO INICIADA"
         t_item.derived_status = derived

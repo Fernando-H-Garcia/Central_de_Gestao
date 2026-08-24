@@ -102,6 +102,12 @@ def main():
         initialize_appdata()
         _boot_log("configurações carregadas")
         _boot_log("migrations/banco executados")
+        # Regra: subtarefa só pode ser Marco se o pai também é — corrige legados
+        try:
+            from services.task_service import TaskService
+            TaskService().fix_milestone_hierarchy()
+        except Exception:
+            _boot_log(f"AVISO fix_milestone_hierarchy: {traceback.format_exc()}")
     except Exception as e:
         _boot_log(f"FALHA configurações: {traceback.format_exc()}")
         sys.exit(1)

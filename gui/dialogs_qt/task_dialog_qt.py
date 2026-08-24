@@ -92,23 +92,46 @@ class TaskDialogQt(QDialog):
         self.ent_start.setDate(QDate.currentDate())
         style_calendar_today(self.ent_start)
         layout.addWidget(self.ent_start)
-        
+
+        # Milestone Checkbox (antes da data final — marco não tem prazo)
+        self.chk_milestone = QCheckBox("É um Marco (Milestone - Sem duração/esforço)")
+        self.chk_milestone.setStyleSheet("""
+            QCheckBox { color: #ffffff; }
+            QCheckBox::indicator {
+                width: 15px; height: 15px;
+                border: 1px solid #9a9ab8; border-radius: 3px;
+                background-color: #2a2a3f;
+            }
+            QCheckBox::indicator:checked {
+                background-color: #4a6fe3; border-color: #6a8fe3;
+            }
+        """)
+        layout.addWidget(self.chk_milestone)
+
         layout.addWidget(QLabel("Data Fim (Prazo):"))
         self.ent_due = QDateEdit()
         self.ent_due.setCalendarPopup(True)
         self.ent_due.setDate(QDate.currentDate())
+        self.ent_due.setStyleSheet("""
+            QDateEdit:disabled {
+                background-color: #3a3a4a;
+                color: #b0b0c8;
+            }
+        """)
         style_calendar_today(self.ent_due)
         layout.addWidget(self.ent_due)
-        
+
         # Estimated Hours
         layout.addWidget(QLabel("Esforço Estimado (Horas):"))
         self.ent_estimated_hours = QLineEdit("0.0")
         layout.addWidget(self.ent_estimated_hours)
-        
-        # Milestone Checkbox
-        self.chk_milestone = QCheckBox("É um Marco (Milestone - Sem duração/esforço)")
-        layout.addWidget(self.chk_milestone)
-        
+
+        # Regras: só FILHA de pai não-marco é bloqueada (tarefa raiz pode ser Marco);
+        # Marco não tem data final (só a data do marco)
+        self.opt_parent_task.currentIndexChanged.connect(self._on_parent_changed)
+        self.chk_milestone.toggled.connect(self._on_milestone_toggled)
+        self.ent_start.dateChanged.connect(self._sync_milestone_due)
+
         layout.addStretch()
         scroll.setWidget(scroll_widget)
         main_layout.addWidget(scroll)
@@ -123,8 +146,42 @@ class TaskDialogQt(QDialog):
         proj_sel = self.opt_proj.currentText()
         return self.proj_dict.get(proj_sel)
 
+    def _selected_parent(self):
+        pid = self.parent_task_dict.get(self.opt_parent_task.currentText())
+        if pid is None:
+            return None
+        try:
+            return self.task_svc.task_repo.get_by_id(pid)
+        except Exception:
+            return None
+
+    def _on_parent_changed(self):
+        """Só FILHA de pai não-marco é bloqueada — tarefa raiz (sem pai) pode ser Marco."""
+        parent = self._selected_parent()
+        if parent is None:
+            parent_is_ms = True   # raiz: sempre pode
+        else:
+            parent_is_ms = bool(getattr(parent, "is_milestone", False))
+        if not parent_is_ms:
+            self.chk_milestone.setChecked(False)
+        self.chk_milestone.setEnabled(parent_is_ms)
+        self.chk_milestone.setToolTip(
+            "" if parent_is_ms else "Somente disponível se a Tarefa Pai também for um Marco"
+        )
+
+    def _on_milestone_toggled(self, checked):
+        """Marco não tem data final — apenas a data do marco."""
+        self.ent_due.setEnabled(not checked)
+        if checked:
+            self.ent_due.setDate(self.ent_start.date())
+
+    def _sync_milestone_due(self):
+        if self.chk_milestone.isChecked():
+            self.ent_due.setDate(self.ent_start.date())
+
     def _on_project_changed(self):
         self._populate_parent_tasks()
+        self._on_parent_changed()
 
     def _populate_parent_tasks(self):
         self.opt_parent_task.blockSignals(True)
@@ -192,6 +249,9 @@ class TaskDialogQt(QDialog):
         else:
             self.opt_status.setCurrentText("Pendente")
             self.opt_energy.setCurrentText("Média")
+        # aplica as regras de Marco (habilitar/desabilitar) após popular
+        self._on_parent_changed()
+        self._on_milestone_toggled(self.chk_milestone.isChecked())
             
     def save(self):
         title = self.ent_title.text().strip()
@@ -218,6 +278,9 @@ class TaskDialogQt(QDialog):
             est_hours = 0.0
             
         is_ms = self.chk_milestone.isChecked()
+        if is_ms:
+            # marco não tem prazo: data final = data do marco
+            due_date = start_date
         
         if self.task:
             import copy

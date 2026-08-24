@@ -2,6 +2,7 @@ import json
 from typing import List, Optional
 from datetime import datetime
 from models.entities import Task
+from database.connection import get_db_cursor
 from database.repositories.task_repository import TaskRepository
 from database.repositories.activity_log_repository import ActivityLogRepository, ActivityLog
 
@@ -14,6 +15,30 @@ class TaskService:
         changes_json = json.dumps(changes, ensure_ascii=False) if changes else None
         log = ActivityLog(entity_type="task", entity_id=entity_id, action=action, changed_fields_json=changes_json)
         self.log_repo.create(log)
+
+    def fix_milestone_hierarchy(self):
+        """Regra: subtarefa só pode ser Marco se o pai também é Marco.
+        Força a saída de Marco nas subtarefas legadas criadas antes da regra."""
+        try:
+            with get_db_cursor() as cursor:
+                cursor.execute("""
+                    UPDATE tasks SET is_milestone = 0
+                    WHERE is_milestone = 1
+                      AND parent_task_id IS NOT NULL
+                      AND EXISTS (
+                          SELECT 1 FROM tasks p
+                          WHERE p.id = tasks.parent_task_id
+                            AND (p.is_milestone = 0 OR p.is_milestone IS NULL)
+                      )
+                """)
+                changed = cursor.rowcount
+            if changed:
+                print(f"[FIX] {changed} subtarefa(s) saíram de Marco (pai não é Marco)")
+            return changed
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            return 0
 
     def create_task(self, title: str, context: str = None, energy_level: str = "Média", status: str = "Backlog", project_id: int = None, parent_task_id: int = None, start_date: datetime = None, due_date: datetime = None, alert_date: datetime = None, alert_message: str = None, estimated_hours: float = 0.0, is_milestone: bool = False) -> Task:
         print(f"[DEBUG TASK] create_task: title={title}, status={status}, project_id={project_id}")

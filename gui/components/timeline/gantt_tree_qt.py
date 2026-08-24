@@ -18,7 +18,7 @@ from gui.components.timeline.timeline_models import TimelineItem, TimelineEvent
 from gui.theme import (BORDER_SUBTLE, ACCENT_BLUE, WARNING_ORANGE,
                        SUCCESS_GREEN, ERROR_RED, TEXT_DISABLED)
 
-ROW_HEIGHT = 40
+ROW_HEIGHT = 25
 
 
 def bar_color(item: TimelineItem) -> QColor:
@@ -27,7 +27,7 @@ def bar_color(item: TimelineItem) -> QColor:
         return QColor(SUCCESS_GREEN)
     if ds == "ATRASADA" or ds == "Bloqueado":
         return QColor(ERROR_RED)
-    if ds == "EM RISCO":
+    if ds == "EM RISCO" or ds == "Tempo esgotando":
         return QColor(WARNING_ORANGE)
     if ds == "NÃO INICIADA":
         return QColor(TEXT_DISABLED)
@@ -219,10 +219,13 @@ class GanttTree(QTreeWidget):
             painter.end()
 
     def _draw_past_shading(self, painter: QPainter, tl_rect: QRectF):
+        # LÓGICA INVERTIDA (pedido do usuário): o FUTURO (hoje → frente) fica escuro;
+        # o passado mantém o fundo normal da timeline
         today_x = self._x_view(self.geometry.datetime_to_x(datetime.datetime.now()))
-        if today_x > tl_rect.left():
-            past_w = min(today_x - tl_rect.left(), tl_rect.width())
-            painter.fillRect(QRectF(tl_rect.left(), tl_rect.top(), past_w, tl_rect.height()),
+        if today_x < tl_rect.right():
+            future_x = max(today_x, tl_rect.left())
+            painter.fillRect(QRectF(future_x, tl_rect.top(),
+                                    tl_rect.right() - future_x, tl_rect.height()),
                              QColor("#06060c"))
 
     def _draw_grid(self, painter: QPainter, tl_rect: QRectF):
@@ -258,22 +261,46 @@ class GanttTree(QTreeWidget):
             current_date += datetime.timedelta(days=1)
 
     def _draw_bars(self, painter: QPainter, tl_rect: QRectF):
+        # O preview do arraste já está em item.start/end (mutados no mouseMove) —
+        # NÃO aplicar delta de novo aqui (causava a barra inteira deslocar no resize)
         for t_item, vrect in self._visible_rows():
-            delta = 0
-            if self._drag_bar is not None and self._drag_bar["item"] is t_item:
-                delta = int(self._drag_bar.get("_delta") or 0)
             row_rect = QRectF(tl_rect.left(), vrect.y(), tl_rect.width(), vrect.height())
-            self.draw_bar(painter, t_item, row_rect, drag_delta_days=delta)
+            self.draw_bar(painter, t_item, row_rect)
 
-    def draw_bar(self, painter: QPainter, item: TimelineItem, row_rect: QRectF,
-                 drag_delta_days: int = 0):
+    @staticmethod
+    def _add_month(d: datetime.date) -> datetime.date:
+        """Mesmo dia do mês seguinte (clamp no último dia quando necessário)."""
+        import calendar
+        m = d.month % 12 + 1
+        y = d.year + (1 if d.month == 12 else 0)
+        day = min(d.day, calendar.monthrange(y, m)[1])
+        return datetime.date(y, m, day)
+
+    def draw_bar(self, painter: QPainter, item: TimelineItem, row_rect: QRectF):
+        # Marco tem prioridade — mesmo quando é pai (tem subtarefas)
+        if item.is_milestone:
+            if not item.start and not item.end and not item.has_manual_dates():
+                return
+            eff_start = item.manual_start or item.start or item.end
+            eff_end = item.manual_end or item.end or item.start
+            self._draw_milestone(painter, item, row_rect, eff_start)
+            return
+
+        if item.is_parent:
+            # Pai: barra usa as DATAS PRÓPRIAS dele (independente das filhas).
+            # Se filhas tiverem prazo além do pai → EXTENSÃO DE AVISO (filhas estouram o prazo do pai).
+            if not item.start and not item.end and not item.has_manual_dates():
+                return
+            own_s = item.manual_start or item.start or item.end
+            own_e = item.manual_end or item.end or item.start
+            agg_end = item.end  # agregado das filhas (mapper)
+            self._draw_parent_bar(painter, item, row_rect, own_s, own_e)
+            if agg_end and own_e and agg_end > own_e:
+                self._draw_overrun_warning(painter, row_rect, own_e, agg_end)
+            return
+
         eff_start = item.manual_start or item.start
         eff_end = item.manual_end or item.end
-        if drag_delta_days:
-            if eff_start:
-                eff_start = eff_start + datetime.timedelta(days=drag_delta_days)
-            if eff_end:
-                eff_end = eff_end + datetime.timedelta(days=drag_delta_days)
 
         if not eff_start and not eff_end:
             return
@@ -282,19 +309,19 @@ class GanttTree(QTreeWidget):
         elif eff_end and not eff_start:
             eff_start = eff_end
 
-        x1_view = self._x_view(self.geometry.date_to_x(eff_start))
-        x2_view = self._x_view(self.geometry.date_to_x(eff_end + datetime.timedelta(days=1)))
-
-        bar_height = 20
-        bar_y = row_rect.y() + (row_rect.height() - bar_height) / 2
-        rect = QRectF(x1_view, bar_y, max(4.0, x2_view - x1_view), bar_height)
-
         color = bar_color(item)
         is_selected = (self.selected_item_id == item.id)
         is_hovered = (self._hover_item_id == item.id)
 
         painter.save()
         painter.setClipRect(row_rect.adjusted(-1, 0, 1, 0))
+
+        x1_view = self._x_view(self.geometry.date_to_x(eff_start))
+        x2_view = self._x_view(self.geometry.date_to_x(eff_end + datetime.timedelta(days=1)))
+
+        bar_height = 20
+        bar_y = row_rect.y() + (row_rect.height() - bar_height) / 2
+        rect = QRectF(x1_view, bar_y, max(4.0, x2_view - x1_view), bar_height)
 
         # Hover: barra levemente elevada/brilho + contorno
         if is_hovered and not is_selected:
@@ -303,47 +330,13 @@ class GanttTree(QTreeWidget):
             painter.setBrush(QColor(255, 255, 255, 28))
             painter.drawRoundedRect(glow, 6, 6)
 
-        if item.is_milestone:
-            painter.setBrush(color)
-            painter.setPen(Qt.NoPen)
-            painter.save()
-            painter.translate(rect.right() - 10, rect.center().y())
-            painter.rotate(45)
-            painter.drawRect(-8, -8, 16, 16)
-            painter.restore()
-            if is_selected:
-                pen = QPen(QColor("#ffffff"))
-                pen.setWidth(2)
-                painter.setPen(pen)
-                painter.setBrush(Qt.NoBrush)
-                painter.drawRoundedRect(rect.adjusted(-2, -2, 2, 2), 4, 4)
-            painter.restore()
-            return
-
-        if item.is_parent:
-            if item.has_manual_dates():
-                painter.setPen(QPen(color, 2, Qt.DashLine))
-                painter.setBrush(QColor(color.red(), color.green(), color.blue(), 45))
-                painter.drawRoundedRect(rect, 4, 4)
-            else:
-                thin_h = 10
-                thin_y = row_rect.y() + (row_rect.height() - thin_h) / 2
-                thin = QRectF(x1_view, thin_y, max(4.0, x2_view - x1_view), thin_h)
-                painter.setPen(Qt.NoPen)
-                painter.setBrush(color)
-                painter.drawRoundedRect(thin, 4, 4)
-                if item.progress > 0:
-                    prog_w = thin.width() * (item.progress / 100.0)
-                    painter.setBrush(color.darker(130))
-                    painter.drawRoundedRect(QRectF(x1_view, thin_y, prog_w, thin_h), 4, 4)
-        else:
-            painter.setPen(Qt.NoPen)
-            painter.setBrush(color)
-            painter.drawRoundedRect(rect, 4, 4)
-            if item.progress > 0:
-                prog_w = rect.width() * (item.progress / 100.0)
-                painter.setBrush(color.darker(120))
-                painter.drawRoundedRect(QRectF(x1_view, bar_y, prog_w, bar_height), 4, 4)
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(color)
+        painter.drawRoundedRect(rect, 4, 4)
+        if item.progress > 0:
+            prog_w = rect.width() * (item.progress / 100.0)
+            painter.setBrush(color.darker(120))
+            painter.drawRoundedRect(QRectF(x1_view, bar_y, prog_w, bar_height), 4, 4)
 
         if is_hovered and not is_selected:
             pen = QPen(QColor(255, 255, 255, 200))
@@ -359,6 +352,111 @@ class GanttTree(QTreeWidget):
             painter.setBrush(Qt.NoBrush)
             painter.drawRoundedRect(rect.adjusted(-2, -2, 2, 2), 5, 5)
 
+        painter.restore()
+
+    def _draw_milestone(self, painter: QPainter, item: TimelineItem, row_rect: QRectF, eff_start):
+        """Losango na data inicial, repetido todo mês por toda a área VISÍVEL."""
+        color = QColor(SUCCESS_GREEN)  # marco tem cor própria (verde), independente do status
+        cy = row_rect.y() + row_rect.height() / 2
+        is_selected = (self.selected_item_id == item.id)
+        is_hovered = (self._hover_item_id == item.id)
+
+        painter.save()
+        painter.setClipRect(row_rect.adjusted(-1, 0, 1, 0))
+        d = eff_start
+        while True:
+            cx = self._x_view(self.geometry.date_to_x(d))
+            if cx > row_rect.right() + 20:
+                break
+            if cx >= row_rect.left() - 20:
+                size = 9 if (is_selected or is_hovered) else 8
+                painter.save()
+                painter.translate(cx, cy)
+                painter.rotate(45)
+                if is_selected or is_hovered:
+                    painter.setPen(QPen(QColor(255, 255, 255, 200)))
+                    pen = painter.pen()
+                    pen.setWidth(2)
+                    painter.setPen(pen)
+                else:
+                    painter.setPen(Qt.NoPen)
+                painter.setBrush(color)
+                painter.drawRect(-size, -size, size * 2, size * 2)
+                painter.restore()
+            d = self._add_month(d)
+        painter.restore()
+
+    def _draw_parent_bar(self, painter: QPainter, item: TimelineItem, row_rect: QRectF,
+                         eff_start, eff_end):
+        x1_view = self._x_view(self.geometry.date_to_x(eff_start))
+        x2_view = self._x_view(self.geometry.date_to_x(eff_end + datetime.timedelta(days=1)))
+        color = bar_color(item)
+        is_selected = (self.selected_item_id == item.id)
+        is_hovered = (self._hover_item_id == item.id)
+
+        painter.save()
+        painter.setClipRect(row_rect.adjusted(-1, 0, 1, 0))
+
+        # mesma altura/estilo das barras das filhas (20px)
+        bar_height = 20
+        bar_y = row_rect.y() + (row_rect.height() - bar_height) / 2
+        rect = QRectF(x1_view, bar_y, max(4.0, x2_view - x1_view), bar_height)
+
+        if is_hovered and not is_selected:
+            glow = rect.adjusted(-2, -2, 2, 2)
+            painter.setPen(Qt.NoPen)
+            painter.setBrush(QColor(255, 255, 255, 28))
+            painter.drawRoundedRect(glow, 6, 6)
+
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(color)
+        painter.drawRoundedRect(rect, 4, 4)
+        if item.progress > 0:
+            prog_w = rect.width() * (item.progress / 100.0)
+            painter.setBrush(color.darker(130))
+            painter.drawRoundedRect(QRectF(x1_view, bar_y, prog_w, bar_height), 4, 4)
+
+        if is_hovered and not is_selected:
+            pen = QPen(QColor(255, 255, 255, 200))
+            pen.setWidth(2)
+            painter.setPen(pen)
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRoundedRect(rect.adjusted(-1.5, -1.5, 1.5, 1.5), 5, 5)
+        if is_selected:
+            pen = QPen(QColor("#ffffff"))
+            pen.setWidth(2)
+            painter.setPen(pen)
+            painter.setBrush(Qt.NoBrush)
+            painter.drawRoundedRect(rect.adjusted(-2, -2, 2, 2), 5, 5)
+        painter.restore()
+
+    def _draw_overrun_warning(self, painter: QPainter, row_rect: QRectF, parent_end, children_end):
+        """Extensão de AVISO: filhas com prazo além do fim do pai (usuário deve ajustar)."""
+        x1 = self._x_view(self.geometry.date_to_x(parent_end + datetime.timedelta(days=1))) + 2
+        x2 = self._x_view(self.geometry.date_to_x(children_end + datetime.timedelta(days=1)))
+        if x2 <= x1:
+            return
+        thin_h = 10
+        thin_y = row_rect.y() + (row_rect.height() - thin_h) / 2
+        rect = QRectF(x1, thin_y, x2 - x1, thin_h)
+        warn = QColor(ERROR_RED)
+        painter.save()
+        painter.setClipRect(row_rect.adjusted(-1, 0, 1, 0))
+        # barra hachurada vermelha translúcida
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(warn.red(), warn.green(), warn.blue(), 70))
+        painter.drawRoundedRect(rect, 3, 3)
+        pen = QPen(warn)
+        pen.setWidth(1)
+        pen.setStyle(Qt.DashLine)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRoundedRect(rect, 3, 3)
+        # símbolo de aviso no meio da extensão
+        mid = rect.center().x()
+        painter.setPen(QColor(ERROR_RED))
+        painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
+        painter.drawText(QPointF(mid - 5, thin_y - 2), "⚠")
         painter.restore()
 
     def _draw_events(self, painter: QPainter, tl_rect: QRectF):
@@ -429,14 +527,14 @@ class GanttTree(QTreeWidget):
     def _drag_indicator_text(self):
         """Texto da janeleinha de arraste, conforme o tipo de item arrastado."""
         if self._drag_bar is not None and self._has_dragged:
-            d = int(self._drag_bar.get("_delta") or 0)
-            s = self._drag_bar["start"]
-            e = self._drag_bar["end"]
-            if s:
-                s = s + datetime.timedelta(days=d)
-            if e:
-                e = e + datetime.timedelta(days=d)
+            s = self._drag_bar.get("cur_start") or self._drag_bar["start"]
+            e = self._drag_bar.get("cur_end") or self._drag_bar["end"]
             fmt = "%d/%m/%Y"
+            mode = self._drag_bar.get("mode", "move")
+            if mode == "resize_start":
+                return f"⏮ Início: {s.strftime(fmt)}   ·   Fim: {e.strftime(fmt)}"
+            if mode == "resize_end":
+                return f"⏭ Início: {s.strftime(fmt)}   ·   Fim: {e.strftime(fmt)}"
             return f"📅 {s.strftime(fmt)} → {e.strftime(fmt)}"
 
         if self._drag_event is not None and self._has_dragged:
@@ -483,12 +581,34 @@ class GanttTree(QTreeWidget):
             return False
         return self._hit_range(pos, t_item)
 
+    def _hit_parent_edge(self, pos, t_item):
+        """Pai: pontas da própria barra redimensionam o prazo dele (início/fim)."""
+        if t_item is None or not t_item.is_parent or t_item.is_milestone:
+            return None
+        eff_start = t_item.manual_start or t_item.start
+        eff_end = t_item.manual_end or t_item.end
+        if not (eff_start and eff_end):
+            return None
+        x1 = self._x_view(self.geometry.date_to_x(eff_start))
+        x2 = self._x_view(self.geometry.date_to_x(eff_end + datetime.timedelta(days=1)))
+        # zonas delimitadas: só o entorno imediato das pontas (além disso é a faixa de aviso)
+        if x1 - 4 <= pos.x() <= x1 + 7:
+            return "resize_start"
+        if x2 - 7 <= pos.x() <= x2 + 4:
+            return "resize_end"
+        return None
+
     def _hit_range(self, pos, t_item):
         """Hit para HOVER/tooltip: qualquer item com período (pai, marco ou folha)."""
         if t_item is None:
             return False
-        eff_start = t_item.manual_start or t_item.start
-        eff_end = t_item.manual_end or t_item.end
+        if t_item.is_parent:
+            # pai: usa as DATAS PRÓPRIAS (a barra é dele; estouro das filhas vira aviso)
+            eff_start = t_item.manual_start or t_item.start
+            eff_end = t_item.manual_end or t_item.end
+        else:
+            eff_start = t_item.manual_start or t_item.start
+            eff_end = t_item.manual_end or t_item.end
         if not (eff_start and eff_end):
             if not (eff_start or eff_end):
                 return False
@@ -553,16 +673,52 @@ class GanttTree(QTreeWidget):
         if t_item and self._hit_bar(pos, t_item):
             eff_start = t_item.manual_start or t_item.start
             eff_end = t_item.manual_end or t_item.end
+            # extremos da barra redimensionam só início/fim; meio move a barra inteira
+            x1 = self._x_view(self.geometry.date_to_x(eff_start))
+            x2 = self._x_view(self.geometry.date_to_x(eff_end + datetime.timedelta(days=1)))
+            edge = 7
+            if pos.x() <= x1 + edge:
+                mode = "resize_start"
+                self.setCursor(Qt.SizeHorCursor)
+            elif pos.x() >= x2 - edge:
+                mode = "resize_end"
+                self.setCursor(Qt.SizeHorCursor)
+            else:
+                mode = "move"
+                self.setCursor(Qt.ClosedHandCursor)
             self._drag_bar = {
                 "item": t_item,
                 "start": eff_start,
                 "end": eff_end,
                 "start_x": pos.x(),
+                "mode": mode,
+                "cur_start": eff_start,
+                "cur_end": eff_end,
             }
             self._has_dragged = False
             self._drag_pos = pos
-            self.setCursor(Qt.ClosedHandCursor)
             return
+
+        # PAI: pontas da barra dele redimensionam o prazo próprio (sem "move" no meio)
+        if t_item and t_item.is_parent:
+            edge_mode = self._hit_parent_edge(pos, t_item)
+            if edge_mode:
+                eff_start = t_item.manual_start or t_item.start
+                eff_end = t_item.manual_end or t_item.end
+                self._drag_bar = {
+                    "item": t_item,
+                    "start": eff_start,
+                    "end": eff_end,
+                    "start_x": pos.x(),
+                    "mode": edge_mode,
+                    "cur_start": eff_start,
+                    "cur_end": eff_end,
+                    "is_parent": True,
+                }
+                self._has_dragged = False
+                self._drag_pos = pos
+                self.setCursor(Qt.SizeHorCursor)
+                return
 
         self._is_panning = True
         self._pan_start_x = pos.x()
@@ -598,10 +754,29 @@ class GanttTree(QTreeWidget):
             delta_days = int(round((pos.x() - self._drag_bar["start_x"]) / self.geometry.pixels_per_day))
             if abs(pos.x() - self._drag_bar["start_x"]) > 3:
                 self._has_dragged = True
-            if delta_days != 0 or self._has_dragged:
-                self.viewport().update()
-            self._drag_bar["_delta"] = delta_days if self._has_dragged else 0
+            info = self._drag_bar
+            mode = info.get("mode", "move")
+            if self._has_dragged:
+                if mode == "resize_start" and info["start"]:
+                    # só o início muda — nunca passa do fim
+                    info["cur_start"] = min(info["start"] + datetime.timedelta(days=delta_days), info["end"])
+                elif mode == "resize_end" and info["end"]:
+                    # só o fim muda — nunca recua antes do início
+                    info["cur_end"] = max(info["end"] + datetime.timedelta(days=delta_days), info["start"])
+                else:
+                    info["cur_start"] = info["start"] + datetime.timedelta(days=delta_days) if info["start"] else info["start"]
+                    info["cur_end"] = info["end"] + datetime.timedelta(days=delta_days) if info["end"] else info["end"]
+                # preview na barra (pai usa as datas PRÓPRIAS; folha usa start/end)
+                item = info["item"]
+                if info.get("is_parent"):
+                    item.manual_start = info["cur_start"]
+                    item.manual_end = info["cur_end"]
+                else:
+                    item.start = info["cur_start"]
+                    item.end = info["cur_end"]
+            info["_delta"] = delta_days if self._has_dragged else 0
             self._drag_pos = pos
+            self.viewport().update()
             return
 
         if self._is_panning:
@@ -619,6 +794,14 @@ class GanttTree(QTreeWidget):
             ev = self._event_at(pos)
             over_bar = bool(t_item and self._hit_range(pos, t_item))
 
+            # faixa de AVISO (filhas estouram o prazo do pai) tem tooltip próprio —
+            # mas a ZONA DE RESIZE da ponta do pai tem prioridade sobre ela
+            edge_mode_hover = self._hit_parent_edge(pos, t_item) if t_item else None
+            over_rect = self._overrun_rect(t_item, index) if t_item else None
+            over_warning = bool(
+                over_rect and over_rect.adjusted(-4, -8, 4, 8).contains(pos) and not edge_mode_hover
+            )
+
             # atualiza estado de hover (repinta só quando muda)
             new_hover_id = t_item.id if (t_item and over_bar and ev is None) else None
             if new_hover_id != self._hover_item_id or (ev is None) != (self._hover_ev is None):
@@ -629,8 +812,25 @@ class GanttTree(QTreeWidget):
                 self._hover_ev = ev
                 self.viewport().update()
 
+            if over_warning:
+                self.unsetCursor()
+                self._show_warning_tooltip(pos, t_item)
+                super().mouseMoveEvent(event)
+                return
+
             if t_item and self._hit_bar(pos, t_item):
-                self.setCursor(Qt.OpenHandCursor)
+                # extremos da barra → cursor de redimensionar; meio → mão (mover)
+                eff_start = t_item.manual_start or t_item.start
+                eff_end = t_item.manual_end or t_item.end
+                x1 = self._x_view(self.geometry.date_to_x(eff_start))
+                x2 = self._x_view(self.geometry.date_to_x(eff_end + datetime.timedelta(days=1)))
+                if pos.x() <= x1 + 7 or pos.x() >= x2 - 7:
+                    self.setCursor(Qt.SizeHorCursor)
+                else:
+                    self.setCursor(Qt.OpenHandCursor)
+            elif t_item and self._hit_parent_edge(pos, t_item):
+                # pai: pontas da barra dele redimensionam o prazo próprio
+                self.setCursor(Qt.SizeHorCursor)
             else:
                 self.unsetCursor()
 
@@ -686,14 +886,24 @@ class GanttTree(QTreeWidget):
             self._drag_pos = None
             delta = int(info.get("_delta") or 0)
             item = info["item"]
+            is_parent = bool(info.get("is_parent"))
             if self._has_dragged and delta != 0:
-                new_start = info["start"] + datetime.timedelta(days=delta) if info["start"] else info["start"]
-                new_end = info["end"] + datetime.timedelta(days=delta) if info["end"] else info["end"]
-                item.start = new_start
-                item.end = new_end
+                if is_parent:
+                    item.manual_start = info["cur_start"]
+                    item.manual_end = info["cur_end"]
+                else:
+                    item.start = info["cur_start"]
+                    item.end = info["cur_end"]
                 self.viewport().update()
-                self.task_moved.emit(item.id, new_start, new_end)
+                self.task_moved.emit(item.id, info["cur_start"], info["cur_end"])
             else:
+                # sem arraste: reverte preview
+                if is_parent:
+                    item.manual_start = info["start"]
+                    item.manual_end = info["end"]
+                else:
+                    item.start = info["start"]
+                    item.end = info["end"]
                 self.viewport().update()
             self._has_dragged = False
             return
@@ -710,6 +920,39 @@ class GanttTree(QTreeWidget):
             if t_item:
                 self.item_clicked.emit(t_item.id)
         self._has_dragged = False
+
+    def _overrun_rect(self, t_item, index):
+        """Rect da faixa de aviso (filhas com prazo além do pai) — None se não houver estouro."""
+        if t_item is None or not t_item.is_parent:
+            return None
+        own_e = t_item.manual_end or t_item.end
+        agg_end = t_item.end
+        if not own_e or not agg_end or agg_end <= own_e:
+            return None
+        x1 = self._x_view(self.geometry.date_to_x(own_e + datetime.timedelta(days=1))) + 2
+        x2 = self._x_view(self.geometry.date_to_x(agg_end + datetime.timedelta(days=1)))
+        tree_item = self.itemFromIndex(index)
+        if tree_item is None:
+            return None
+        vrect = self.visualItemRect(tree_item)
+        if vrect.isNull():
+            return None
+        thin_y = vrect.y() + (vrect.height() - 10) / 2
+        return QRectF(x1, thin_y, x2 - x1, 10)
+
+    def _show_warning_tooltip(self, pos, t_item):
+        own_e = (t_item.manual_end or t_item.end)
+        agg_end = t_item.end
+        tooltip = (
+            f"<b>⚠ Estouro de prazo</b><br/>"
+            f"Uma ou mais subtarefas terminam em <b>{agg_end.strftime('%d/%m/%Y')}</b>, "
+            f"depois do prazo deste pai (<b>{own_e.strftime('%d/%m/%Y')}</b>).<br/>"
+            f"Ajuste o prazo do pai ou das subtarefas."
+        )
+        self._tip_text = tooltip
+        self._tip_global = self.mapToGlobal(pos)
+        self._tip_timer.start()
+        QToolTip.showText(self._tip_global, tooltip, self)
 
     def _fire_pending_ev_click(self, ev):
         """Emite o clique de evento só se não virou duplo clique."""
@@ -802,6 +1045,7 @@ class GanttTree(QTreeWidget):
         QToolTip.showText(self._tip_global, tooltip, self)
 
     def _show_bar_tooltip(self, pos, t_item):
+        # pai: datas próprias (a barra é dele; estouro das filhas aparece como aviso)
         eff_start = t_item.manual_start or t_item.start
         eff_end = t_item.manual_end or t_item.end
         start_str = eff_start.strftime("%d/%m/%Y") if eff_start else "—"

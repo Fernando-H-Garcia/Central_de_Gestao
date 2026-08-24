@@ -9,7 +9,7 @@ class TimelineGeometry:
         # 2 anos no passado — dá folga para navegar datas antigas em qualquer zoom
         self.anchor_date: datetime.date = datetime.date.today() - datetime.timedelta(days=730)
         # Altura de cada linha
-        self.row_height: int = 40
+        self.row_height: int = 25
 
     def date_to_x(self, d: datetime.date) -> float:
         """Converte uma data para uma posição X no canvas."""

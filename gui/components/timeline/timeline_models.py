@@ -26,7 +26,7 @@ class TimelineItem:
     is_overdue: bool = False
 
     # Estados derivados (calculados no mapper)
-    derived_status: str = ""          # "ATRASADA" | "EM RISCO" | "NÃO INICIADA" | ""
+    derived_status: str = ""          # "ATRASADA" | "Tempo esgotando" | "NÃO INICIADA" | ""
     display_status: str = ""          # estado efetivo usado na cor do canvas
     state_counts: dict = field(default_factory=dict)    # {status: n} de toda a subárvore
     derived_counts: dict = field(default_factory=dict)  # {estado_derivado: n} da subárvore
