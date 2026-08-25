@@ -39,6 +39,9 @@ class Task(BaseModel):
     originated_from_idea_id: Optional[int] = None
     estimated_hours: float = 0.0
     is_milestone: bool = False
+    estimated_deadline: Optional[datetime] = None
+    deadline_alarm_week: Optional[int] = None
+    deadline_alarm_day: Optional[int] = None
 
 @dataclass
 class Idea(BaseModel):

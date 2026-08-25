@@ -229,6 +229,10 @@ class Project360Qt(QWidget):
         self.tab_timeline.edit_task_signal.connect(self._edit_task_from_timeline)
         self.tab_timeline.create_alarm_signal.connect(self._create_alarm_from_timeline)
         self.tab_timeline.create_event_signal.connect(self._create_event_from_timeline)
+        self.tab_timeline.deadline_moved_signal.connect(self._on_timeline_deadline_moved)
+        self.tab_timeline.edit_deadline_signal.connect(self._edit_estimated_deadline)
+        self.tab_timeline.delete_deadline_signal.connect(self._delete_estimated_deadline)
+        self.tab_timeline.edit_deadline_at_signal.connect(self._edit_estimated_deadline_at)
         self.tab_timeline.event_clicked.connect(self._on_timeline_event_clicked)
         self.tab_timeline.event_moved_signal.connect(self._on_timeline_event_moved)
         self.tab_timeline.edit_event_signal.connect(self._on_timeline_edit_event)
@@ -801,6 +805,190 @@ class Project360Qt(QWidget):
             return self.task_service.task_repo.get_by_id(task_or_id)
         return task_or_id
 
+    def _persist_estimated_deadline(self, task, new_date):
+        """Grava o prazo estimado (date) na tarefa, sincroniza os alarmes
+        automáticos (1 semana antes + dia do prazo) e recarrega a timeline."""
+        import copy, datetime as _dt
+        orig = copy.copy(task)
+        if new_date is not None:
+            task.estimated_deadline = _dt.datetime.combine(new_date, _dt.time.min)
+        else:
+            task.estimated_deadline = None
+        self.task_service.task_repo.update(task)
+        self._sync_deadline_alarms(task, new_date)
+        self.load_data()
+
+    def _sync_deadline_alarms(self, task, new_date):
+        """Cria/atualiza/remove os 2 alarmes automáticos do prazo estimado.
+        Alterações manuais nos alarmes são preservadas (só a DATA acompanha o prazo)."""
+        try:
+            from services.alert_service import AlertService
+            import datetime as _dt
+            alert_svc = AlertService()
+
+            # sem prazo → remove os alarmes automáticos e limpa os ids
+            if new_date is None:
+                for aid in (task.deadline_alarm_week, task.deadline_alarm_day):
+                    if aid:
+                        try:
+                            alert_svc.delete_alert(aid)
+                        except Exception:
+                            pass
+                task.deadline_alarm_week = None
+                task.deadline_alarm_day = None
+                self.task_service.task_repo.update(task)
+                return
+
+            week_date = new_date - _dt.timedelta(days=7)
+            today = _dt.date.today()
+            specs = [
+                # alarme de 1 semana antes só existe se a data dele ainda não passou
+                ("deadline_alarm_week", week_date, f"🎯 1 semana p/ prazo: {task.title}", week_date >= today),
+                ("deadline_alarm_day", new_date, f"🎯 Prazo estimado: {task.title}", True),
+            ]
+            changed = False
+            for field_name, adate, title, enabled in specs:
+                aid = getattr(task, field_name)
+                if not enabled:
+                    # prazo muito próximo: remove o alarme semanal se já existir
+                    if aid:
+                        try:
+                            alert_svc.delete_alert(aid)
+                        except Exception:
+                            pass
+                        setattr(task, field_name, None)
+                        changed = True
+                    continue
+                date_str = adate.strftime("%Y-%m-%d")
+                a = alert_svc.get_alert(aid) if aid else None
+                if a:
+                    # atualiza só a data — demais edições manuais permanecem
+                    a.alert_date = date_str
+                    if getattr(a, "status", None) not in ("pending", "overdue", "completed"):
+                        a.status = "pending"
+                    alert_svc.alert_repo.update(a)
+                else:
+                    created = alert_svc.create_alert(
+                        entity_type="task",
+                        entity_id=task.id,
+                        title=title,
+                        alert_date=date_str,
+                        description=None,
+                        alert_time=None,
+                        priority="medium",
+                        status="pending",
+                        recurrence_type="none",
+                    )
+                    setattr(task, field_name, created.id)
+                    changed = True
+            if changed:
+                self.task_service.task_repo.update(task)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def _edit_estimated_deadline(self, task_or_id, initial_date=None):
+        """Janela para definir/alterar o Prazo Estimado da tarefa.
+
+        Pré-preenchimento: prazo já existente > initial_date (data sob o mouse
+        quando aberto pela timeline) > hoje."""
+        try:
+            import datetime
+            task = self._resolve_timeline_task(task_or_id)
+            if task is None:
+                return
+            from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QDateEdit,
+                                           QHBoxLayout, QPushButton)
+            from PySide6.QtCore import QDate
+            dlg = QDialog(self)
+            dlg.setWindowTitle("🎯 Prazo Estimado")
+            dlg.setMinimumWidth(320)
+            layout = QVBoxLayout(dlg)
+            layout.addWidget(QLabel(f"Tarefa: <b>{task.title}</b>"))
+            layout.addWidget(QLabel("Data do prazo estimado:"))
+            dt_edit = QDateEdit()
+            dt_edit.setCalendarPopup(True)
+            dt_edit.setDisplayFormat("dd/MM/yyyy")
+            cur = getattr(task, "estimated_deadline", None)
+            if cur:
+                try:
+                    dt_edit.setDate(QDate(cur.year, cur.month, cur.day))
+                except Exception:
+                    dt_edit.setDate(QDate.currentDate())
+            elif initial_date is not None:
+                # data sob o mouse na timeline (ou outra origem que forneça a data)
+                try:
+                    dt_edit.setDate(QDate(initial_date.year, initial_date.month, initial_date.day))
+                except Exception:
+                    dt_edit.setDate(QDate.currentDate())
+            else:
+                # janela de Tarefas (sem data de referência): hoje
+                dt_edit.setDate(QDate.currentDate())
+            from gui.theme import style_calendar_today
+            style_calendar_today(dt_edit)
+            layout.addWidget(dt_edit)
+            btns = QHBoxLayout()
+            btn_remove = QPushButton("🗑️ Remover")
+            btn_remove.clicked.connect(dlg.reject)
+            dlg.removed = False
+            def _mark_removed():
+                dlg.removed = True
+                dlg.accept()
+            btn_remove.clicked.connect(_mark_removed)
+            btn_cancel = QPushButton("Cancelar")
+            btn_cancel.clicked.connect(dlg.reject)
+            btn_ok = QPushButton("Salvar")
+            btn_ok.setObjectName("primary")
+            btn_ok.clicked.connect(dlg.accept)
+            btns.addWidget(btn_remove)
+            btns.addStretch()
+            btns.addWidget(btn_cancel)
+            btns.addWidget(btn_ok)
+            layout.addLayout(btns)
+            if dlg.exec():
+                if dlg.removed:
+                    self._persist_estimated_deadline(task, None)
+                else:
+                    qd = dt_edit.date()
+                    self._persist_estimated_deadline(task, datetime.date(qd.year(), qd.month(), qd.day()))
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def _edit_estimated_deadline_at(self, task_or_id, initial_date):
+        """Prazo Estimado aberto pela timeline — pré-preenche com a data sob o mouse."""
+        self._edit_estimated_deadline(task_or_id, initial_date)
+
+    def _delete_estimated_deadline(self, task_or_id):
+        """Remove o prazo estimado (com confirmação)."""
+        try:
+            task = self._resolve_timeline_task(task_or_id)
+            if task is None or not getattr(task, "estimated_deadline", None):
+                return
+            from PySide6.QtWidgets import QMessageBox
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Confirmar")
+            msg.setText(f"Remover o prazo estimado de <b>{task.title}</b>?")
+            btn_sim = msg.addButton("Sim", QMessageBox.YesRole)
+            msg.addButton("Não", QMessageBox.RejectRole)
+            msg.exec()
+            if msg.clickedButton() == btn_sim:
+                self._persist_estimated_deadline(task, None)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+    def _on_timeline_deadline_moved(self, task_id, new_date):
+        """Prazo estimado arrastado na timeline → persiste."""
+        try:
+            task = self.task_service.task_repo.get_by_id(task_id)
+            if not task:
+                return
+            self._persist_estimated_deadline(task, new_date)
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
     def _delete_timeline_event(self, ev):
         """Menu de contexto da timeline → 🗑️ Excluir alarme/evento (com confirmação)."""
         try:
@@ -943,6 +1131,7 @@ class Project360Qt(QWidget):
             
         menu.addSeparator()
         
+        action_deadline = menu.addAction("🎯 Prazo Estimado")
         action_alarm = menu.addAction("🔔 Criar Alarme")
         
         if getattr(task, "is_archived", False):
@@ -967,6 +1156,8 @@ class Project360Qt(QWidget):
                 self.load_data()
             dialog = TaskDialogQt(self, task, save_task)
             dialog.exec()
+        elif action == action_deadline:
+            self._edit_estimated_deadline(task)
         elif action == action_alarm:
             from gui.dialogs_qt.alarm_dialog_qt import AlarmDialogQt
             dialog = AlarmDialogQt(self, task=task)

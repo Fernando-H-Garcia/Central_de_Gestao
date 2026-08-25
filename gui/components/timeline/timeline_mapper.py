@@ -39,6 +39,7 @@ class TimelineMapper:
                 status=task.status,
                 priority=task.energy_level,
                 is_milestone=getattr(task, 'is_milestone', False),
+                estimated_deadline=parse_date(getattr(task, 'estimated_deadline', None)),
                 raw_task=task
             )
 

@@ -36,7 +36,10 @@ class TimelineItem:
     
     # Referência à entidade original (caso precise abrir)
     raw_task: any = None
-    
+
+    # Prazo estimado (marcador vermelho na timeline)
+    estimated_deadline: Optional[datetime.date] = None
+
     children: List['TimelineItem'] = field(default_factory=list)
     
     def has_manual_dates(self) -> bool:

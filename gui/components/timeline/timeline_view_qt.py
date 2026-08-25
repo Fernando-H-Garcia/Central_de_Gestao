@@ -15,6 +15,10 @@ class TimelineViewQt(QWidget):
     edit_task_signal = Signal(object)   # Task (raw) — abre TaskDialogQt no host
     create_alarm_signal = Signal(object)  # Task (raw) — abre AlarmDialogQt no host
     create_event_signal = Signal(object)  # Task (raw) — abre EventDialogQt no host
+    deadline_moved_signal = Signal(int, object)   # task_id, nova data do prazo estimado
+    edit_deadline_signal = Signal(object)         # Task (raw) — abre diálogo de data
+    delete_deadline_signal = Signal(object)       # Task (raw) — limpa o prazo estimado
+    edit_deadline_at_signal = Signal(object, object)  # Task (raw), data sob o mouse | None
     event_clicked = Signal(object)  # TimelineEvent
     event_moved_signal = Signal(object, object, object)  # TimelineEvent, novo início, novo fim
     edit_event_signal = Signal(object)  # TimelineEvent — abre editor no host
@@ -115,6 +119,10 @@ class TimelineViewQt(QWidget):
         self.tree.edit_task_requested.connect(self.edit_task_signal.emit)
         self.tree.create_alarm_requested.connect(self.create_alarm_signal.emit)
         self.tree.create_event_requested.connect(self.create_event_signal.emit)
+        self.tree.deadline_moved.connect(self.deadline_moved_signal.emit)
+        self.tree.edit_deadline_requested.connect(self.edit_deadline_signal.emit)
+        self.tree.delete_deadline_requested.connect(self.delete_deadline_signal.emit)
+        self.tree.edit_deadline_at_requested.connect(self.edit_deadline_at_signal.emit)
         self.tree.item_clicked.connect(self._on_tree_item_clicked)
         self.tree.event_clicked.connect(self._on_tree_event_clicked)
         self.tree.event_moved.connect(self.event_moved_signal.emit)
