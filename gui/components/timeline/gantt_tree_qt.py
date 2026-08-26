@@ -663,7 +663,9 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
 
         # etiqueta com o dia/hora daquela posição
         dt = self._datetime_at_x(x - tl_rect.left() + self._offset_x)
-        txt = dt.strftime("%d/%m/%Y %H:%M")
+        weekdays = ["segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"]
+        weekday = weekdays[dt.weekday()]
+        txt = f"{dt.strftime('%d/%m/%Y %H:%M')}  {weekday}"
         painter.setFont(QFont("Segoe UI", 8))
         fm = painter.fontMetrics()
         pad_x, pad_y = 6, 3
