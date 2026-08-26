@@ -49,7 +49,8 @@
   - **Barra do pai com altura das filhas**: `_draw_parent_bar` usa 20px (igual às folhas), mesmo estilo
   - **Status derivado renomeado**: "EM RISCO" → "Tempo esgotando" (`timeline_mapper.py`; `bar_color` aceita ambos)
   - **Fix preview do resize**: o delta NÃO é mais somado em `draw_bar` (item.start/end já carregam o preview mutado no `mouseMoveEvent`) — antes a barra inteira deslocava ao puxar uma ponta (dupla aplicação)
-  - **Fundo invertido**: FUTURO (hoje→frente) escuro `#06060c`, passado com fundo normal (`_draw_past_shading`)
+  - **Tom da barra por TEMPO (não progresso)** (`draw_bar`/`_draw_parent_bar`): fundo da timeline é UNIFORME (removido o escurecimento invertido do futuro); a barra fica translúcida/apagada (alpha 90) na parte ANTES de hoje e com a cor VIVA de hoje em diante (barra que cruza hoje é pintada duas vezes com clip); tarefa "Concluído" fica sempre com a cor cheia; o antigo bicolore por progresso (`color.darker(120)`) foi removido
+  - **Fundo invertido**: FUTURO (hoje→frente) escuro `#06060c`, passado com fundo normal (`_draw_past_shading`) — REVERTIDO depois: fundo uniforme em toda a timeline
   - **Recentralização no primeiro layout** (`timeline_view_qt.py` `resizeEvent` + flag `_pending_center`): populate roda antes do layout definitivo — `go_to_today` reexecutado quando a largura real chega (offset nunca fica deslocado)
   - **Linha-guia do mouse** (`gantt_tree_qt.py` `_draw_mouse_guide`/`_update_guide`/`_datetime_at_x`): linha vertical sutil segue o mouse na área da timeline com etiqueta `dd/mm/aaaa HH:MM` no topo (fração do dia calculada de x); some ao sair da timeline/widget
   - API de `TimelineViewQt` preservada (populate/set_events/signals) — project_360 não mudou

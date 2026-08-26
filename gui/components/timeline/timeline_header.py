@@ -4,7 +4,7 @@ from PySide6.QtCore import Qt, QRectF
 import datetime
 
 from gui.components.timeline.timeline_geometry import TimelineGeometry
-from gui.theme import BG_PRIMARY, TEXT_PRIMARY, BORDER_SUBTLE, ACCENT_BLUE
+from gui.theme import TEXT_PRIMARY, BORDER_SUBTLE, ACCENT_BLUE
 
 class TimelineHeader(QWidget):
     def __init__(self, geometry: TimelineGeometry, parent=None):
@@ -29,8 +29,8 @@ class TimelineHeader(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
         try:
-            # Fundo do Header
-            painter.fillRect(event.rect(), QColor(BG_PRIMARY))
+            # Fundo do Header (preto puro, igual à área da timeline)
+            painter.fillRect(event.rect(), QColor("#000000"))
             # Borda inferior
             pen = QPen(QColor(BORDER_SUBTLE))
             painter.setPen(pen)

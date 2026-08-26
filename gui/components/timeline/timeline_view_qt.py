@@ -7,7 +7,6 @@ from gui.components.timeline.timeline_geometry import TimelineGeometry
 from gui.components.timeline.timeline_header import TimelineHeader
 from gui.components.timeline.gantt_tree_qt import GanttTree
 from gui.components.drag_drop_tree_qt import fit_branch_arrows
-from gui.theme import TEXT_DISABLED, ACCENT_BLUE
 
 
 class TimelineViewQt(QWidget):
@@ -42,6 +41,7 @@ class TimelineViewQt(QWidget):
             self.go_to_today()
 
     def setup_ui(self):
+        self.setStyleSheet("background-color: #000000;")
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
@@ -252,23 +252,6 @@ class TimelineViewQt(QWidget):
             if depth > 0:
                 prefix = ("    " * (depth - 1)) + "└─ "
             item.setText(0, prefix + t_item.title)
-
-            # Coluna "Resumo": resumo agregado para pais, estado/período para folhas
-            if t_item.summary_text:
-                item.setText(1, t_item.summary_text)
-                item.setForeground(1, QBrush(QColor(TEXT_DISABLED)))
-            elif t_item.is_milestone:
-                item.setText(1, "◆ Marco")
-                item.setForeground(1, QBrush(QColor(ACCENT_BLUE)))
-            else:
-                per = []
-                if t_item.status:
-                    per.append(t_item.status)
-                if t_item.start or t_item.end:
-                    fmt = lambda d: d.strftime("%d/%m") if d else "—"
-                    per.append(f"{fmt(t_item.start)} → {fmt(t_item.end)}")
-                item.setText(1, " · ".join(per))
-                item.setForeground(1, QBrush(QColor(TEXT_DISABLED)))
 
             # Cores por profundidade
             if depth > 0:

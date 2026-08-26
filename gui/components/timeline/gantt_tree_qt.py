@@ -3,8 +3,7 @@ GanttTree — árvore de tarefas com a linha do tempo EMBUTIDA na própria árvo
 
 Substitui o par (árvore + canvas em QScrollArea) por UM ÚNICO widget:
 - Coluna 0: título da tarefa
-- Coluna 1: resumo
-- Coluna 2: linha do tempo (barras pintadas por cima da árvore)
+- Coluna 1: linha do tempo (barras pintadas por cima da árvore)
 
 Não existe sincronização de scroll porque só há um widget/uma barra de rolagem.
 """
@@ -98,13 +97,11 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         self._pan_start_x = 0
         self._pan_start_offset = 0
 
-        self.setColumnCount(3)
-        self.setHeaderLabels(["Tarefa", "Resumo", "Linha do Tempo"])
+        self.setColumnCount(2)
+        self.setHeaderLabels(["Tarefa", "Linha do Tempo"])
         self.header().setSectionResizeMode(0, QHeaderView.Interactive)
-        self.header().setSectionResizeMode(1, QHeaderView.Fixed)
         self.header().setStretchLastSection(True)
-        self.setColumnWidth(0, 280)
-        self.setColumnWidth(1, 180)
+        self.setColumnWidth(0, 320)
         self.header().hide()
 
         self.setUniformRowHeights(True)
@@ -129,6 +126,7 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
 
         self.setStyleSheet(f"""
             QTreeView::item {{ height: {ROW_HEIGHT}px; }}
+            QTreeView {{ background-color: #000000; alternate-background-color: #000000; }}
         """)
 
         self.currentItemChanged.connect(self._on_current_changed)
@@ -144,7 +142,7 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
 
     def timeline_left(self) -> int:
         """X (em coords do viewport) onde começa a coluna da linha do tempo."""
-        return self.columnWidth(0) + self.columnWidth(1)
+        return self.columnWidth(0)
 
     def set_offset_x(self, value: int):
         if value != self._offset_x:
@@ -201,7 +199,10 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             if tl_rect.width() <= 0:
                 return
 
-            self._draw_past_shading(painter, tl_rect)
+            # Fundo da área da timeline: preto puro (a diferença antes/depois de
+            # hoje é aplicada SÓ nas barras, não no fundo)
+            painter.fillRect(tl_rect, QColor("#000000"))
+
             self._draw_grid(painter, tl_rect)
             self._draw_bars(painter, tl_rect)
             self._draw_events(painter, tl_rect)
@@ -247,16 +248,6 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
                 draw_branch(root.child(i))
         finally:
             painter.end()
-
-    def _draw_past_shading(self, painter: QPainter, tl_rect: QRectF):
-        # LÓGICA INVERTIDA (pedido do usuário): o FUTURO (hoje → frente) fica escuro;
-        # o passado mantém o fundo normal da timeline
-        today_x = self._x_view(self.geometry.datetime_to_x(datetime.datetime.now()))
-        if today_x < tl_rect.right():
-            future_x = max(today_x, tl_rect.left())
-            painter.fillRect(QRectF(future_x, tl_rect.top(),
-                                    tl_rect.right() - future_x, tl_rect.height()),
-                             QColor("#06060c"))
 
     def _draw_grid(self, painter: QPainter, tl_rect: QRectF):
         ppd = self.geometry.pixels_per_day
@@ -348,10 +339,34 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
 
         x1_view = self._x_view(self.geometry.date_to_x(eff_start))
         x2_view = self._x_view(self.geometry.date_to_x(eff_end + datetime.timedelta(days=1)))
+        today_x = self._x_view(self.geometry.datetime_to_x(datetime.datetime.now()))
 
         bar_height = 20
         bar_y = row_rect.y() + (row_rect.height() - bar_height) / 2
         rect = QRectF(x1_view, bar_y, max(4.0, x2_view - x1_view), bar_height)
+
+        # Tom por TEMPO: antes de hoje = apagado/translúcido; de hoje em diante = cor viva.
+        # Concluída fica sempre com a cor cheia.
+        is_done = getattr(item, 'display_status', item.status) == "Concluído"
+        muted = QColor(color)
+        muted.setAlpha(90)
+        painter.setPen(Qt.NoPen)
+        if is_done or today_x >= x2_view:
+            painter.setBrush(color if is_done else muted)
+            painter.drawRoundedRect(rect, 4, 4)
+        elif today_x <= x1_view:
+            painter.setBrush(color)
+            painter.drawRoundedRect(rect, 4, 4)
+        else:
+            # barra cruza hoje: apagada até hoje + viva a partir de hoje
+            painter.setBrush(muted)
+            painter.drawRoundedRect(rect, 4, 4)
+            painter.save()
+            painter.setClipRect(QRectF(today_x - 0.5, row_rect.top(),
+                                       x2_view - today_x + 1, row_rect.height()))
+            painter.setBrush(color)
+            painter.drawRoundedRect(rect, 4, 4)
+            painter.restore()
 
         # Hover: barra levemente elevada/brilho + contorno
         if is_hovered and not is_selected:
@@ -359,14 +374,6 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             painter.setPen(Qt.NoPen)
             painter.setBrush(QColor(255, 255, 255, 28))
             painter.drawRoundedRect(glow, 6, 6)
-
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(color)
-        painter.drawRoundedRect(rect, 4, 4)
-        if item.progress > 0:
-            prog_w = rect.width() * (item.progress / 100.0)
-            painter.setBrush(color.darker(120))
-            painter.drawRoundedRect(QRectF(x1_view, bar_y, prog_w, bar_height), 4, 4)
 
         if is_hovered and not is_selected:
             pen = QPen(QColor(255, 255, 255, 200))
@@ -457,13 +464,27 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             painter.setBrush(QColor(255, 255, 255, 28))
             painter.drawRoundedRect(glow, 6, 6)
 
+        # mesmo tom por TEMPO das folhas: antes de hoje apagado, depois vivo
+        today_x = self._x_view(self.geometry.datetime_to_x(datetime.datetime.now()))
+        is_done = getattr(item, 'display_status', item.status) == "Concluído"
+        muted = QColor(color)
+        muted.setAlpha(90)
         painter.setPen(Qt.NoPen)
-        painter.setBrush(color)
-        painter.drawRoundedRect(rect, 4, 4)
-        if item.progress > 0:
-            prog_w = rect.width() * (item.progress / 100.0)
-            painter.setBrush(color.darker(130))
-            painter.drawRoundedRect(QRectF(x1_view, bar_y, prog_w, bar_height), 4, 4)
+        if is_done or today_x >= x2_view:
+            painter.setBrush(color if is_done else muted)
+            painter.drawRoundedRect(rect, 4, 4)
+        elif today_x <= x1_view:
+            painter.setBrush(color)
+            painter.drawRoundedRect(rect, 4, 4)
+        else:
+            painter.setBrush(muted)
+            painter.drawRoundedRect(rect, 4, 4)
+            painter.save()
+            painter.setClipRect(QRectF(today_x - 0.5, row_rect.top(),
+                                       x2_view - today_x + 1, row_rect.height()))
+            painter.setBrush(color)
+            painter.drawRoundedRect(rect, 4, 4)
+            painter.restore()
 
         if is_hovered and not is_selected:
             pen = QPen(QColor(255, 255, 255, 200))
