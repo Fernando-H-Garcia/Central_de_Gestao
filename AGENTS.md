@@ -414,9 +414,9 @@
    "
    ```
 
-5. **Build EXE + Installer**:
+5. **Build EXE + Installer** (CLI oficial; `scripts\build\build_release.py` direto também funciona — os prints `[DEPRECATED]` foram removidos porque o painel delega a esses mesmos scripts):
    ```powershell
-   .\venv_build\Scripts\python.exe scripts\build\build_release.py --release
+   .\venv_build\Scripts\python.exe scripts\ops\control_panel.py build --release
    ```
 
 6. **Restaurar banco original** (remove seed, volta o backup):
