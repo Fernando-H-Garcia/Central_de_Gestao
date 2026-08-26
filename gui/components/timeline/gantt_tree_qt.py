@@ -10,10 +10,13 @@ Não existe sincronização de scroll porque só há um widget/uma barra de rola
 """
 import datetime
 
-from PySide6.QtWidgets import QTreeWidget, QTreeWidgetItem, QToolTip, QHeaderView, QMenu
+from PySide6.QtWidgets import (QTreeWidget, QTreeWidgetItem, QToolTip,
+                                QHeaderView, QMenu, QAbstractItemView,
+                                QTreeWidgetItemIterator)
 from PySide6.QtCore import Qt, Signal, QTimer, QRectF, QPointF, QSize
 from PySide6.QtGui import QPainter, QColor, QPen, QFont, QBrush, QPolygonF
 
+from gui.components.drag_drop_tree_qt import TranslucentDragMixin
 from gui.components.timeline.timeline_models import TimelineItem, TimelineEvent
 from gui.theme import (BORDER_SUBTLE, ACCENT_BLUE, WARNING_ORANGE,
                        SUCCESS_GREEN, ERROR_RED, TEXT_DISABLED)
@@ -39,12 +42,14 @@ def bar_color(item: TimelineItem) -> QColor:
     return QColor("#a5b4fc")
 
 
-class GanttTree(QTreeWidget):
+class GanttTree(TranslucentDragMixin, QTreeWidget):
     item_double_clicked = Signal(int)      # task_id (compat)
     item_clicked = Signal(int)             # task_id
     event_clicked = Signal(object)         # TimelineEvent
     task_moved = Signal(int, object, object)
     pan_triggered = Signal(int)
+    # Reordenar linhas arrastando nas colunas de texto (pai leva as filhas junto)
+    item_moved = Signal(int, object)       # task_id, new_parent_id (None = raiz)
     # Contexto/duplo clique: carrega o Task (raw_task); cai para int id se indisponível
     open_task_requested = Signal(object)
     edit_task_requested = Signal(object)
@@ -112,6 +117,15 @@ class GanttTree(QTreeWidget):
         self.setMouseTracking(True)
         # duplo clique NÃO expande/recolhe — abre a edição da tarefa (pedido do usuário)
         self.setExpandsOnDoubleClick(False)
+
+        # Drag & drop para REORDENAR linhas: só inicia quando o press acontece
+        # nas colunas de texto (mousePressEvent delega ao super() apenas lá);
+        # na área da timeline os arrastes são de barras/eventos/prazo.
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QAbstractItemView.InternalMove)
+        self.setDropIndicatorShown(True)
+        self.setDragDropOverwriteMode(False)
 
         self.setStyleSheet(f"""
             QTreeView::item {{ height: {ROW_HEIGHT}px; }}
@@ -519,14 +533,17 @@ class GanttTree(QTreeWidget):
                 continue
 
             painter.save()
-            # Hover: halo de destaque sob o ícone
-            if ev is self._hover_ev:
+            hovered = (ev is self._hover_ev)
+            # Hover: halo de destaque sob os ícones (início E fim quando tem duração)
+            if hovered:
                 painter.setPen(QPen(QColor(255, 255, 255, 200)))
                 pen = painter.pen()
                 pen.setWidth(2)
                 painter.setPen(pen)
                 painter.setBrush(QColor(255, 255, 255, 30))
                 painter.drawEllipse(QPointF(x_view, y), 14, 14)
+                if ev.end_datetime and ev.event_type == "event" and end_x_view > x_view:
+                    painter.drawEllipse(QPointF(end_x_view, y), 14, 14)
             if ev.event_type == "alarm":
                 painter.setBrush(QColor(WARNING_ORANGE))
                 painter.setPen(QColor(0, 0, 0))
@@ -537,12 +554,13 @@ class GanttTree(QTreeWidget):
                 ])
                 painter.drawPolygon(poly)
             else:
-                event_gray = QColor("#9aa0b6")
-                painter.setBrush(event_gray)
+                # roxo vivo — distinto das barras (azuis), marco (verde) e alarme (laranja)
+                event_violet = QColor("#8b5cf6")
+                painter.setBrush(event_violet)
                 painter.setPen(Qt.NoPen)
                 painter.drawEllipse(QPointF(x_view, y), 6, 6)
                 if end_x_view > x_view:
-                    pen = QPen(event_gray)
+                    pen = QPen(event_violet)
                     pen.setWidth(2)
                     painter.setPen(pen)
                     painter.drawLine(QPointF(x_view + 6, y), QPointF(end_x_view - 6, y))
@@ -745,6 +763,14 @@ class GanttTree(QTreeWidget):
         """Hit para HOVER/tooltip: qualquer item com período (pai, marco ou folha)."""
         if t_item is None:
             return False
+        # Marco: desenha losangos repetidos todo mês + linha tracejada até o fim
+        # da área visível — o hover tem que cobrir essa área TODA, não só a data
+        if t_item.is_milestone:
+            ms = t_item.manual_start or t_item.start or t_item.end or t_item.manual_end
+            if not ms:
+                return False
+            x1 = self._x_view(self.geometry.date_to_x(ms))
+            return pos.x() >= x1 - 4
         if t_item.is_parent:
             # pai: usa as DATAS PRÓPRIAS (a barra é dele; estouro das filhas vira aviso)
             eff_start = t_item.manual_start or t_item.start
@@ -1203,10 +1229,13 @@ class GanttTree(QTreeWidget):
             if t_item:
                 self.item_clicked.emit(t_item.id)
         self._has_dragged = False
+        # fecha o ciclo press/release do Qt (necessário p/ drag&drop e cliques nativos)
+        super().mouseReleaseEvent(event)
 
     def _overrun_rect(self, t_item, index):
-        """Rect da faixa de aviso (filhas com prazo além do pai) — None se não houver estouro."""
-        if t_item is None or not t_item.is_parent:
+        """Rect da faixa de aviso (filhas com prazo além do pai) — None se não houver estouro.
+        Milestone NUNCA tem aviso de estouro (é um marco, não um prazo de pai)."""
+        if t_item is None or not t_item.is_parent or t_item.is_milestone:
             return None
         own_e = t_item.manual_end or t_item.end
         agg_end = t_item.end
@@ -1357,6 +1386,110 @@ class GanttTree(QTreeWidget):
         if self._tip_text and self._tip_global:
             QToolTip.showText(self._tip_global, self._tip_text, self)
 
+    # ---------- drag & drop de linhas (reordenar respeitando [pai[filhas]]) ----------
+
+    def _nearest_row_item(self, pos):
+        """Item cuja linha está mais próxima ACIMA do ponto (drops no vazio)."""
+        best = None
+        best_bottom = -1
+        it = QTreeWidgetItemIterator(self)
+        while it.value() is not None:
+            item = it.value()
+            if not item.isHidden():
+                rect = self.visualItemRect(item)
+                if rect.top() <= pos.y() <= rect.bottom():
+                    return item
+                if rect.bottom() <= pos.y() and rect.bottom() > best_bottom:
+                    best_bottom = rect.bottom()
+                    best = item
+            it += 1
+        return best
+
+    def _group_key(self, widget_item):
+        """Chave estável do grupo de irmãos: id do pai (None = raiz).
+        Comparação por VALOR — wrappers PySide6 do mesmo C++ item podem ser
+        objetos Python distintos, então `is` não é confiável aqui."""
+        if widget_item is None:
+            return None
+        t = widget_item.data(0, Qt.UserRole)
+        # sem task data = raiz invisível da árvore → grupo "raiz" é None também
+        return ("task", t.id) if t else None
+
+    def dropEvent(self, event):
+        """Movimento MANUAL (sem super()): o drop nativo do Qt respeita OnItem e
+        aninharia a tarefa dentro da outra — aqui isso é PROIBIDO. Só reordena
+        DENTRO do próprio grupo de irmãos."""
+        source_item = self.currentItem()
+        src_task = source_item.data(0, Qt.UserRole) if source_item else None
+        if source_item is None or not src_task:
+            event.ignore()
+            return
+
+        pos = event.position().toPoint()
+        target_item = self.itemAt(pos)
+        root = self.invisibleRootItem()
+        # grupo do item arrastado: irmãos de verdade dele (raiz se já é de topo)
+        src_parent_w = source_item.parent()
+        own_key = self._group_key(src_parent_w)
+
+        if target_item is None:
+            # espaço vazio → fim da lista de raiz (ou fim do grupo do âncora,
+            # se o âncora pertence ao mesmo grupo da tarefa arrastada)
+            anchor = self._nearest_row_item(pos)
+            if anchor is None or anchor.parent() is None:
+                parent_w, dst_key = root, None
+                row = root.childCount()
+            else:
+                parent_w = anchor.parent()
+                dst_key = self._group_key(parent_w)
+                row = parent_w.childCount()
+        elif src_parent_w is None:
+            # RAIZ arrastada: mapeia o alvo para o BLOCO de topo correspondente.
+            # Metade de cima da 1ª linha do bloco → antes do bloco;
+            # qualquer lugar mais abaixo (inclusive nas filhas) → depois do bloco.
+            block_root = target_item
+            while block_root.parent() is not None and block_root.parent() is not root:
+                block_root = block_root.parent()
+            if block_root.parent() is None:
+                parent_w, dst_key = root, None
+                idx = root.indexOfChild(block_root)
+                rect = self.visualItemRect(block_root)
+                row = idx if (not rect.isNull() and pos.y() < rect.center().y()) else idx + 1
+            else:
+                parent_w, dst_key = root, None
+                row = root.childCount()
+        else:
+            # Soltar SOBRE um item é PROIBIDO (nunca aninhar pelo arraste);
+            # tratamos como "abaixo do alvo" → irmão no nível dele.
+            drop_pos = self.dropIndicatorPosition()
+            if drop_pos == QAbstractItemView.OnItem:
+                drop_pos = QAbstractItemView.BelowItem
+            parent_w = target_item.parent() if target_item.parent() is not None else root
+            dst_key = self._group_key(parent_w)
+            target_row = parent_w.indexOfChild(target_item)
+            row = target_row + (1 if drop_pos == QAbstractItemView.BelowItem else 0)
+
+        # REGRA PRINCIPAL: só é permitido REORDENAR DENTRO DO PRÓPRIO GRUPO.
+        # Não pode tirar uma filha do pai dela, enfiar em outra filha nem
+        # trocar de pai — se o alvo está em outro nível/grupo, o drop é recusado.
+        if own_key != dst_key:
+            event.ignore()
+            return
+
+        # move a linha (com toda a subárvore dela) para o novo lugar
+        src_idx = parent_w.indexOfChild(source_item)
+        if src_idx >= 0 and src_idx < row:
+            # remoção antes do índice de inserção desloca os irmãos (off-by-one)
+            row -= 1
+        parent_w.removeChild(source_item)
+        row = max(0, min(row, parent_w.childCount()))
+        parent_w.insertChild(row, source_item)
+        self.viewport().update()
+
+        event.accept()
+        new_parent_id = src_task.parent_id
+        QTimer.singleShot(0, lambda: self.item_moved.emit(src_task.id, new_parent_id))
+
     def _hide_tooltip(self):
         self._tip_text = None
         self._tip_global = None
@@ -1387,6 +1520,24 @@ class GanttTree(QTreeWidget):
         QToolTip.showText(self._tip_global, tooltip, self)
 
     def _show_bar_tooltip(self, pos, t_item):
+        if t_item.is_milestone:
+            # marco: a informação relevante é a DATA do marco (não um "período")
+            ms = t_item.manual_start or t_item.start or t_item.end or t_item.manual_end
+            ds = getattr(t_item, 'display_status', t_item.status)
+            summ = getattr(t_item, 'summary_text', '')
+            tooltip = (
+                f"<b>◆ {t_item.title}</b><br/>"
+                f"Marco · Status: {t_item.status}<br/>"
+                f"Data do marco: <b>{ms.strftime('%d/%m/%Y') if ms else '—'}</b><br/>"
+                f"Estado: <b>{ds}</b>"
+            )
+            if summ:
+                tooltip += f"<br/>{summ}"
+            self._tip_text = tooltip
+            self._tip_global = self.mapToGlobal(pos)
+            self._tip_timer.start()
+            QToolTip.showText(self._tip_global, tooltip, self)
+            return
         # pai: datas próprias (a barra é dele; estouro das filhas aparece como aviso)
         eff_start = t_item.manual_start or t_item.start
         eff_end = t_item.manual_end or t_item.end

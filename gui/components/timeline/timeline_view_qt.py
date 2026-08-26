@@ -25,6 +25,8 @@ class TimelineViewQt(QWidget):
     delete_event_signal = Signal(object)  # TimelineEvent — exclui no host
     alarm_clicked = Signal(object)  # compat
     task_moved = Signal(int, object, object)
+    # Reordenar linhas arrastando na árvore (task_id, new_parent_id)
+    gantt_row_moved = Signal(int, object)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -103,7 +105,12 @@ class TimelineViewQt(QWidget):
 
         toolbar.addStretch()
         from PySide6.QtWidgets import QLabel
-        legend = QLabel(" \u25b2 Alarme  \u25cf Evento  \u25c6 Marco  \u2502 Hoje")
+        legend = QLabel(
+            ' \u25b2 <span style="color:#e6a23c;">Alarme</span>  '
+            '&nbsp;\u25cf <span style="color:#8b5cf6;">Evento</span>  '
+            '&nbsp;\u25c6 <span style="color:#2b8c52;">Marco</span>  '
+            '&nbsp;<span style="color:#4a6fe3;">|</span> Hoje'
+        )
         legend.setStyleSheet("color: #888; font-size: 11px;")
         legend.setToolTip("Legenda visual da timeline")
         toolbar.addWidget(legend)
@@ -129,6 +136,7 @@ class TimelineViewQt(QWidget):
         self.tree.edit_event_requested.connect(self.edit_event_signal.emit)
         self.tree.delete_event_requested.connect(self.delete_event_signal.emit)
         self.tree.task_moved.connect(self.task_moved.emit)
+        self.tree.item_moved.connect(self.gantt_row_moved.emit)
         self.tree.pan_triggered.connect(self._on_pan_triggered)
         self.tree.ctrl_zoom_requested.connect(self._on_ctrl_zoom)
         main_layout.addWidget(self.tree, 1)

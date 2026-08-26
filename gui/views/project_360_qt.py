@@ -238,6 +238,7 @@ class Project360Qt(QWidget):
         self.tab_timeline.edit_event_signal.connect(self._on_timeline_edit_event)
         self.tab_timeline.delete_event_signal.connect(self._delete_timeline_event)
         self.tab_timeline.task_moved.connect(self._on_timeline_task_moved)
+        self.tab_timeline.gantt_row_moved.connect(self.handle_gantt_row_moved)
         self.tabs.addTab(self.tab_timeline, "Planejamento")
         
         # Ideias Tab
@@ -645,9 +646,12 @@ class Project360Qt(QWidget):
         # Popula a aba Planejamento (Timeline) — usa todas as tarefas (inclui Concluídas, filtro fica no checkbox)
         try:
             from gui.components.timeline.timeline_mapper import TimelineMapper
-            tl_main = [t for t in tasks if not getattr(t, 'parent_task_id', None)]
+            # O mapper preserva a ordem de entrada — ordenar por position é o que
+            # reflete a reordenação feita arrastando linhas no Gantt
+            tl_sorted = sorted(tasks, key=lambda t: t.position if t.position is not None else 0.0)
+            tl_main = [t for t in tl_sorted if not getattr(t, 'parent_task_id', None)]
             tl_by_parent = {}
-            for t in tasks:
+            for t in tl_sorted:
                 pid = getattr(t, 'parent_task_id', None)
                 if pid is not None:
                     tl_by_parent.setdefault(pid, []).append(t)
@@ -1201,6 +1205,48 @@ class Project360Qt(QWidget):
 
     def _unarchive_task(self, task):
         self.task_service.restore_task(task.id)
+        from core.event_bus import event_bus
+        event_bus.emit("entity_updated")
+        self.load_data()
+
+    def handle_gantt_row_moved(self, task_id, new_parent_id=None):
+        """Reordenação por drag & drop na árvore do Planejamento.
+        Persiste reparent (quando houver) e reescreve as posições dos irmãos
+        conforme a ordem visual atual do Gantt (gap 100 por grupo de irmãos)."""
+        task = self.task_service.task_repo.get_by_id(task_id)
+        if task and (task.parent_task_id or None) != (new_parent_id or None):
+            if not self.task_service.move_task(task_id, new_parent_id):
+                self.load_data()
+                return
+
+        children_by_parent = {}
+        root = self.tab_timeline.tree.invisibleRootItem()
+
+        def collect(parent, pid):
+            for i in range(parent.childCount()):
+                item = parent.child(i)
+                t = item.data(0, Qt.UserRole)
+                if t:
+                    children_by_parent.setdefault(pid, []).append(t.id)
+                collect(item, t.id if t else pid)
+
+        collect(root, None)
+
+        # TimelineItem NÃO tem .position — resolve a posição atual pelo repo (DB)
+        for _pid, task_ids in children_by_parent.items():
+            for row, tid in enumerate(task_ids):
+                tk = self.task_service.task_repo.get_by_id(tid)
+                if tk is None:
+                    continue
+                new_pos = float((row + 1) * 100)
+                if (tk.position or 0.0) == new_pos:
+                    continue
+                self.task_service.update_task_position(tid, new_pos)
+
+        self.settings.remove("proj_tasks_sort_column")
+        self.settings.remove("proj_tasks_sort_order")
+        self.tbl_tasks.header().setSortIndicatorShown(False)
+
         from core.event_bus import event_bus
         event_bus.emit("entity_updated")
         self.load_data()
