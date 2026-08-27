@@ -842,9 +842,11 @@ class Project360Qt(QWidget):
 
             week_date = new_date - _dt.timedelta(days=7)
             today = _dt.date.today()
-            title = f"🎯 Prazo estimado: {self._deadline_task_title(deadline)}"
+            desc_part = f" — {deadline.description}" if getattr(deadline, "description", None) else ""
+            task_title = self._deadline_task_title(deadline)
+            title = f"🎯 Prazo estimado: {task_title}{desc_part}"
             specs = [
-                ("alarm_week_id", week_date, f"🎯 1 semana p/ prazo: {self._deadline_task_title(deadline)}", week_date >= today),
+                ("alarm_week_id", week_date, f"🎯 1 semana p/ prazo: {task_title}{desc_part}", week_date >= today),
                 ("alarm_day_id", new_date, title, True),
             ]
             for field_name, adate, atitle, enabled in specs:
@@ -861,6 +863,7 @@ class Project360Qt(QWidget):
                 a = alert_svc.get_alert(aid) if aid else None
                 if a:
                     a.alert_date = date_str
+                    a.title = atitle
                     if getattr(a, "status", None) not in ("pending", "overdue", "completed"):
                         a.status = "pending"
                     alert_svc.alert_repo.update(a)
