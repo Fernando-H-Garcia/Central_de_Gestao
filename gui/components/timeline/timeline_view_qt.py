@@ -14,10 +14,10 @@ class TimelineViewQt(QWidget):
     edit_task_signal = Signal(object)   # Task (raw) — abre TaskDialogQt no host
     create_alarm_signal = Signal(object)  # Task (raw) — abre AlarmDialogQt no host
     create_event_signal = Signal(object)  # Task (raw) — abre EventDialogQt no host
-    deadline_moved_signal = Signal(int, object)   # task_id, nova data do prazo estimado
-    edit_deadline_signal = Signal(object)         # Task (raw) — abre diálogo de data
-    delete_deadline_signal = Signal(object)       # Task (raw) — limpa o prazo estimado
-    edit_deadline_at_signal = Signal(object, object)  # Task (raw), data sob o mouse | None
+    deadline_moved_signal = Signal(int, int, object)   # task_id, deadline_id, nova data
+    edit_deadline_signal = Signal(object, object)         # Task (raw) ou id, deadline_id | None
+    delete_deadline_signal = Signal(object, object)       # Task (raw) ou id, deadline_id
+    edit_deadline_at_signal = Signal(object, object)  # Task (raw) ou id, data sob o mouse | None
     event_clicked = Signal(object)  # TimelineEvent
     event_moved_signal = Signal(object, object, object)  # TimelineEvent, novo início, novo fim
     edit_event_signal = Signal(object)  # TimelineEvent — abre editor no host

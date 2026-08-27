@@ -56,6 +56,22 @@ class TimelineMapper:
             for child_task in children_raw:
                 t_item.children.append(_build_item(child_task, depth + 1))
 
+            # Prazos estimados (vários por tarefa) — movidos para a tabela task_deadlines
+            try:
+                from database.repositories.task_deadline_repository import TaskDeadlineRepository
+                from gui.components.timeline.timeline_models import DeadlineMark
+                for d in TaskDeadlineRepository().get_by_task(task.id):
+                    t_item.deadlines.append(DeadlineMark(
+                        id=d.id,
+                        task_id=task.id,
+                        date=d.deadline_date,
+                        desc=d.description or "",
+                        alarm_week_id=d.alarm_week_id,
+                        alarm_day_id=d.alarm_day_id,
+                    ))
+            except Exception:
+                pass
+
             # Estado derivado + agregação da subárvore (pós-ordem)
             TimelineMapper._finalize_states(t_item)
             return t_item

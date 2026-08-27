@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import List, Optional
 import datetime
@@ -37,14 +39,26 @@ class TimelineItem:
     # Referência à entidade original (caso precise abrir)
     raw_task: any = None
 
-    # Prazo estimado (marcador vermelho na timeline)
+    # Prazos estimados (marcadores vermelhos na timeline) — pode haver vários
     estimated_deadline: Optional[datetime.date] = None
     estimated_deadline_desc: Optional[str] = None
+    deadlines: List[DeadlineMark] = field(default_factory=list)
 
     children: List['TimelineItem'] = field(default_factory=list)
     
     def has_manual_dates(self) -> bool:
         return self.manual_start is not None or self.manual_end is not None
+
+
+@dataclass
+class DeadlineMark:
+    """Um prazo estimado individual de uma tarefa (pode haver vários)."""
+    id: int
+    task_id: int
+    date: Optional[datetime.date] = None
+    desc: str = ""
+    alarm_week_id: Optional[int] = None
+    alarm_day_id: Optional[int] = None
 
 @dataclass
 class TimelineEvent:

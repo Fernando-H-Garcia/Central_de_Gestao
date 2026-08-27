@@ -45,6 +45,14 @@ class Task(BaseModel):
     deadline_alarm_day: Optional[int] = None
 
 @dataclass
+class TaskDeadline(BaseModel):
+    task_id: int = 0
+    deadline_date: Optional[datetime] = None
+    description: Optional[str] = None
+    alarm_week_id: Optional[int] = None
+    alarm_day_id: Optional[int] = None
+
+@dataclass
 class Idea(BaseModel):
     title: str = ""
     description: Optional[str] = None

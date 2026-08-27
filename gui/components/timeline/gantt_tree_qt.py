@@ -57,10 +57,10 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
     create_event_requested = Signal(object)
     # Excluir alarme/evento (menu de contexto no ícone)
     delete_event_requested = Signal(object)
-    # Prazo Estimado (marcador vermelho): mover, editar e excluir
-    deadline_moved = Signal(int, object)       # task_id, nova data
-    edit_deadline_requested = Signal(object)   # Task (raw) ou id
-    delete_deadline_requested = Signal(object) # Task (raw) ou id
+    # Prazo Estimado (marcadores vermelhos): mover, editar e excluir
+    deadline_moved = Signal(int, int, object)       # task_id, deadline_id, nova data
+    edit_deadline_requested = Signal(object, object)   # Task (raw) ou id, deadline_id | None
+    delete_deadline_requested = Signal(object, object) # Task (raw) ou id, deadline_id
     # Prazo Estimado aberto pelo menu da tarefa na TIMELINE: traz a data sob o mouse
     edit_deadline_at_requested = Signal(object, object)  # Task (raw) ou id, datetime.date | None
     # Alarmes/Eventos: arraste (TimelineEvent, novo início, novo fim) e edição
@@ -84,6 +84,7 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         self._drag_pos = None   # posição atual do mouse durante arraste (indicador flutuante)
         self._drag_deadline = None  # {"item", "orig", "cur", "start_x"} arraste do prazo estimado
         self._hover_deadline_id = None  # id da tarefa cujo marcador está em hover
+        self._hover_deadline_mark = None  # DeadlineMark específico em hover
         self._guide_x = None    # linha-guia vertical que segue o mouse na timeline
         # Tooltip persistente: QToolTip some pelo timeout do sistema — reexibimos
         # num timer enquanto o mouse continuar sobre o mesmo item
@@ -601,7 +602,7 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
     def _drag_indicator_text(self):
         """Texto da janeleinha de arraste, conforme o tipo de item arrastado."""
         if self._drag_deadline is not None and self._has_dragged:
-            return f"🎯 Prazo Estimado: {self._drag_deadline['cur'].strftime('%d/%m/%Y')}"
+            return f"🎯 Prazo Estimado: {self._drag_deadline['cur'].strftime('%d/%m/%Y')}" if self._drag_deadline.get('cur') else "🎯 Prazo Estimado"
         if self._drag_bar is not None and self._has_dragged:
             s = self._drag_bar.get("cur_start") or self._drag_bar["start"]
             e = self._drag_bar.get("cur_end") or self._drag_bar["end"]
@@ -685,52 +686,60 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         painter.restore()
 
     def _draw_deadlines(self, painter: QPainter, tl_rect: QRectF):
-        """Marcador 🚩 vermelho do Prazo Estimado na linha da tarefa."""
+        """Marcadores 🚩 vermelhos dos Prazos Estimados na linha da tarefa."""
         for t_item, vrect in self._visible_rows():
-            dl = getattr(t_item, 'estimated_deadline', None)
-            if not dl:
-                continue
-            cx = self._x_view(self.geometry.date_to_x(dl))
-            if not (tl_rect.left() - 20 <= cx <= tl_rect.right() + 20):
-                continue
             cy = vrect.center().y()
-            hovered = (self._hover_deadline_id == t_item.id)
-            painter.save()
-            # halo de hover (mesmo estilo dos eventos)
-            if hovered:
-                painter.setPen(QPen(QColor(255, 255, 255, 200)))
-                pen = painter.pen()
+            for mark in getattr(t_item, 'deadlines', []) or []:
+                dl = mark.date
+                if not dl:
+                    continue
+                cx = self._x_view(self.geometry.date_to_x(dl))
+                if not (tl_rect.left() - 20 <= cx <= tl_rect.right() + 20):
+                    continue
+                hovered = (self._hover_deadline_mark is not None and self._hover_deadline_mark.id == mark.id)
+                painter.save()
+                # halo de hover (mesmo estilo dos eventos)
+                if hovered:
+                    painter.setPen(QPen(QColor(255, 255, 255, 200)))
+                    pen = painter.pen()
+                    pen.setWidth(2)
+                    painter.setPen(pen)
+                    painter.setBrush(QColor(255, 255, 255, 30))
+                    painter.drawEllipse(QPointF(cx + 2, cy), 14, 14)
+                # mastro
+                pen = QPen(QColor(ERROR_RED))
                 pen.setWidth(2)
                 painter.setPen(pen)
-                painter.setBrush(QColor(255, 255, 255, 30))
-                painter.drawEllipse(QPointF(cx + 2, cy), 14, 14)
-            # mastro
-            pen = QPen(QColor(ERROR_RED))
-            pen.setWidth(2)
-            painter.setPen(pen)
-            painter.drawLine(int(cx), int(cy - 11), int(cx), int(cy + 9))
-            # bandeira triangular
-            painter.setBrush(QColor(ERROR_RED))
-            painter.setPen(Qt.NoPen)
-            painter.drawPolygon(QPolygonF([
-                QPointF(cx, cy - 11),
-                QPointF(cx + 11, cy - 7),
-                QPointF(cx, cy - 3),
-            ]))
-            painter.restore()
+                painter.drawLine(int(cx), int(cy - 11), int(cx), int(cy + 9))
+                # bandeira triangular
+                painter.setBrush(QColor(ERROR_RED))
+                painter.setPen(Qt.NoPen)
+                painter.drawPolygon(QPolygonF([
+                    QPointF(cx, cy - 11),
+                    QPointF(cx + 11, cy - 7),
+                    QPointF(cx, cy - 3),
+                ]))
+                painter.restore()
 
     def _deadline_at(self, pos):
-        """Marcador de prazo estimado sob o cursor → (t_item, x) ou (None, None)."""
+        """Marcador de prazo estimado sob o cursor → (DeadlineMark, x) ou (None, None)."""
+        best = None
+        best_dx = 10
+        best_x = None
         for t_item, vrect in self._visible_rows():
-            dl = getattr(t_item, 'estimated_deadline', None)
-            if not dl:
-                continue
             if abs(pos.y() - vrect.center().y()) > vrect.height() / 2:
                 continue
-            cx = self._x_view(self.geometry.date_to_x(dl))
-            if abs(pos.x() - cx) <= 7:
-                return t_item, cx
-        return None, None
+            for mark in getattr(t_item, 'deadlines', []) or []:
+                dl = mark.date
+                if not dl:
+                    continue
+                cx = self._x_view(self.geometry.date_to_x(dl))
+                dx = abs(pos.x() - cx)
+                if dx <= best_dx:
+                    best_dx = dx
+                    best = mark
+                    best_x = cx
+        return best, best_x
 
     def _draw_drag_info(self, painter: QPainter):
         if not self._has_dragged or self._drag_pos is None:
@@ -924,9 +933,9 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         dl_item, _dl_x = self._deadline_at(pos)
         if dl_item is not None:
             self._drag_deadline = {
-                "item": dl_item,
-                "orig": dl_item.estimated_deadline,
-                "cur": dl_item.estimated_deadline,
+                "mark": dl_item,
+                "orig": dl_item.date,
+                "cur": dl_item.date,
                 "start_x": pos.x(),
             }
             self._has_dragged = False
@@ -1000,7 +1009,7 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             if self._has_dragged:
                 delta_days = int(round(delta_px / max(0.0001, self.geometry.pixels_per_day)))
                 self._drag_deadline["cur"] = self._drag_deadline["orig"] + datetime.timedelta(days=delta_days)
-                self._drag_deadline["item"].estimated_deadline = self._drag_deadline["cur"]
+                self._drag_deadline["mark"].date = self._drag_deadline["cur"]
                 self._drag_pos = pos
                 self.viewport().update()
             return
@@ -1080,15 +1089,18 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             over_bar = bool(t_item and self._hit_range(pos, t_item))
 
             # marcador de prazo estimado sob o cursor
-            dl_item, _dl_x = self._deadline_at(pos)
-            new_hover_dl = dl_item.id if dl_item is not None else None
-            if new_hover_dl != self._hover_deadline_id:
-                self._hover_deadline_id = new_hover_dl
+            dl_mark, _dl_x = self._deadline_at(pos)
+            new_hover_mark = dl_mark.id if dl_mark is not None else None
+            new_hover_task = dl_mark.task_id if dl_mark is not None else None
+            if (new_hover_mark != (self._hover_deadline_mark.id if self._hover_deadline_mark else None)) or \
+               (new_hover_task != self._hover_deadline_id):
+                self._hover_deadline_mark = dl_mark
+                self._hover_deadline_id = new_hover_task
                 self.viewport().update()
 
-            if dl_item is not None:
+            if dl_mark is not None:
                 self.unsetCursor()
-                self._show_deadline_tooltip(pos, dl_item)
+                self._show_deadline_tooltip(pos, dl_mark)
                 super().mouseMoveEvent(event)
                 return
 
@@ -1163,6 +1175,7 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             self.viewport().update()
         if self._hover_deadline_id is not None:
             self._hover_deadline_id = None
+            self._hover_deadline_mark = None
             self.viewport().update()
         if self._hover_item_id is not None or self._hover_ev is not None:
             self._hover_item_id = None
@@ -1201,13 +1214,13 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             info = self._drag_deadline
             self._drag_deadline = None
             self._drag_pos = None
-            item = info["item"]
+            mark = info["mark"]
             if self._has_dragged and info["cur"] != info["orig"]:
-                item.estimated_deadline = info["cur"]
+                mark.date = info["cur"]
                 self.viewport().update()
-                self.deadline_moved.emit(item.id, info["cur"])
+                self.deadline_moved.emit(mark.task_id, mark.id, info["cur"])
             else:
-                item.estimated_deadline = info["orig"]
+                mark.date = info["orig"]
                 self.viewport().update()
             self._has_dragged = False
             return
@@ -1295,7 +1308,8 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         dl_item, _ = self._deadline_at(pos)
         if dl_item is not None:
             self.setCurrentIndex(self.indexAt(pos).sibling(self.indexAt(pos).row(), 0))
-            self.edit_deadline_requested.emit(dl_item.raw_task if dl_item.raw_task is not None else dl_item.id)
+            task_ref = dl_item.task_id
+            self.edit_deadline_requested.emit(task_ref, dl_item.id)
             return
         # alarme/evento → abre a EDIÇÃO
         ev = self._event_at(pos)
@@ -1343,13 +1357,13 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             menu.addSeparator()
             act_del = menu.addAction("🗑️ Excluir Prazo")
             chosen = menu.exec(event.globalPos())
-            task_ref = dl_item.raw_task if dl_item.raw_task is not None else dl_item.id
+            task_ref = dl_item.task_id
             if chosen == act_edit:
-                self.edit_deadline_requested.emit(task_ref)
+                self.edit_deadline_requested.emit(task_ref, dl_item.id)
             elif chosen == act_open:
                 self.open_task_requested.emit(task_ref)
             elif chosen == act_del:
-                self.delete_deadline_requested.emit(task_ref)
+                self.delete_deadline_requested.emit(task_ref, dl_item.id)
             return
 
         # menu próprio para alarmes/eventos
@@ -1519,15 +1533,23 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         self._tip_timer.stop()
         QToolTip.hideText()
 
-    def _show_deadline_tooltip(self, pos, t_item):
-        dl = t_item.estimated_deadline
-        desc = getattr(t_item, 'estimated_deadline_desc', None) or ""
-        desc_line = f"<br/>Descrição: {desc}" if desc else ""
-        tooltip = (
-            f"<b>🎯 Prazo Estimado</b><br/>"
-            f"{t_item.title}<br/>"
-            f"Data: <b>{dl.strftime('%d/%m/%Y') if dl else '—'}</b>{desc_line}"
-        )
+    def _show_deadline_tooltip(self, pos, mark):
+        # tarefa dona do prazo (para listar TODOS os prazos, não só o hoverado)
+        t_item = None
+        for ti, _vr in self._visible_rows():
+            if ti.id == mark.task_id:
+                t_item = ti
+                break
+        lines = [f"<b>🎯 Prazos Estimados</b><br/>{getattr(t_item, 'title', '')}"]
+        marks = getattr(t_item, 'deadlines', []) or []
+        if not marks:
+            marks = [mark]
+        for m in marks:
+            dtxt = m.date.strftime('%d/%m/%Y') if m.date else '—'
+            dline = f" — {m.desc}" if m.desc else ""
+            hl = " <i>(hover)</i>" if (self._hover_deadline_mark and self._hover_deadline_mark.id == m.id) else ""
+            lines.append(f"• {dtxt}{dline}{hl}")
+        tooltip = "<br/>".join(lines)
         self._tip_text = tooltip
         self._tip_global = self.mapToGlobal(pos)
         self._tip_timer.start()

@@ -21,6 +21,7 @@ ACTION_TRANSLATION = {
     "RESTORED": "RESTAURADO",
     "DEADLINE_CREATED": "PRAZO ESTIMADO",
     "DEADLINE_UPDATED": "PRAZO ESTIMADO",
+    "DEADLINE_REMOVED": "PRAZO ESTIMADO",
 }
 COLOR_MAPPING = {
     "CRIADO": "#4caf50",
@@ -262,6 +263,16 @@ class ActivitySummaryQt(QWidget):
                 text = f"{verb} do Prazo Estimado para {date_val}"
             else:
                 text = f"{verb} do Prazo Estimado"
+            if desc_val:
+                text += f" — descrição: {desc_val}"
+            return text
+
+        elif log_action == "DEADLINE_REMOVED":
+            date_val = fmt_val(parsed.get("estimated_deadline", {}).get('to')) if "estimated_deadline" in parsed else ""
+            desc_val = (parsed.get("estimated_deadline_desc", {}) or {}).get('to') or ""
+            text = f"Remoção do Prazo Estimado"
+            if date_val:
+                text += f" ({date_val})"
             if desc_val:
                 text += f" — descrição: {desc_val}"
             return text

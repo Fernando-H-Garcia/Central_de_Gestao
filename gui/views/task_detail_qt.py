@@ -680,7 +680,8 @@ class TaskDetailQt(QWidget):
             "ARCHIVED": "ARQUIVADO",
             "RESTORED": "RESTAURADO",
             "DEADLINE_CREATED": "PRAZO ESTIMADO",
-            "DEADLINE_UPDATED": "PRAZO ESTIMADO"
+            "DEADLINE_UPDATED": "PRAZO ESTIMADO",
+            "DEADLINE_REMOVED": "PRAZO ESTIMADO"
         }
         
         color_mapping = {
@@ -794,6 +795,15 @@ class TaskDetailQt(QWidget):
                         desc_val = (parsed.get("estimated_deadline_desc", {}) or {}).get('to') or ""
                         verb = "Criação" if log.action == "DEADLINE_CREATED" else "Alteração"
                         details = f"{verb} do Prazo Estimado para {date_val}" if date_val else f"{verb} do Prazo Estimado"
+                        if desc_val:
+                            details += f" — descrição: {desc_val}"
+
+                    elif log.action == "DEADLINE_REMOVED":
+                        date_val = fmt_val(parsed.get("estimated_deadline", {}).get('to')) if "estimated_deadline" in parsed else ""
+                        desc_val = (parsed.get("estimated_deadline_desc", {}) or {}).get('to') or ""
+                        details = "Remoção do Prazo Estimado"
+                        if date_val:
+                            details += f" ({date_val})"
                         if desc_val:
                             details += f" — descrição: {desc_val}"
                             
