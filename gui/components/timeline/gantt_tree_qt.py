@@ -1521,10 +1521,12 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
 
     def _show_deadline_tooltip(self, pos, t_item):
         dl = t_item.estimated_deadline
+        desc = getattr(t_item, 'estimated_deadline_desc', None) or ""
+        desc_line = f"<br/>Descrição: {desc}" if desc else ""
         tooltip = (
             f"<b>🎯 Prazo Estimado</b><br/>"
             f"{t_item.title}<br/>"
-            f"Data: <b>{dl.strftime('%d/%m/%Y') if dl else '—'}</b>"
+            f"Data: <b>{dl.strftime('%d/%m/%Y') if dl else '—'}</b>{desc_line}"
         )
         self._tip_text = tooltip
         self._tip_global = self.mapToGlobal(pos)

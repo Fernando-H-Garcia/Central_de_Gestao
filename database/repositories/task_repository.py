@@ -19,9 +19,9 @@ class TaskRepository(BaseRepository[Task]):
         with get_db_cursor() as cursor:
             cursor.execute("""
                 UPDATE tasks 
-                SET parent_task_id = ?, project_id = ?, title = ?, context = ?, energy_level = ?, status = ?, position = ?, is_favorite = ?, is_archived = ?, last_accessed_at = ?, start_date = ?, due_date = ?, alert_date = ?, alert_message = ?, completed_at = ?, originated_from_idea_id = ?, estimated_hours = ?, is_milestone = ?, estimated_deadline = ?, deadline_alarm_week = ?, deadline_alarm_day = ?
+                SET parent_task_id = ?, project_id = ?, title = ?, context = ?, energy_level = ?, status = ?, position = ?, is_favorite = ?, is_archived = ?, last_accessed_at = ?, start_date = ?, due_date = ?, alert_date = ?, alert_message = ?, completed_at = ?, originated_from_idea_id = ?, estimated_hours = ?, is_milestone = ?, estimated_deadline = ?, estimated_deadline_desc = ?, deadline_alarm_week = ?, deadline_alarm_day = ?
                 WHERE id = ?
-            """, (task.parent_task_id, task.project_id, task.title, task.context, task.energy_level, task.status, task.position, task.is_favorite, task.is_archived, task.last_accessed_at, task.start_date, task.due_date, task.alert_date, task.alert_message, task.completed_at, task.originated_from_idea_id, task.estimated_hours, task.is_milestone, task.estimated_deadline, task.deadline_alarm_week, task.deadline_alarm_day, task.id))
+            """, (task.parent_task_id, task.project_id, task.title, task.context, task.energy_level, task.status, task.position, task.is_favorite, task.is_archived, task.last_accessed_at, task.start_date, task.due_date, task.alert_date, task.alert_message, task.completed_at, task.originated_from_idea_id, task.estimated_hours, task.is_milestone, task.estimated_deadline, task.estimated_deadline_desc, task.deadline_alarm_week, task.deadline_alarm_day, task.id))
             return task
 
     def get_tags(self, task_id: int) -> list:

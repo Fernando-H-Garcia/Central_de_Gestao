@@ -19,6 +19,8 @@ ACTION_TRANSLATION = {
     "MANUAL_NOTE": "COMENTÁRIO",
     "ARCHIVED": "ARQUIVADO",
     "RESTORED": "RESTAURADO",
+    "DEADLINE_CREATED": "PRAZO ESTIMADO",
+    "DEADLINE_UPDATED": "PRAZO ESTIMADO",
 }
 COLOR_MAPPING = {
     "CRIADO": "#4caf50",
@@ -27,6 +29,7 @@ COLOR_MAPPING = {
     "COMENTÁRIO": "#e91e63",
     "ARQUIVADO": "#ff9800",
     "RESTAURADO": "#4caf50",
+    "PRAZO ESTIMADO": "#f44336",
 }
 
 # Cores alternadas por nível de aninhamento: cada filho usa cor diferente do
@@ -250,6 +253,18 @@ class ActivitySummaryQt(QWidget):
                 to_v = fmt_val(parsed["status"].get('to'))
                 return f"Mudança de status de '{from_v}' para '{to_v}'"
             return "Mudança de status"
+
+        elif log_action in ("DEADLINE_CREATED", "DEADLINE_UPDATED"):
+            date_val = fmt_val(parsed.get("estimated_deadline", {}).get('to')) if "estimated_deadline" in parsed else ""
+            desc_val = (parsed.get("estimated_deadline_desc", {}) or {}).get('to') or ""
+            verb = "Criação" if log_action == "DEADLINE_CREATED" else "Alteração"
+            if date_val:
+                text = f"{verb} do Prazo Estimado para {date_val}"
+            else:
+                text = f"{verb} do Prazo Estimado"
+            if desc_val:
+                text += f" — descrição: {desc_val}"
+            return text
 
         else:
             parts = []

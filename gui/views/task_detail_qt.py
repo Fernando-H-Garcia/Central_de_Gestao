@@ -678,14 +678,17 @@ class TaskDetailQt(QWidget):
             "STATUS_CHANGED": "MUDANÇA DE STATUS",
             "MANUAL": "COMENTÁRIO",
             "ARCHIVED": "ARQUIVADO",
-            "RESTORED": "RESTAURADO"
+            "RESTORED": "RESTAURADO",
+            "DEADLINE_CREATED": "PRAZO ESTIMADO",
+            "DEADLINE_UPDATED": "PRAZO ESTIMADO"
         }
         
         color_mapping = {
             "CRIADO": "#4caf50",
             "ATUALIZADO": "#2196f3",
             "MUDANÇA DE STATUS": "#ff9800",
-            "COMENTÁRIO": "#e91e63"
+            "COMENTÁRIO": "#e91e63",
+            "PRAZO ESTIMADO": "#f44336"
         }
         
         self.tbl_logs.setRowCount(0)
@@ -785,6 +788,14 @@ class TaskDetailQt(QWidget):
                             details = f"Mudança de status de '{from_v}' para '{to_v}'"
                         else:
                             details = "Mudança de status"
+
+                    elif log.action in ("DEADLINE_CREATED", "DEADLINE_UPDATED"):
+                        date_val = fmt_val(parsed.get("estimated_deadline", {}).get('to')) if "estimated_deadline" in parsed else ""
+                        desc_val = (parsed.get("estimated_deadline_desc", {}) or {}).get('to') or ""
+                        verb = "Criação" if log.action == "DEADLINE_CREATED" else "Alteração"
+                        details = f"{verb} do Prazo Estimado para {date_val}" if date_val else f"{verb} do Prazo Estimado"
+                        if desc_val:
+                            details += f" — descrição: {desc_val}"
                             
                     else:
                         details = ", ".join(f"{field_translations.get(k, k)} de '{fmt_val(v.get('from'))}' para '{fmt_val(v.get('to'))}'" for k,v in parsed.items())

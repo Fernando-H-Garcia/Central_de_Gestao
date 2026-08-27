@@ -809,17 +809,29 @@ class Project360Qt(QWidget):
             return self.task_service.task_repo.get_by_id(task_or_id)
         return task_or_id
 
-    def _persist_estimated_deadline(self, task, new_date):
-        """Grava o prazo estimado (date) na tarefa, sincroniza os alarmes
-        automáticos (1 semana antes + dia do prazo) e recarrega a timeline."""
+    def _persist_estimated_deadline(self, task, new_date, new_desc=None):
+        """Grava o prazo estimado (date) e a descrição na tarefa, sincroniza os
+        alarmes automáticos (1 semana antes + dia do prazo), registra a atividade
+        e recarrega a timeline."""
         import copy, datetime as _dt
-        orig = copy.copy(task)
+        prev_deadline = task.estimated_deadline
+        prev_desc = getattr(task, "estimated_deadline_desc", None) or ""
         if new_date is not None:
             task.estimated_deadline = _dt.datetime.combine(new_date, _dt.time.min)
         else:
             task.estimated_deadline = None
+        task.estimated_deadline_desc = new_desc or None
         self.task_service.task_repo.update(task)
         self._sync_deadline_alarms(task, new_date)
+        # Registro de atividade (criação ou alteração do prazo estimado)
+        if new_date is not None:
+            date_str = new_date.strftime("%d/%m/%Y")
+            changes = {"estimated_deadline": {"to": date_str},
+                       "estimated_deadline_desc": {"to": new_desc or ""}}
+            if prev_deadline is None:
+                self.task_service._log_activity(task.id, "DEADLINE_CREATED", changes)
+            elif (prev_deadline.date() != new_date) or (prev_desc != (new_desc or "")):
+                self.task_service._log_activity(task.id, "DEADLINE_UPDATED", changes)
         self.load_data()
 
     def _sync_deadline_alarms(self, task, new_date):
@@ -902,11 +914,11 @@ class Project360Qt(QWidget):
             if task is None:
                 return
             from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QDateEdit,
-                                           QHBoxLayout, QPushButton)
+                                            QHBoxLayout, QPushButton, QPlainTextEdit)
             from PySide6.QtCore import QDate
             dlg = QDialog(self)
             dlg.setWindowTitle("🎯 Prazo Estimado")
-            dlg.setMinimumWidth(320)
+            dlg.setMinimumWidth(340)
             layout = QVBoxLayout(dlg)
             layout.addWidget(QLabel(f"Tarefa: <b>{task.title}</b>"))
             layout.addWidget(QLabel("Data do prazo estimado:"))
@@ -931,6 +943,12 @@ class Project360Qt(QWidget):
             from gui.theme import style_calendar_today
             style_calendar_today(dt_edit)
             layout.addWidget(dt_edit)
+            layout.addWidget(QLabel("Descrição do prazo:"))
+            desc_edit = QPlainTextEdit()
+            desc_edit.setPlainText(getattr(task, "estimated_deadline_desc", "") or "")
+            desc_edit.setMaximumHeight(70)
+            desc_edit.setPlaceholderText("Opcional — exibida no tooltip da timeline")
+            layout.addWidget(desc_edit)
             btns = QHBoxLayout()
             btn_remove = QPushButton("🗑️ Remover")
             btn_remove.clicked.connect(dlg.reject)
@@ -951,10 +969,11 @@ class Project360Qt(QWidget):
             layout.addLayout(btns)
             if dlg.exec():
                 if dlg.removed:
-                    self._persist_estimated_deadline(task, None)
+                    self._persist_estimated_deadline(task, None, None)
                 else:
                     qd = dt_edit.date()
-                    self._persist_estimated_deadline(task, datetime.date(qd.year(), qd.month(), qd.day()))
+                    desc = desc_edit.toPlainText().strip()
+                    self._persist_estimated_deadline(task, datetime.date(qd.year(), qd.month(), qd.day()), desc)
         except Exception:
             import traceback
             traceback.print_exc()

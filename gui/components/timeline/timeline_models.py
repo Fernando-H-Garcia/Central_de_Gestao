@@ -39,6 +39,7 @@ class TimelineItem:
 
     # Prazo estimado (marcador vermelho na timeline)
     estimated_deadline: Optional[datetime.date] = None
+    estimated_deadline_desc: Optional[str] = None
 
     children: List['TimelineItem'] = field(default_factory=list)
     

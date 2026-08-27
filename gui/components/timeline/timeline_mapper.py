@@ -40,6 +40,7 @@ class TimelineMapper:
                 priority=task.energy_level,
                 is_milestone=getattr(task, 'is_milestone', False),
                 estimated_deadline=parse_date(getattr(task, 'estimated_deadline', None)),
+                estimated_deadline_desc=getattr(task, 'estimated_deadline_desc', None),
                 raw_task=task
             )
 
