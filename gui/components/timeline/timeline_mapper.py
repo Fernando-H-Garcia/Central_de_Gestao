@@ -275,7 +275,8 @@ class TimelineMapper:
                     priority=a.priority if hasattr(a, 'priority') else "Média",
                     task_id=task_id,
                     project_id=project_id,
-                    raw_entity=a
+                    raw_entity=a,
+                    status=getattr(a, 'status', '') or ""
                 ))
             except Exception as e:
                 pass

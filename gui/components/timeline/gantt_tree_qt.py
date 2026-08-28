@@ -567,14 +567,29 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
                 if ev.end_datetime and ev.event_type == "event" and end_x_view > x_view:
                     painter.drawEllipse(QPointF(end_x_view, y), 14, 14)
             if ev.event_type == "alarm":
-                painter.setBrush(QColor(WARNING_ORANGE))
-                painter.setPen(QColor(0, 0, 0))
+                done = getattr(ev, "status", "") == "completed"
+                if done:
+                    painter.setBrush(QColor("#6b7280"))
+                    painter.setPen(QColor(0, 0, 0))
+                else:
+                    painter.setBrush(QColor(WARNING_ORANGE))
+                    painter.setPen(QColor(0, 0, 0))
                 poly = QPolygonF([
                     QPointF(x_view, y - 10),
                     QPointF(x_view - 9, y + 8),
                     QPointF(x_view + 9, y + 8),
                 ])
                 painter.drawPolygon(poly)
+                if done:
+                    # Ícone verde de "resolvido" sobreposto ao alarme concluído
+                    cr = 7
+                    cx, cy = x_view, y - 12
+                    painter.setBrush(QColor("#2e7d32"))
+                    painter.setPen(QColor("#ffffff"))
+                    painter.drawEllipse(QPointF(cx, cy), cr, cr)
+                    painter.setPen(QPen(QColor("#ffffff"), 2))
+                    painter.drawLine(int(cx - 3), int(cy), int(cx - 1), int(cy + 3))
+                    painter.drawLine(int(cx - 1), int(cy + 3), int(cx + 4), int(cy - 3))
             else:
                 # roxo vivo — distinto das barras (azuis), marco (verde) e alarme (laranja)
                 event_violet = QColor("#8b5cf6")

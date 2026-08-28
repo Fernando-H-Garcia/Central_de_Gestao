@@ -689,10 +689,14 @@ class Project360Qt(QWidget):
             proj_alarms = [a for a in all_alarms if a.entity_type == "project" and a.entity_id == self.project_id and a.status in ('pending', 'overdue')]
             alarms = task_alarms + proj_alarms
             self.tree_alarms.populate(alarms)
-            
+
             from gui.components.timeline.timeline_mapper import TimelineMapper
-            t_alarms = TimelineMapper.map_alarms_to_timeline(alarms)
-            
+            # Na timeline mantemos também os alarmes já concluídos (com ícone de certo),
+            # mas a lista de alarmes da agenda mostra só os pendentes/atrasados
+            task_alarms_tl = [a for a in all_alarms if a.entity_type == "task" and a.entity_id in task_ids]
+            proj_alarms_tl = [a for a in all_alarms if a.entity_type == "project" and a.entity_id == self.project_id]
+            t_alarms = TimelineMapper.map_alarms_to_timeline(task_alarms_tl + proj_alarms_tl)
+
             # Send events and alarms to Timeline
             self.tab_timeline.set_events(t_events + t_alarms)
         except Exception:

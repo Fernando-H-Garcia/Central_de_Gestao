@@ -71,3 +71,4 @@ class TimelineEvent:
     task_id: Optional[int] = None
     project_id: Optional[int] = None
     raw_entity: any = None
+    status: str = ""
