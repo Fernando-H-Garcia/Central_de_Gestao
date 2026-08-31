@@ -241,6 +241,7 @@ class TimelineViewQt(QWidget):
         self.tree.viewport().update()
 
     def populate(self, timeline_items):
+        saved_scroll = self.h_scrollbar.value()
         self.tree.clear()
 
         def create_tree_item(t_item, parent_widget, depth=0):
@@ -279,7 +280,12 @@ class TimelineViewQt(QWidget):
 
         # Ajustar tamanho do scroll horizontal baseado nas datas
         self.update_h_scrollbar()
-        self.go_to_today()
+        if self._pending_center:
+            self._pending_center = False
+            self.go_to_today()
+        else:
+            self.h_scrollbar.setValue(saved_scroll)
+
 
     def set_events(self, events):
         self.tree.set_events(events)

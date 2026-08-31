@@ -69,10 +69,41 @@ class Project360Qt(QWidget):
         event_bus.unsubscribe("entity_updated", self.safe_load_data)
 
     def safe_load_data(self, _=None):
+        if not self.isVisible():
+            self._needs_reload_on_show = True
+            return
+        if not hasattr(self, "_reload_timer"):
+            from PySide6.QtCore import QTimer
+            self._reload_timer = QTimer(self)
+            self._reload_timer.setSingleShot(True)
+            self._reload_timer.timeout.connect(self._do_safe_reload)
+        self._reload_timer.start(120)
+
+    def _do_safe_reload(self):
+        if getattr(self, '_is_reloading', False):
+            # Another load_data is in progress — schedule one more after it finishes
+            self._reload_timer.start(120)
+            return
+        import time
+        t0 = time.perf_counter()
+        print(f"[PERF P360] _do_safe_reload triggered")
+        self._is_reloading = True
         try:
+            if self.isVisible():
+                self.load_data()
+        except Exception as e:
+            print(f"[PERF P360] _do_safe_reload ERROR: {e}")
+        finally:
+            self._is_reloading = False
+        print(f"[PERF P360] _do_safe_reload FINISHED in {(time.perf_counter()-t0)*1000:.2f}ms")
+
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if getattr(self, "_needs_reload_on_show", False):
+            self._needs_reload_on_show = False
             self.load_data()
-        except RuntimeError:
-            pass
+
 
     def _check_alarms_periodically(self):
         """Verifica se há novos alarmes no horário sem bloquear se já há popup aberto."""
@@ -418,7 +449,9 @@ class Project360Qt(QWidget):
         self.load_data()
 
     def load_data(self):
-        print(f"[DEBUG] load_data() called, project_id={getattr(self, 'project_id', None)}")
+        import time
+        t_ld_start = time.perf_counter()
+        print(f"[PERF P360] load_data() START for project_id={getattr(self, 'project_id', None)}")
         self.project = self.project_service.project_repo.get_by_id(self.project_id)
         if not self.project:
             print(f"[DEBUG] load_data: no project found for id={self.project_id}")
@@ -509,6 +542,9 @@ class Project360Qt(QWidget):
         if not self.active_status_filter:
             project_tasks = [t for t in project_tasks if t.status != 'Concluído']
         
+        t_step1 = time.perf_counter()
+        print(f"[PERF P360] load_data step 1 (get project/tasks/metrics) done in {(t_step1 - t_ld_start)*1000:.2f}ms")
+
         self.tbl_tasks.setSortingEnabled(False)
         project_tasks = sorted(project_tasks, key=lambda t: t.position if t.position is not None else 0.0)
         
@@ -642,6 +678,9 @@ class Project360Qt(QWidget):
         fit_branch_arrows(self.tbl_tasks)
         self.tbl_tasks.expandAll()
         self.restore_sort_order()
+
+        t_step2 = time.perf_counter()
+        print(f"[PERF P360] load_data step 2 (tbl_tasks populate) done in {(t_step2 - t_step1)*1000:.2f}ms")
             
         # Popula a aba Planejamento (Timeline) — usa todas as tarefas (inclui Concluídas, filtro fica no checkbox)
         try:
@@ -669,6 +708,9 @@ class Project360Qt(QWidget):
             import traceback
             traceback.print_exc()
 
+        t_step3 = time.perf_counter()
+        print(f"[PERF P360] load_data step 3 (tab_timeline Gantt populate) done in {(t_step3 - t_step2)*1000:.2f}ms")
+
         # Load Agenda
         try:
             events = [e for e in self.event_service.list_active() if e.project_id == self.project_id]
@@ -681,11 +723,15 @@ class Project360Qt(QWidget):
             traceback.print_exc()
             t_events = []
 
-        # Load Alarms
+        t_step4 = time.perf_counter()
+        print(f"[PERF P360] load_data step 4 (tree_agenda populate) done in {(t_step4 - t_step3)*1000:.2f}ms")
+
+        # Load Alarms — use task_ids from `tasks` already fetched in Step 1
         try:
-            task_ids = [t.id for t in self.task_service.get_all_active() if t.project_id == self.project_id]
-            all_alarms = self.alert_service.alert_repo.get_all(include_archived=False, include_deleted=False)
-            task_alarms = [a for a in all_alarms if a.entity_type == "task" and a.entity_id in task_ids and a.status in ('pending', 'overdue')]
+            task_ids_set = {t.id for t in tasks}
+            task_ids_list = list(task_ids_set)
+            all_alarms = self.alert_service.alert_repo.get_for_project(task_ids_list, self.project_id)
+            task_alarms = [a for a in all_alarms if a.entity_type == "task" and a.entity_id in task_ids_set and a.status in ('pending', 'overdue')]
             proj_alarms = [a for a in all_alarms if a.entity_type == "project" and a.entity_id == self.project_id and a.status in ('pending', 'overdue')]
             alarms = task_alarms + proj_alarms
             self.tree_alarms.populate(alarms)
@@ -693,12 +739,15 @@ class Project360Qt(QWidget):
             from gui.components.timeline.timeline_mapper import TimelineMapper
             # Na timeline mantemos também os alarmes já concluídos (com ícone de certo),
             # mas a lista de alarmes da agenda mostra só os pendentes/atrasados
-            task_alarms_tl = [a for a in all_alarms if a.entity_type == "task" and a.entity_id in task_ids]
+            task_alarms_tl = [a for a in all_alarms if a.entity_type == "task" and a.entity_id in task_ids_set]
             proj_alarms_tl = [a for a in all_alarms if a.entity_type == "project" and a.entity_id == self.project_id]
             t_alarms = TimelineMapper.map_alarms_to_timeline(task_alarms_tl + proj_alarms_tl)
 
             # Send events and alarms to Timeline
             self.tab_timeline.set_events(t_events + t_alarms)
+            t_step5 = time.perf_counter()
+            print(f"[PERF P360] load_data step 5 (tree_alarms & set_events) done in {(t_step5 - t_step4)*1000:.2f}ms")
+            print(f"[PERF P360] load_data() COMPLETED in {(t_step5 - t_ld_start)*1000:.2f}ms")
         except Exception:
             import traceback
             traceback.print_exc()
@@ -1152,13 +1201,13 @@ class Project360Qt(QWidget):
 
     def _on_timeline_task_moved(self, task_id, new_start, new_end):
         try:
-            # persiste novo prazo arrastado na timeline
-            import copy, datetime
+            import copy, datetime, time
+            t0 = time.perf_counter()
+            print(f"[PERF P360] _on_timeline_task_moved START task_id={task_id}")
             orig = self.task_service.task_repo.get_by_id(task_id)
             if not orig:
                 return
             edited = copy.copy(orig)
-            # Task usa datetime — converte date para datetime se necessário
             if isinstance(new_start, datetime.date) and not isinstance(new_start, datetime.datetime):
                 new_start = datetime.datetime.combine(new_start, datetime.datetime.min.time())
             if isinstance(new_end, datetime.date) and not isinstance(new_end, datetime.datetime):
@@ -1166,10 +1215,11 @@ class Project360Qt(QWidget):
             edited.start_date = new_start
             edited.due_date = new_end
             self.task_service.update_task(edited, orig)
-            self.load_data()
+            print(f"[PERF P360] _on_timeline_task_moved update_task finished in {(time.perf_counter()-t0)*1000:.2f}ms")
         except Exception:
             import traceback
             traceback.print_exc()
+
 
     def edit_project(self):
         from gui.dialogs_qt.project_dialog_qt import ProjectDialogQt

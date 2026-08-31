@@ -5,6 +5,8 @@ from models.entities import Task
 from database.connection import get_db_cursor
 from database.repositories.task_repository import TaskRepository
 from database.repositories.activity_log_repository import ActivityLogRepository, ActivityLog
+from core.refresh_manager import notify_entity_updated
+
 
 class TaskService:
     def __init__(self):
@@ -72,6 +74,7 @@ class TaskService:
         print(f"[DEBUG TASK] logging activity for task {created_task.id}")
         self._log_activity(created_task.id, "CREATED", changes)
         print(f"[DEBUG TASK] create_task done")
+        notify_entity_updated("task", created_task.id, "create")
         return created_task
 
     def add_manual_activity(self, task_id: int, note: str):
@@ -85,6 +88,9 @@ class TaskService:
         self.log_repo.delete(log_id)
 
     def update_task(self, task: Task, original_task: Task) -> Task:
+        import time
+        t_ts0 = time.perf_counter()
+        print(f"[PERF TASK_SVC] update_task START task_id={task.id}")
         # Check if completed
         if task.status == "Concluído" and original_task.status != "Concluído":
             task.completed_at = datetime.now()
@@ -126,6 +132,8 @@ class TaskService:
             except Exception as e:
                 print(f"[TaskService] Erro ao recalcular dependentes após conclusão: {e}")
             
+        notify_entity_updated("task", updated.id, "update")
+        print(f"[PERF TASK_SVC] update_task FINISHED in {(time.perf_counter()-t_ts0)*1000:.2f}ms")
         return updated
         
     def update_task_position(self, task_id: int, new_position: float):
@@ -133,6 +141,7 @@ class TaskService:
         if task:
             task.position = new_position
             self.task_repo.update(task)
+            notify_entity_updated("task", task_id, "update")
 
     def change_status(self, task: Task, new_status: str):
         import copy
@@ -189,6 +198,7 @@ class TaskService:
             self._log_activity(st_id, "ARCHIVED")
         self.task_repo.archive(task_id)
         self._log_activity(task_id, "ARCHIVED")
+        notify_entity_updated("task", task_id, "archive")
 
     def restore_task(self, task_id: int):
         for st_id in self._get_subtree_ids(task_id):
@@ -196,6 +206,7 @@ class TaskService:
             self._log_activity(st_id, "RESTORED")
         self.task_repo.restore(task_id)
         self._log_activity(task_id, "RESTORED")
+        notify_entity_updated("task", task_id, "restore")
 
     def move_task(self, task_id: int, new_parent_id):
         """Reparenta uma tarefa/subtarefa. Retorna False se criaria ciclo (ex.: mover para própria sub)."""
@@ -214,6 +225,7 @@ class TaskService:
         task.parent_task_id = new_parent_id
         self.task_repo.update(task)
         self._log_activity(task_id, "UPDATED", {"parent_task_id": {"from": old_parent, "to": new_parent_id}})
+        notify_entity_updated("task", task_id, "move")
         return True
 
     def soft_delete_task(self, task_id: int):
@@ -241,6 +253,7 @@ class TaskService:
 
         self.task_repo.soft_delete(task_id)
         self._log_activity(task_id, "DELETED")
+        notify_entity_updated("task", task_id, "delete")
 
         # Agora que as dependências foram removidas e a tarefa deletada,
         # recalcular o status das tarefas que eram bloqueadas por esta.

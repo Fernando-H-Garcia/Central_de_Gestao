@@ -83,6 +83,21 @@ class ActivitySummaryQt(QWidget):
         self.installEventFilter(self)
         self.setup_ui()
 
+        from core.event_bus import event_bus
+        event_bus.subscribe("snapshot_updated", self._safe_load_data)
+        event_bus.subscribe("entity_updated", self._safe_load_data)
+        self.destroyed.connect(self._on_destroyed)
+
+    def _on_destroyed(self):
+        from core.event_bus import event_bus
+        event_bus.unsubscribe("snapshot_updated", self._safe_load_data)
+        event_bus.unsubscribe("entity_updated", self._safe_load_data)
+
+    def _safe_load_data(self, _=None):
+        if self.isVisible():
+            self._buscar()
+
+
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(20, 20, 20, 20)

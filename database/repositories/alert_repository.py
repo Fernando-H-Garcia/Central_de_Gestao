@@ -41,4 +41,20 @@ class AlertRepository(BaseRepository[Alert]):
                     OR (alert_date = ? AND alert_time IS NOT NULL AND alert_time != '' AND alert_time <= ?)
                   )
             ''', (current_date, current_date, current_time))
-
+    def get_for_project(self, task_ids: list, project_id: int) -> list:
+        """Fetch only alerts belonging to the given task_ids or project_id (single query)."""
+        with get_db_cursor() as cursor:
+            if task_ids:
+                placeholders = ','.join('?' * len(task_ids))
+                cursor.execute(
+                    f"""SELECT * FROM alerts
+                        WHERE (entity_type = 'task' AND entity_id IN ({placeholders}))
+                           OR (entity_type = 'project' AND entity_id = ?)""",
+                    (*task_ids, project_id),
+                )
+            else:
+                cursor.execute(
+                    "SELECT * FROM alerts WHERE entity_type = 'project' AND entity_id = ?",
+                    (project_id,),
+                )
+            return [self._row_to_model(row) for row in cursor.fetchall()]

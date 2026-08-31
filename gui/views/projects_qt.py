@@ -69,6 +69,8 @@ class ProjectsQt(QWidget):
     def _cleanup_snapshot(self):
         from core.event_bus import event_bus
         event_bus.unsubscribe("snapshot_updated", self.safe_load_data)
+        event_bus.unsubscribe("entity_updated", self.safe_load_data)
+
 
     def safe_load_data(self, _=None):
         try:

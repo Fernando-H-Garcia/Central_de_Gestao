@@ -1,0 +1,115 @@
+Fingerprint salvo em: C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\env_fingerprint.json
+Inno Setup 6 Command-Line Compiler
+Copyright (C) 1997-2025 Jordan Russell. All rights reserved.
+Portions Copyright (C) 2000-2025 Martijn Laan. All rights reserved.
+Portions Copyright (C) 2001-2004 Alex Yackimoff. All rights reserved.
+https://www.innosetup.com
+
+Compiler engine version: Inno Setup 6.4.2
+
+Preprocessing
+   Reading file: C:\Program Files (x86)\Inno Setup 6\ISPPBuiltins.iss
+Parsing [Setup] section, line 9
+Parsing [Setup] section, line 10
+Parsing [Setup] section, line 11
+Parsing [Setup] section, line 12
+Parsing [Setup] section, line 13
+Parsing [Setup] section, line 14
+Parsing [Setup] section, line 15
+Parsing [Setup] section, line 16
+Parsing [Setup] section, line 17
+Parsing [Setup] section, line 18
+Parsing [Setup] section, line 19
+Parsing [Setup] section, line 20
+Parsing [Setup] section, line 21
+Parsing [Setup] section, line 22
+Reading file (WizardImageFile)
+Reading file (WizardSmallImageFile)
+Preparing Setup program executable
+   Updating version info (SETUP.E32)
+Determining language code pages
+Parsing [Languages] section, line 25
+   Reading file: C:\Program Files (x86)\Inno Setup 6\Languages\BrazilianPortuguese.isl
+   Messages in script file
+Reading default messages from Default.isl
+Parsing [Languages] section, line 25
+   Reading file: C:\Program Files (x86)\Inno Setup 6\Languages\BrazilianPortuguese.isl
+Parsing [LangOptions], [Messages], and [CustomMessages] sections
+   Messages in script file
+Reading [Code] section
+Parsing [Tasks] section, line 28
+Parsing [Dirs] section, line 38
+Parsing [Dirs] section, line 39
+Parsing [Dirs] section, line 40
+Parsing [Dirs] section, line 41
+Parsing [Dirs] section, line 42
+Parsing [Icons] section, line 45
+Parsing [Icons] section, line 46
+Parsing [Icons] section, line 47
+Parsing [UninstallDelete] section, line 57
+Parsing [Run] section, line 50
+Parsing [Run] section, line 51
+Parsing [Files] section, line 31
+Parsing [Files] section, line 34
+   Reading version info: C:\Users\Fernando Garcia\OneDrive - Tecsoil AutomaÃ§Ã£o e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_GestÃ£o\build\VC_redist.x64.exe
+Compiling [Code] section
+Deleting CentralDeGestao_Installer.exe from output directory
+Creating setup files
+   Compressing: C:\Users\Fernando Garcia\OneDrive - Tecsoil AutomaÃ§Ã£o e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_GestÃ£o\build\CentralDeGestao.exe
+   Compressing: C:\Users\Fernando Garcia\OneDrive - Tecsoil AutomaÃ§Ã£o e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_GestÃ£o\build\VC_redist.x64.exe   (14.44.35211.0)
+   Compressing Setup program executable
+   Updating version info (SETUP.EXE)
+   Updating manifest (SETUP.EXE)
+
+Warning: The [Setup] section directive "PrivilegesRequired" is set to "admin" but per-user areas (localappdata,userdesktop) are used by the script. Regardless of the version of Windows, if the installation is running in administrative install mode then you should be careful about making any per-user area changes: such changes may not achieve what you are intending. See the "UsedUserAreasWarning" topic in help file for more information.
+
+Successful compile (19,578 sec). Resulting Setup program filename is:
+C:\Users\Fernando Garcia\OneDrive - Tecsoil AutomaÃ§Ã£o e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_GestÃ£o\build\CentralDeGestao_Installer.exe
+
+============================================================
+  Build v0.8.0 (modo: release)
+============================================================
+
+============================================================
+  0/6 Environment Fingerprint
+============================================================
+>  "C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\venv_build\Scripts\python.exe" "C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\scripts\build\env_fingerprint.py" --save
+
+============================================================
+  1/6 Validando ambiente
+============================================================
+[AVISO] Versao Python: 3.11.5 (esperado 3.12)
+  PySide6: 6.6.3.1, Qt: 6.6.3
+  PyInstaller: 6.21.0
+
+============================================================
+  2/6 Limpando artefatos anteriores
+============================================================
+  Removendo: C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\build_pyi
+  Removendo: C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\dist
+
+============================================================
+  3/6 Compilando com PyInstaller
+============================================================
+>  "C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\venv_build\Scripts\python.exe" -m PyInstaller "C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\CentralDeGestao.spec" --clean --noconfirm --distpath "C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\dist" --workpath "C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\build_pyi"
+
+============================================================
+  4/6 Validando bundle (Build Contract)
+============================================================
+  CentralDeGestao.exe: 46.1 MB OK
+  Single EXE (onefile) - 1 arquivo
+
+============================================================
+  5/6 Gerando instalador Inno Setup
+============================================================
+  VC_redist.x64.exe copiado para build/
+>  "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion="0.8" "C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\installer.iss"
+  Instalador gerado: C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\CentralDeGestao_Installer.exe (70.1 MB)
+  Hash salvo em: C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\build.hash
+  Relatorio salvo em: C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\build_report.txt
+
+Build concluido com sucesso em 146.7s
+Versao: 0.8.0
+EXE: C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\dist\CentralDeGestao.exe
+Instalador: C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\CentralDeGestao_Installer.exe
+> "C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\venv_build\Scripts\python.exe" "C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\scripts\build\build_release.py" --release

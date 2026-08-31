@@ -86,13 +86,11 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         self._hover_deadline_id = None  # id da tarefa cujo marcador está em hover
         self._hover_deadline_mark = None  # DeadlineMark específico em hover
         self._guide_x = None    # linha-guia vertical que segue o mouse na timeline
-        # Tooltip persistente: QToolTip some pelo timeout do sistema — reexibimos
-        # num timer enquanto o mouse continuar sobre o mesmo item
+        self._current_tip_id = None
         self._tip_text = None
         self._tip_global = None
         self._tip_timer = QTimer(self)
-        self._tip_timer.setInterval(1000)
-        self._tip_timer.timeout.connect(self._refresh_tooltip)
+
         self._has_dragged = False
         self._is_panning = False
         self._pan_start_x = 0
@@ -1255,7 +1253,11 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
                     item.start = info["cur_start"]
                     item.end = info["cur_end"]
                 self.viewport().update()
+                import time
+                t0_g = time.perf_counter()
+                print(f"[PERF GANTT] task_moved EMITTED for task {item.id}")
                 self.task_moved.emit(item.id, info["cur_start"], info["cur_end"])
+                print(f"[PERF GANTT] task_moved EMIT FINISHED in {(time.perf_counter()-t0_g)*1000:.2f}ms")
             else:
                 # sem arraste: reverte preview
                 if is_parent:
@@ -1304,6 +1306,10 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         return QRectF(x1, thin_y, x2 - x1, 10)
 
     def _show_warning_tooltip(self, pos, t_item):
+        tip_id = ("warning", t_item.id)
+        if self._current_tip_id == tip_id:
+            return
+        self._current_tip_id = tip_id
         own_e = (t_item.manual_end or t_item.end)
         agg_end = t_item.end
         tooltip = (
@@ -1314,8 +1320,8 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         )
         self._tip_text = tooltip
         self._tip_global = self.mapToGlobal(pos)
-        self._tip_timer.start()
         QToolTip.showText(self._tip_global, tooltip, self)
+
 
     def mouseDoubleClickEvent(self, event):
         pos = event.position().toPoint()
@@ -1543,13 +1549,17 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         QTimer.singleShot(0, lambda: self.item_moved.emit(src_task.id, new_parent_id))
 
     def _hide_tooltip(self):
-        self._tip_text = None
-        self._tip_global = None
-        self._tip_timer.stop()
-        QToolTip.hideText()
+        if self._current_tip_id is not None:
+            self._current_tip_id = None
+            self._tip_text = None
+            self._tip_global = None
+            QToolTip.hideText()
 
     def _show_deadline_tooltip(self, pos, mark):
-        # tarefa dona do prazo (para listar TODOS os prazos, não só o hoverado)
+        tip_id = ("deadline", mark.id)
+        if self._current_tip_id == tip_id:
+            return
+        self._current_tip_id = tip_id
         t_item = None
         for ti, _vr in self._visible_rows():
             if ti.id == mark.task_id:
@@ -1567,10 +1577,13 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         tooltip = "<br/>".join(lines)
         self._tip_text = tooltip
         self._tip_global = self.mapToGlobal(pos)
-        self._tip_timer.start()
         QToolTip.showText(self._tip_global, tooltip, self)
 
     def _show_event_tooltip(self, pos, ev):
+        tip_id = ("event", ev.id)
+        if self._current_tip_id == tip_id:
+            return
+        self._current_tip_id = tip_id
         desc = getattr(ev.raw_entity, 'description', '') or ''
         desc_line = f"<br/>Descrição: {desc}" if desc else ""
         type_name = "Alarme" if ev.event_type == "alarm" else "Evento"
@@ -1578,12 +1591,14 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         tooltip = f"<b>{type_name}: {ev.title}</b><br/>Horário: {date_str}{desc_line}"
         self._tip_text = tooltip
         self._tip_global = self.mapToGlobal(pos)
-        self._tip_timer.start()
         QToolTip.showText(self._tip_global, tooltip, self)
 
     def _show_bar_tooltip(self, pos, t_item):
+        tip_id = ("bar", t_item.id)
+        if self._current_tip_id == tip_id:
+            return
+        self._current_tip_id = tip_id
         if t_item.is_milestone:
-            # marco: a informação relevante é a DATA do marco (não um "período")
             ms = t_item.manual_start or t_item.start or t_item.end or t_item.manual_end
             ds = getattr(t_item, 'display_status', t_item.status)
             summ = getattr(t_item, 'summary_text', '')
@@ -1597,10 +1612,9 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
                 tooltip += f"<br/>{summ}"
             self._tip_text = tooltip
             self._tip_global = self.mapToGlobal(pos)
-            self._tip_timer.start()
             QToolTip.showText(self._tip_global, tooltip, self)
             return
-        # pai: datas próprias (a barra é dele; estouro das filhas aparece como aviso)
+
         eff_start = t_item.manual_start or t_item.start
         eff_end = t_item.manual_end or t_item.end
         start_str = eff_start.strftime("%d/%m/%Y") if eff_start else "—"
@@ -1619,5 +1633,5 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         )
         self._tip_text = tooltip
         self._tip_global = self.mapToGlobal(pos)
-        self._tip_timer.start()
         QToolTip.showText(self._tip_global, tooltip, self)
+

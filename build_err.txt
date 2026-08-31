@@ -1,0 +1,112 @@
+519 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being used on top, because the conda-meta folder C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\venv_build\conda-meta does not exist.
+623 INFO: PyInstaller: 6.21.0, contrib hooks: 2026.6
+627 INFO: Python: 3.11.5 (conda)
+667 INFO: Platform: Windows-10-10.0.26200-SP0
+671 INFO: Python environment: C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\venv_build
+678 INFO: Removing temporary files and cleaning cache in C:\Users\Fernando Garcia\AppData\Local\pyinstaller
+685 INFO: Module search paths (PYTHONPATH):
+['C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas '
+ 'S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão',
+ 'C:\\Anaconda\\python311.zip',
+ 'C:\\Anaconda\\DLLs',
+ 'C:\\Anaconda\\Lib',
+ 'C:\\Anaconda',
+ 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas '
+ 'S.A\\Solinftec\\Programas Python\\Para '
+ 'Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build',
+ 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas '
+ 'S.A\\Solinftec\\Programas Python\\Para '
+ 'Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages',
+ 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas '
+ 'S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão']
+208 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being used on top, because the conda-meta folder C:\Users\Fernando Garcia\OneDrive - Tecsoil AutomaÃ§Ã£o e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_GestÃ£o\venv_build\conda-meta does not exist.
+1263 INFO: Appending 'datas' from .spec
+1302 INFO: checking Analysis
+1304 INFO: Building Analysis because Analysis-00.toc is non existent
+1305 INFO: Looking for Python shared library...
+1305 INFO: Using Python shared library: C:\Anaconda\python311.dll
+1306 INFO: Running Analysis Analysis-00.toc
+1306 INFO: Target bytecode optimization level: 0
+1307 INFO: Initializing module dependency graph...
+1314 INFO: Initializing module graph hook caches...
+1464 INFO: Analyzing modules for base_library.zip ...
+266 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being used on top, because the conda-meta folder C:\Users\Fernando Garcia\OneDrive - Tecsoil AutomaÃ§Ã£o e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_GestÃ£o\venv_build\conda-meta does not exist.
+226 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being used on top, because the conda-meta folder C:\Users\Fernando Garcia\OneDrive - Tecsoil AutomaÃ§Ã£o e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_GestÃ£o\venv_build\conda-meta does not exist.
+195 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being used on top, because the conda-meta folder C:\Users\Fernando Garcia\OneDrive - Tecsoil AutomaÃ§Ã£o e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_GestÃ£o\venv_build\conda-meta does not exist.
+3600 INFO: Processing standard module hook 'hook-heapq.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+3780 INFO: Processing standard module hook 'hook-encodings.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+263 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being used on top, because the conda-meta folder C:\Users\Fernando Garcia\OneDrive - Tecsoil AutomaÃ§Ã£o e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_GestÃ£o\venv_build\conda-meta does not exist.
+7117 INFO: Processing standard module hook 'hook-math.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+7354 INFO: Processing standard module hook 'hook-pickle.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+10786 INFO: Caching module dependency graph...
+10868 INFO: Analyzing C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\main.py
+10887 INFO: Processing standard module hook 'hook-sqlite3.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+225 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being used on top, because the conda-meta folder C:\Users\Fernando Garcia\OneDrive - Tecsoil AutomaÃ§Ã£o e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_GestÃ£o\venv_build\conda-meta does not exist.
+11881 INFO: Processing standard module hook 'hook-platform.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+12008 INFO: Processing standard module hook 'hook-PySide6.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+12443 INFO: Processing standard module hook 'hook-shiboken6.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+12693 INFO: Processing standard module hook 'hook-PySide6.QtNetwork.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+18685 INFO: Processing standard module hook 'hook-PySide6.QtCore.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+27799 INFO: Processing standard module hook 'hook-PySide6.QtWidgets.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+35714 INFO: Processing standard module hook 'hook-PySide6.QtGui.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+77825 INFO: Processing standard module hook 'hook-markdown.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\_pyinstaller_hooks_contrib\\stdhooks'
+237 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being used on top, because the conda-meta folder C:\Users\Fernando Garcia\OneDrive - Tecsoil AutomaÃ§Ã£o e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_GestÃ£o\venv_build\conda-meta does not exist.
+79022 INFO: Processing standard module hook 'hook-xml.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+79081 INFO: Processing standard module hook 'hook-xml.etree.cElementTree.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+79092 INFO: Processing pre-safe-import-module hook 'hook-importlib_metadata.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks\\pre_safe_import_module'
+79105 INFO: SetuptoolsInfo: initializing cached setuptools info...
+763 WARNING: Assuming this is not an Anaconda environment or an additional venv/pipenv/... environment manager is being used on top, because the conda-meta folder C:\Users\Fernando Garcia\OneDrive - Tecsoil AutomaÃ§Ã£o e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_GestÃ£o\venv_build\conda-meta does not exist.
+81075 INFO: Setuptools: 'importlib_metadata' appears to be a setuptools-vendored copy - creating alias to 'setuptools._vendor.importlib_metadata'!
+82289 INFO: Analyzing hidden import 'PySide6.QtSql'
+82382 INFO: Processing standard module hook 'hook-PySide6.QtSql.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+85173 INFO: Analyzing hidden import 'services.note_service'
+85220 INFO: Analyzing hidden import 'services.search_service'
+85242 INFO: Analyzing hidden import 'services.smart_capture_service'
+85261 INFO: Analyzing hidden import 'core.snapshot_worker'
+85281 INFO: Analyzing hidden import 'gui.views.tasks_qt'
+85330 INFO: Analyzing hidden import 'gui.views.notes_qt'
+85354 INFO: Analyzing hidden import 'gui.components.alarm_tree_qt'
+85405 INFO: Analyzing hidden import 'gui.components.card'
+85416 INFO: Analyzing hidden import 'gui.components.progress_bar'
+85430 INFO: Analyzing hidden import 'gui.components.badge'
+85444 INFO: Analyzing hidden import 'gui.components.buttons'
+85455 INFO: Analyzing hidden import 'models.note'
+85462 INFO: Analyzing hidden import 'models.idea'
+85472 INFO: Analyzing hidden import 'utils.autocomplete'
+85506 INFO: Analyzing hidden import 'utils.dropdown_autocomplete'
+85532 INFO: Analyzing hidden import 'utils.wiki_parser'
+85543 INFO: Processing module hooks (post-graph stage)...
+86845 INFO: Performing binary vs. data reclassification (207 entries)
+87317 INFO: Looking for ctypes DLLs
+87341 INFO: Analyzing run-time hooks ...
+87344 INFO: Including run-time hook 'pyi_rth_inspect.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+87353 INFO: Including run-time hook 'pyi_rth_pyside6.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks\\rthooks'
+87360 INFO: Processing pre-find-module-path hook 'hook-_pyi_rth_utils.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks\\pre_find_module_path'
+87370 INFO: Processing standard module hook 'hook-_pyi_rth_utils.py' from 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PyInstaller\\hooks'
+87398 INFO: Creating base_library.zip...
+87431 INFO: Looking for dynamic libraries
+88881 INFO: Extra DLL search directories (AddDllDirectory): ['C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\shiboken6']
+88882 INFO: Extra DLL search directories (PATH): []
+92228 WARNING: Library not found: could not resolve 'MIMAPI64.dll', dependency of 'C:\\Users\\Fernando Garcia\\OneDrive - Tecsoil Automação e Sistemas S.A\\Solinftec\\Programas Python\\Para Kijos\\FiltraKijo\\Central_de_Gestão\\venv_build\\Lib\\site-packages\\PySide6\\plugins\\sqldrivers\\qsqlmimer.dll'.
+92274 INFO: Warnings written to C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\build_pyi\CentralDeGestao\warn-CentralDeGestao.txt
+92356 INFO: Graph cross-reference written to C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\build_pyi\CentralDeGestao\xref-CentralDeGestao.html
+92434 INFO: checking PYZ
+92435 INFO: Building PYZ because PYZ-00.toc is non existent
+92435 INFO: Building PYZ (ZlibArchive) C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\build_pyi\CentralDeGestao\PYZ-00.pyz
+92727 INFO: Building PYZ (ZlibArchive) C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\build_pyi\CentralDeGestao\PYZ-00.pyz completed successfully.
+92774 INFO: checking PKG
+92774 INFO: Building PKG because PKG-00.toc is non existent
+92775 INFO: Building PKG (CArchive) CentralDeGestao.pkg
+107211 INFO: Building PKG (CArchive) CentralDeGestao.pkg completed successfully.
+107252 INFO: Bootloader C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\venv_build\Lib\site-packages\PyInstaller\bootloader\Windows-64bit-intel\runw.exe
+107253 INFO: checking EXE
+107253 INFO: Building EXE because EXE-00.toc is non existent
+107254 INFO: Building EXE from EXE-00.toc
+107255 INFO: Copying bootloader EXE to C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\dist\CentralDeGestao.exe
+107292 INFO: Copying icon to EXE
+107340 INFO: Copying 0 resources to EXE
+107341 INFO: Embedding manifest in EXE
+107372 INFO: Appending PKG archive to EXE
+107441 INFO: Fixing EXE headers
+109198 INFO: Building EXE from EXE-00.toc completed successfully.
+109214 INFO: Build complete! The results are available in: C:\Users\Fernando Garcia\OneDrive - Tecsoil Automação e Sistemas S.A\Solinftec\Programas Python\Para Kijos\FiltraKijo\Central_de_Gestão\build\dist

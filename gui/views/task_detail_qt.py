@@ -1,4 +1,4 @@
-﻿from PySide6.QtWidgets import (
+from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QPushButton, QTextEdit, QFrame, QTabWidget, QWidget, QLineEdit,
     QGridLayout, QComboBox, QTableWidget, QTableWidgetItem, QHeaderView, QAbstractItemView,
@@ -33,6 +33,28 @@ class TaskDetailQt(QWidget):
         self._alarm_timer = QTimer(self)
         self._alarm_timer.timeout.connect(self.load_agenda)
         self._alarm_timer.start(30000)
+
+        from core.event_bus import event_bus
+        event_bus.subscribe("snapshot_updated", self.safe_load_data)
+        event_bus.subscribe("entity_updated", self.safe_load_data)
+        self.destroyed.connect(self._on_destroyed)
+
+    def _on_destroyed(self):
+        from core.event_bus import event_bus
+        event_bus.unsubscribe("snapshot_updated", self.safe_load_data)
+        event_bus.unsubscribe("entity_updated", self.safe_load_data)
+
+    def safe_load_data(self, _=None):
+        try:
+            t = self.service.task_repo.get_by_id(self.task_id)
+            if t:
+                self.task = t
+                self.lbl_title.setText(f"Tarefa #{self.task.id}: {self.task.title}")
+            if self.isVisible():
+                self.load_data()
+        except Exception:
+            pass
+
 
     def showEvent(self, event):
         super().showEvent(event)
