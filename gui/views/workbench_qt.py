@@ -77,7 +77,7 @@ class WorkbenchQt(QWidget):
         
         with get_db_cursor() as cursor:
             # Overdue tasks
-            cursor.execute("SELECT title FROM tasks WHERE status != 'Concluído' AND is_archived = 0 AND deleted_at IS NULL AND due_date IS NOT NULL AND date(due_date) < date('now')")
+            cursor.execute("SELECT title FROM tasks WHERE status != 'Concluído' AND is_archived = 0 AND deleted_at IS NULL AND is_milestone = 0 AND due_date IS NOT NULL AND date(due_date) < date('now')")
             overdue_tasks = [row['title'] for row in cursor.fetchall()]
             
             # Today tasks

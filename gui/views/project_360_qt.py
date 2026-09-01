@@ -505,7 +505,7 @@ class Project360Qt(QWidget):
         
         import datetime
         hoje_str = datetime.datetime.now().strftime("%Y-%m-%d")
-        atrasadas = sum(1 for t in tasks if t.due_date and t.due_date < hoje_str and t.status != 'Concluído')
+        atrasadas = sum(1 for t in tasks if t.due_date and t.due_date < hoje_str and t.status != 'Concluído' and not getattr(t, 'is_milestone', False))
 
         self.metric_cards["Tarefas"].update_count(total)
         self.metric_cards["Concluídas"].update_count(concluidas)
@@ -532,7 +532,7 @@ class Project360Qt(QWidget):
             elif self.active_status_filter == "Pausadas":
                 project_tasks = [t for t in project_tasks if t.status == 'Pausado']
             elif self.active_status_filter == "Atrasadas":
-                project_tasks = [t for t in project_tasks if t.due_date and t.due_date < hoje_str and t.status != 'Concluído']
+                project_tasks = [t for t in project_tasks if t.due_date and t.due_date < hoje_str and t.status != 'Concluído' and not getattr(t, 'is_milestone', False)]
             
         self.current_tasks = project_tasks
 
