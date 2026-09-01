@@ -115,7 +115,6 @@ class IdeasQt(QWidget):
             QMessageBox.critical(self, "Erro", f"Não foi possível salvar a ideia:\n{e}")
             return
             
-        event_bus.emit("entity_updated")
         self.load_data()
         
     def _cleanup_snapshot(self):
@@ -241,8 +240,6 @@ class IdeasQt(QWidget):
         self.settings.remove("ideas_sort_order")
         self.table.horizontalHeader().setSortIndicatorShown(False)
         
-        from core.event_bus import event_bus
-        event_bus.emit("entity_updated")
         self.load_data()
 
     def show_context_menu(self, pos):
@@ -316,31 +313,26 @@ class IdeasQt(QWidget):
         orig = type(idea)(**idea.__dict__)
         idea.priority = prio
         self.service.update_idea(idea, orig)
-        event_bus.emit("entity_updated")
         self.load_data()
         
     def change_status(self, idea, st):
         orig = type(idea)(**idea.__dict__)
         idea.status = st
         self.service.update_idea(idea, orig)
-        event_bus.emit("entity_updated")
         self.load_data()
         
     def archive_idea(self, idea):
         self.service.archive_idea(idea.id)
-        event_bus.emit("entity_updated")
         self.load_data()
 
     def restore_idea(self, idea):
-        self.service.idea_repo.restore(idea.id)
-        event_bus.emit("entity_updated")
+        self.service.restore_idea(idea.id)
         self.load_data()
 
     def delete_idea(self, idea):
         reply = QMessageBox.question(self, "Confirmar", f"Tem certeza que deseja excluir '{idea.title}'?", QMessageBox.Yes | QMessageBox.No)
         if reply == QMessageBox.Yes:
-            self.service.idea_repo.delete(idea.id)
-            event_bus.emit("entity_updated")
+            self.service.delete_idea(idea.id)
             self.load_data()
 
     def open_promote_project(self, idea):
@@ -354,7 +346,6 @@ class IdeasQt(QWidget):
                 copy_attachments=data["copy_tags"],
                 link_idea=data["keep_linked"]
             )
-            event_bus.emit("entity_updated")
             self.load_data()
             QMessageBox.information(self, "Sucesso", "Projeto criado a partir da ideia com sucesso!")
             
@@ -373,7 +364,6 @@ class IdeasQt(QWidget):
                 link_idea=data["keep_linked"],
                 project_id=data["project_id"]
             )
-            event_bus.emit("entity_updated")
             self.load_data()
             QMessageBox.information(self, "Sucesso", "Tarefa criada a partir da ideia com sucesso!")
             

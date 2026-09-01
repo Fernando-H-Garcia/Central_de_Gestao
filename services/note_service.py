@@ -3,6 +3,7 @@ from database.repositories.note_repository import NoteRepository
 from database.repositories.activity_log_repository import ActivityLogRepository, ActivityLog
 from models.entities import Note
 from typing import List, Optional
+from core.refresh_manager import notify_entity_updated
 
 class NoteService:
     def __init__(self):
@@ -17,6 +18,7 @@ class NoteService:
     def create(self, note: Note) -> Note:
         created = self.repo.create(note)
         self._log(created.id, 'CREATED', {'content': {'from': None, 'to': created.content}})
+        notify_entity_updated("note", created.id, "create")
         return created
 
     def get(self, id: int) -> Optional[Note]:
@@ -40,15 +42,18 @@ class NoteService:
     def update(self, note: Note) -> Note:
         updated = self.repo.update(note)
         self._log(updated.id, 'UPDATED', {'content': {'to': updated.content}})
+        notify_entity_updated("note", updated.id, "update")
         return updated
 
     def archive(self, id: int):
         self.repo.archive(id)
         self._log(id, 'ARCHIVED')
+        notify_entity_updated("note", id, "archive")
 
     def restore(self, id: int):
         self.repo.restore(id)
         self._log(id, 'RESTORED')
+        notify_entity_updated("note", id, "restore")
 
     def soft_delete(self, id: int):
         self.repo.soft_delete(id)

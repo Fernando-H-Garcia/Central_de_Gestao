@@ -5,6 +5,10 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPaintEvent
 from gui.theme import FONT_TITLE, FONT_CAPTION
+try:
+    import sip
+except ImportError:
+    sip = None
 
 def _boot_log_append(msg: str):
     try:
@@ -305,7 +309,10 @@ class MainWindow(QMainWindow):
 
         target = ("project", project_id)
         view = self._project_views.get(project_id)
-        if view is None:
+        if view is not None and (sip is None or not sip.isdeleted(view)):
+            # Cached view is still alive
+            pass
+        else:
             view = Project360Qt(project_id)
             view.go_back.connect(self._navigate_back)
             view.open_task_detail_signal.connect(lambda tid: self.show_task_detail(tid, origin_widget=view))
@@ -326,7 +333,10 @@ class MainWindow(QMainWindow):
 
         target = ("task", task_id)
         view = self._task_views.get(task_id)
-        if view is None:
+        if view is not None and (sip is None or not sip.isdeleted(view)):
+            # Cached view is still alive
+            pass
+        else:
             view = TaskDetailQt(task_id)
             if view.task is None:
                 return

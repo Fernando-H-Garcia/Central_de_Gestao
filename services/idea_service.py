@@ -3,6 +3,7 @@ from typing import List, Optional
 from models.entities import Idea
 from database.repositories.idea_repository import IdeaRepository
 from database.repositories.activity_log_repository import ActivityLogRepository, ActivityLog
+from core.refresh_manager import notify_entity_updated
 
 class IdeaService:
     def __init__(self):
@@ -18,6 +19,7 @@ class IdeaService:
         idea = Idea(title=title, description=description, project_id=project_id, task_id=task_id, category=category, interest_level=interest_level, status=status, priority=priority, next_review_date=next_review_date)
         created_idea = self.idea_repo.create(idea)
         self._log_activity(created_idea.id, "CREATED", {"title": {"from": None, "to": title}})
+        notify_entity_updated("idea", created_idea.id, "create")
         return created_idea
 
     def update_idea(self, idea: Idea, original_idea: Idea) -> Idea:
@@ -30,6 +32,7 @@ class IdeaService:
                 changes[field] = {"from": old_val, "to": new_val}
         if changes:
             self._log_activity(idea.id, "UPDATED", changes)
+        notify_entity_updated("idea", updated.id, "update")
         return updated
 
     def get_by_id(self, idea_id: int) -> Optional[Idea]:
@@ -55,9 +58,11 @@ class IdeaService:
     def archive_idea(self, idea_id: int):
         self.idea_repo.archive(idea_id)
         self._log_activity(idea_id, "ARCHIVED")
+        notify_entity_updated("idea", idea_id, "archive")
 
     def delete_idea(self, idea_id: int):
         self.idea_repo.delete(idea_id)
+        notify_entity_updated("idea", idea_id, "delete")
         
     def update_idea_position(self, idea_id: int, new_position: float):
         # We need a direct update or a generic update in repository
@@ -66,15 +71,18 @@ class IdeaService:
         if idea:
             idea.position = new_position
             self.idea_repo.update(idea)
-        self._log_activity(idea_id, "RESTORED")
+        self._log_activity(idea_id, "UPDATED")
+        notify_entity_updated("idea", idea_id, "update")
 
     def restore_idea(self, idea_id: int):
         self.idea_repo.restore(idea_id)
         self._log_activity(idea_id, "RESTORED")
+        notify_entity_updated("idea", idea_id, "restore")
 
     def soft_delete_idea(self, idea_id: int):
         self.idea_repo.soft_delete(idea_id)
         self._log_activity(idea_id, "DELETED")
+        notify_entity_updated("idea", idea_id, "delete")
 
     def promote_to_project(self, idea_id: int, project_title: str, description_text: Optional[str], copy_tags: bool, copy_attachments: bool, link_idea: bool, priority: str = "Média", due_date=None, alert_date=None, alert_message=None) -> int:
         from services.project_service import ProjectService

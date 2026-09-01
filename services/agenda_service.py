@@ -7,6 +7,7 @@ from models.task_dependency import TaskDependency
 from models.user_capacity import UserCapacity
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
+from core.refresh_manager import notify_entity_updated
 
 class AgendaService:
     def __init__(self):
@@ -32,13 +33,18 @@ class AgendaService:
             effort_hours=effort_hours,
             schedule_status=schedule_status
         )
-        return self.agenda_repo.create(item)
+        created = self.agenda_repo.create(item)
+        notify_entity_updated("schedule", created.id, "create")
+        return created
 
     def update_schedule(self, item: AgendaItem) -> AgendaItem:
-        return self.agenda_repo.update(item)
+        updated = self.agenda_repo.update(item)
+        notify_entity_updated("schedule", updated.id, "update")
+        return updated
 
     def delete_schedule(self, item_id: int):
         self.agenda_repo.delete(item_id)
+        notify_entity_updated("schedule", item_id, "delete")
 
     def get_schedules_for_entity(self, entity_type: str, entity_id: int) -> List[AgendaItem]:
         return self.agenda_repo.get_by_entity(entity_type, entity_id)

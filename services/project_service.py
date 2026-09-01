@@ -4,6 +4,7 @@ from models.entities import Project
 from database.repositories.project_repository import ProjectRepository
 from database.repositories.activity_log_repository import ActivityLogRepository, ActivityLog
 from database.connection import get_db_cursor
+from core.refresh_manager import notify_entity_updated
 
 class ProjectService:
     def __init__(self):
@@ -19,6 +20,7 @@ class ProjectService:
         project = Project(name=name, objective=objective, priority=priority, due_date=due_date, alert_date=alert_date, alert_message=alert_message)
         created_project = self.project_repo.create(project)
         self._log_activity(created_project.id, "CREATED", {"name": {"from": None, "to": name}})
+        notify_entity_updated("project", created_project.id, "create")
         return created_project
 
     def update_project(self, project: Project, original_project: Project) -> Project:
@@ -44,6 +46,7 @@ class ProjectService:
         if changes:
             self._log_activity(project.id, "UPDATED", changes)
             
+        notify_entity_updated("project", updated.id, "update")
         return updated
 
     def get_all_active(self) -> List[Project]:
@@ -61,10 +64,12 @@ class ProjectService:
         """Arquiva o projeto. Tarefas/ideias/notas permanecem intactas."""
         self.project_repo.archive(project_id)
         self._log_activity(project_id, "ARCHIVED")
+        notify_entity_updated("project", project_id, "archive")
 
     def restore_project(self, project_id: int):
         self.project_repo.restore(project_id)
         self._log_activity(project_id, "RESTORED")
+        notify_entity_updated("project", project_id, "restore")
 
     def soft_delete_project(self, project_id: int):
         """Envia o projeto para a lixeira e faz soft-delete em cascata de
@@ -85,3 +90,4 @@ class ProjectService:
 
         self.project_repo.soft_delete(project_id)
         self._log_activity(project_id, "DELETED")
+        notify_entity_updated("project", project_id, "delete")

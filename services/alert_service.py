@@ -3,6 +3,7 @@ from typing import List, Optional
 from models.alert import Alert
 from database.repositories.alert_repository import AlertRepository
 from database.repositories.activity_log_repository import ActivityLogRepository, ActivityLog
+from core.refresh_manager import notify_entity_updated
 
 class AlertService:
     def __init__(self):
@@ -39,6 +40,7 @@ class AlertService:
         )
         created = self.alert_repo.create(alert)
         self._log_activity(created.id, "CREATED", {"title": {"from": None, "to": title}})
+        notify_entity_updated("alert", created.id, "create")
         return created
 
     def update_alert(self, alert: Alert, original: Alert) -> Alert:
@@ -51,11 +53,13 @@ class AlertService:
                 changes[field] = {"from": old_val, "to": new_val}
         if changes:
             self._log_activity(alert.id, "UPDATED", changes)
+        notify_entity_updated("alert", updated.id, "update")
         return updated
 
     def delete_alert(self, alert_id: int):
         self.alert_repo.delete(alert_id)
         self._log_activity(alert_id, "DELETED")
+        notify_entity_updated("alert", alert_id, "delete")
 
     def get_alert(self, alert_id: int) -> Optional[Alert]:
         return self.alert_repo.get_by_id(alert_id)
@@ -228,6 +232,7 @@ class AlertService:
                 changes[field] = {"from": old_val, "to": new_val}
         if changes:
             self._log_activity(alert.id, "UPDATED", changes)
+        notify_entity_updated("alert", updated.id, "complete")
         return updated
 
     def snooze_alert_silent(self, alert_id: int, snooze_option: str) -> Optional[Alert]:
@@ -264,6 +269,7 @@ class AlertService:
                 changes[field] = {"from": old_val, "to": new_val}
         if changes:
             self._log_activity(alert.id, "UPDATED", changes)
+        notify_entity_updated("alert", updated.id, "snooze")
         return updated
 
     def mark_alert_overdue(self, alert_id: int) -> Optional[Alert]:
@@ -277,7 +283,5 @@ class AlertService:
         original = copy.deepcopy(alert)
         alert.status = 'overdue'
         updated = self.update_alert(alert, original)
-        from core.event_bus import event_bus
-        event_bus.emit("entity_updated", {"entity_type": "alert", "entity_id": alert_id})
         return updated
 

@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from services.note_service import NoteService
 from models.entities import Note
-from core.event_bus import event_bus
+from core.refresh_manager import notify_entity_updated
 import copy
 
 class NotesQt(QWidget):
@@ -165,17 +165,10 @@ class NotesQt(QWidget):
         if self.current_note:
             original = copy.deepcopy(self.current_note)
             self.current_note.content = content
-            # Assuming update method exists in NoteService
-            if hasattr(self.service, 'update'):
-                self.service.update(self.current_note, original)
-            else:
-                self.service.repo.update(self.current_note)
-                self.service._log(self.current_note.id, "UPDATED")
+            self.service.update(self.current_note, original)
         else:
             note = Note(content=content, project_id=self.project_id, task_id=self.task_id)
             self.service.create(note)
-            
-        event_bus.emit("entity_updated")
         
     def delete_note(self):
         if not self.current_note:
@@ -183,15 +176,11 @@ class NotesQt(QWidget):
             
         reply = QMessageBox.question(self, "Confirmar", "Deseja mesmo excluir esta nota?", QMessageBox.Yes | QMessageBox.No)
         if reply == QMessageBox.Yes:
-            # Assuming soft_delete or delete exists
-            if hasattr(self.service, 'soft_delete'):
-                self.service.soft_delete(self.current_note.id)
-            elif hasattr(self.service, 'repo'):
-                self.service.repo.soft_delete(self.current_note.id)
-                self.service._log(self.current_note.id, "DELETED")
+            self.service.repo.soft_delete(self.current_note.id)
+            self.service._log(self.current_note.id, "DELETED")
+            notify_entity_updated("note", self.current_note.id, "delete")
             
             self.current_note = None
             self.editor_frame.setEnabled(False)
             self.text_edit.setPlainText("")
             self.lbl_title.setText("Selecione ou crie uma nota")
-            event_bus.emit("entity_updated")

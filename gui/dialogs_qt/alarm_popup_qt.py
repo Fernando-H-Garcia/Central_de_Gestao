@@ -271,7 +271,6 @@ class AlarmPopupQt(QDialog):
     def _handle_complete(self, alarm_id: int):
         try:
             self.alert_service.complete_alert_silent(alarm_id)
-            event_bus.emit("entity_updated")
             card = self._cards.get(alarm_id)
             if card:
                 card.setStyleSheet("background-color: #1b5e20; border: 2px solid #4caf50; border-radius: 8px;")
@@ -335,7 +334,6 @@ class AlarmPopupQt(QDialog):
             if not self._cards:
                 QTimer.singleShot(0, self.accept)
             self.alert_service.snooze_alert_silent(alarm_id, snooze_option)
-            event_bus.emit("entity_updated")
 
     def _apply_custom_snooze(self, alarm_id: int, new_date: str, new_time: str):
         """Callback diferido para evitar crash durante fechamento do popup."""
@@ -346,7 +344,6 @@ class AlarmPopupQt(QDialog):
                 alarm.alert_time = new_time
                 alarm.status = 'pending'
                 self.alert_service.alert_repo.update(alarm)
-                event_bus.emit("entity_updated")
         except Exception:
             from config import LOGS_DIR
             log_path = os.path.join(LOGS_DIR, "app_errors.log")

@@ -100,8 +100,6 @@ class ProjectsQt(QWidget):
             )
         else:
             self.service.update_project(project, original_project)
-        from core.event_bus import event_bus
-        event_bus.emit("entity_updated")
         self.load_data()
         
     def toggle_archived(self):
@@ -215,8 +213,6 @@ class ProjectsQt(QWidget):
                 self.service.restore_project(project.id)
             else:
                 self.service.archive_project(project.id)
-            from core.event_bus import event_bus
-            event_bus.emit("entity_updated")
             self.load_data()
         elif action == action_delete:
             from services.link_service import LinkService
@@ -227,8 +223,6 @@ class ProjectsQt(QWidget):
                 dlg.exec()
                 if dlg.action == "archive":
                     self.service.archive_project(project.id)
-                    from core.event_bus import event_bus
-                    event_bus.emit("entity_updated")
                     self.load_data()
                     return
                 elif dlg.action == "delete_all":
@@ -239,6 +233,4 @@ class ProjectsQt(QWidget):
             if reply == QMessageBox.Yes:
                 LinkService().delete_all_references_to("project", project.id)
                 self.service.soft_delete_project(project.id)
-                from core.event_bus import event_bus
-                event_bus.emit("entity_updated")
                 self.load_data()

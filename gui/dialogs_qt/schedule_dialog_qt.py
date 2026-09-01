@@ -6,7 +6,6 @@ from PySide6.QtCore import Qt, QDate
 from services.agenda_service import AgendaService
 from services.task_service import TaskService
 from services.project_service import ProjectService
-from core.event_bus import event_bus
 from gui.theme import style_calendar_today
 
 class ScheduleDialogQt(QDialog):
@@ -174,12 +173,11 @@ class ScheduleDialogQt(QDialog):
                     self.agenda_service.add_dependency(self.entity_id, dep_id, "finish_to_start", strength)
                 except ValueError as ve:
                     QMessageBox.warning(self, "Erro de Dependência", str(ve))
-                    
-        event_bus.emit("entity_updated")
+
         if self.on_save:
             self.on_save()
         self.accept()
-        
+
     def delete(self):
         reply = QMessageBox.question(self, 'Excluir', 'Deseja remover este período agendado?',
                                      QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
@@ -189,7 +187,6 @@ class ScheduleDialogQt(QDialog):
                 for d in curr_deps:
                     self.agenda_service.remove_dependency(self.entity_id, d.depends_on_task_id)
             self.agenda_service.delete_schedule(self.agenda_item.id)
-            event_bus.emit("entity_updated")
             if self.on_save:
                 self.on_save()
             self.accept()

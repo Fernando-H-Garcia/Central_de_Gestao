@@ -104,9 +104,12 @@ class TimelineMapper:
         eff_start = t_item.manual_start or t_item.start
         is_done = t_item.status == 'Concluído'
 
+        # Marcos (milestones) não têm prazo final — não entram em ATRASADA/Tempo esgotando/NÃO INICIADA
+        is_milestone = getattr(t_item, 'is_milestone', False)
+
         # Estado derivado do próprio item
         derived = ""
-        if not is_done:
+        if not is_done and not is_milestone:
             if eff_end is not None and eff_end < today:
                 derived = "ATRASADA"
             elif eff_end is not None and (eff_end - today).days <= 3:
@@ -161,13 +164,14 @@ class TimelineMapper:
     def _recompute_derived(t_item: TimelineItem):
         today = datetime.date.today()
         is_done = t_item.status == 'Concluído'
+        is_milestone = getattr(t_item, 'is_milestone', False)
         eff_end = t_item.manual_end or t_item.end
         eff_start = t_item.manual_start or t_item.start
         if t_item.is_parent:
             eff_end = t_item.end
             eff_start = t_item.start
         derived = ""
-        if not is_done:
+        if not is_done and not is_milestone:
             if eff_end is not None and eff_end < today:
                 derived = "ATRASADA"
             elif eff_end is not None and (eff_end - today).days <= 3:
