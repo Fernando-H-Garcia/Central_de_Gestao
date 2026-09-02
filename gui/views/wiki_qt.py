@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QLineEdit, QComboBox, QMenu, QMessageBox,
     QScrollArea, QDialog, QTextBrowser, QListWidget,
     QListWidgetItem, QFileDialog, QButtonGroup,
-    QAbstractItemView
+    QAbstractItemView, QToolTip
 )
 from PySide6.QtCore import Qt, QTimer, QEvent, QRect, QSize
 from PySide6.QtGui import QAction, QFont, QFontMetrics, QTextCursor, QKeyEvent, QPainter, QDropEvent, QBrush, QColor
@@ -156,6 +156,14 @@ class WikiQt(QWidget):
         self._is_preview = True
         self.show_archived = False
         self._selected_page = None
+        # tooltip persistente de anexos — precisa existir antes de load_pages/_load_attachments
+        self._attach_tip_text = None
+        self._attach_tip_global = None
+        self._attach_tip_rect = None
+        self._attach_current_id = None
+        self._attach_tip_timer = QTimer(self)
+        self._attach_tip_timer.setInterval(1500)
+        self._attach_tip_timer.timeout.connect(self._refresh_attachment_tooltip)
 
         self.setup_ui()
         self.load_pages()
@@ -663,7 +671,9 @@ class WikiQt(QWidget):
             }
         """)
         self.lst_attachments.setAcceptDrops(True)
+        self.lst_attachments.setMouseTracking(True)
         self.lst_attachments.installEventFilter(self)
+        self.lst_attachments.viewport().installEventFilter(self)
         self.lst_attachments.setContextMenuPolicy(Qt.CustomContextMenu)
         self.lst_attachments.customContextMenuRequested.connect(self._attach_context_menu)
         self.lst_attachments.itemDoubleClicked.connect(self._open_attachment)
@@ -926,6 +936,25 @@ class WikiQt(QWidget):
                     return True
 
         # Drag-drop for attachments (both text area and list)
+        # ── tooltip persistente de anexos (fica enquanto mouse em cima do item)
+        if hasattr(self, 'lst_attachments') and obj in (self.lst_attachments, self.lst_attachments.viewport()):
+            if event.type() == QEvent.MouseMove:
+                pos = event.position().toPoint() if hasattr(event, 'position') else event.pos()
+                item = self.lst_attachments.itemAt(pos)
+                if item is not None:
+                    att = item.data(Qt.UserRole)
+                    if att is not None:
+                        self._show_attachment_tooltip(pos, att)
+                    else:
+                        self._hide_attachment_tooltip()
+                else:
+                    self._hide_attachment_tooltip()
+            elif event.type() in (QEvent.Leave, QEvent.HoverLeave):
+                self._hide_attachment_tooltip()
+            elif event.type() == QEvent.ToolTip:
+                # suprime tooltip nativo (usamos QToolTip persistente)
+                return True
+
         if obj in (self.text_edit, self.lst_attachments):
             if event.type() in (QEvent.DragEnter, QEvent.DragMove):
                 if event.mimeData().hasUrls():
@@ -962,14 +991,130 @@ class WikiQt(QWidget):
         except Exception as e:
             QMessageBox.warning(self, "Erro", f"Não foi possível anexar:\n{e}")
 
+    # ── Attachment tooltip helpers ───────────────────────────────
+    def _format_attachment_size(self, n):
+        if n is None:
+            return "—"
+        try:
+            n = int(n)
+        except Exception:
+            return str(n)
+        if n < 1024:
+            return f"{n} bytes"
+        if n < 1024 * 1024:
+            return f"{n/1024:.1f} KB"
+        if n < 1024 * 1024 * 1024:
+            return f"{n/(1024*1024):.1f} MB"
+        return f"{n/(1024*1024*1024):.2f} GB"
+
+    def _format_attachment_tooltip(self, att):
+        import os, datetime
+        # nome limpo (remove prefixo de gerenciamento tipo "uuid_" se existir)
+        raw_name = getattr(att, 'file_name', '') or ''
+        # remove código uuid_ prefixado se houver (ex.: "a1b2c3_arquivo.pdf" -> "arquivo.pdf")
+        import re
+        clean_name = re.sub(r'^[0-9a-fA-F-]{8,}_', '', raw_name)
+        # tipo: mime + extensão
+        mime = getattr(att, 'mime_type', '') or '—'
+        ext = os.path.splitext(raw_name)[1] or '—'
+        if ext != '—' and not ext.startswith('.'):
+            ext = '.' + ext
+        size_s = self._format_attachment_size(getattr(att, 'file_size', None))
+        # datas
+        def _fmt_dt(v):
+            if not v:
+                return '—'
+            try:
+                if isinstance(v, str):
+                    # tenta ISO
+                    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
+                        try:
+                            dt = datetime.datetime.strptime(v.split('.')[0], fmt)
+                            return dt.strftime("%d/%m/%Y %H:%M")
+                        except Exception:
+                            continue
+                    return v
+                if isinstance(v, datetime.datetime):
+                    return v.strftime("%d/%m/%Y %H:%M")
+                if isinstance(v, datetime.date):
+                    return v.strftime("%d/%m/%Y")
+            except Exception:
+                pass
+            return str(v)
+        created_s = _fmt_dt(getattr(att, 'created_at', None))
+        # modificação do arquivo no disco (se existir)
+        mod_s = '—'
+        fpath = getattr(att, 'file_path', '') or ''
+        if fpath and os.path.exists(fpath):
+            try:
+                mt = os.path.getmtime(fpath)
+                mod_s = datetime.datetime.fromtimestamp(mt).strftime("%d/%m/%Y %H:%M")
+            except Exception:
+                pass
+        # localização e uuid encurtado
+        uuid_s = (getattr(att, 'uuid', '') or '')[:8]
+        # monta html rico
+        lines = [
+            f"<b>📎 {clean_name}</b>",
+            f"<b>Nome:</b> {clean_name}",
+            f"<b>Tipo:</b> {mime} &nbsp; <b>Extensão:</b> {ext}",
+            f"<b>Tamanho:</b> {size_s}",
+            f"<b>Anexado em:</b> {created_s}",
+            f"<b>Modificado:</b> {mod_s}",
+        ]
+        if fpath:
+            # quebra caminho longo
+            short_path = fpath if len(fpath) < 80 else '...' + fpath[-77:]
+            lines.append(f"<b>Caminho:</b> {short_path}")
+        if uuid_s:
+            lines.append(f"<span style='color:#9aa0a6;font-size:10px'>ID: {uuid_s}…</span>")
+        # checksum encurtado útil para conferir duplicata
+        cs = getattr(att, 'checksum', '') or ''
+        if cs:
+            lines.append(f"<span style='color:#9aa0a6;font-size:10px'>Checksum: {cs[:12]}…</span>")
+        return "<br/>".join(lines)
+
+    def _refresh_attachment_tooltip(self):
+        if self._attach_tip_text and self._attach_tip_global and self._attach_tip_rect is not None:
+            QToolTip.showText(self._attach_tip_global, self._attach_tip_text, self.lst_attachments, self._attach_tip_rect)
+
+    def _hide_attachment_tooltip(self):
+        if self._attach_current_id is not None:
+            self._attach_current_id = None
+            self._attach_tip_text = None
+            self._attach_tip_global = None
+            self._attach_tip_rect = None
+            QToolTip.hideText()
+        if hasattr(self, '_attach_tip_timer') and self._attach_tip_timer.isActive():
+            self._attach_tip_timer.stop()
+
+    def _show_attachment_tooltip(self, pos, att):
+        att_id = getattr(att, 'id', None) or getattr(att, 'uuid', None)
+        if self._attach_current_id == att_id:
+            return
+        self._attach_current_id = att_id
+        html = self._format_attachment_tooltip(att)
+        # viewport -> global
+        vp = self.lst_attachments.viewport()
+        self._attach_tip_text = html
+        self._attach_tip_global = vp.mapToGlobal(pos)
+        self._attach_tip_rect = QRect(pos.x() - 4, pos.y() - 4, 16, 16)
+        QToolTip.showText(self._attach_tip_global, html, self.lst_attachments, self._attach_tip_rect)
+        if not self._attach_tip_timer.isActive():
+            self._attach_tip_timer.start()
+
     def _load_attachments(self):
         self.lst_attachments.clear()
+        self._hide_attachment_tooltip()
         if not self.current_page:
             return
         from services.attachment_service import AttachmentService
         attach_list = AttachmentService().get_attachments_for_entity("knowledge_page", self.current_page.id)
         for att in attach_list:
-            wi = QListWidgetItem(f"📎 {att.file_name} ({att.file_size} bytes)")
+            # mostra só o nome limpo (sem bytes crus — detalhe vai no tooltip)
+            import re, os
+            clean = re.sub(r'^[0-9a-fA-F-]{8,}_', '', att.file_name or '')
+            wi = QListWidgetItem(f"📎 {clean}")
             wi.setData(Qt.UserRole, att)
             self.lst_attachments.addItem(wi)
 
