@@ -142,7 +142,7 @@ class ActivitySummaryQt(QWidget):
         btn_concluidos = QPushButton("✅ Exibir concluídos: OFF")
         btn_concluidos.setCheckable(True)
         btn_concluidos.setObjectName("secondary")
-        btn_concluidos.setFixedWidth(180)
+        btn_concluidos.setFixedWidth(210)
         btn_concluidos.setStyleSheet("""
             QPushButton {
                 padding: 6px 14px; border-radius: 5px; font-weight: bold;
@@ -184,12 +184,16 @@ class ActivitySummaryQt(QWidget):
         btn_buscar.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Expanding)
         btn_buscar.clicked.connect(self._buscar)
 
+        col_toggles = QVBoxLayout()
+        col_toggles.setSpacing(6)
+        col_toggles.addWidget(btn_concluidos)
+        col_toggles.addWidget(btn_comentarios)
+
         # Center the controls horizontally
         panel_layout.addStretch()
         panel_layout.addLayout(col_proj)
         panel_layout.addLayout(col_reg)
-        panel_layout.addWidget(btn_concluidos)
-        panel_layout.addWidget(btn_comentarios)
+        panel_layout.addLayout(col_toggles)
         panel_layout.addWidget(btn_buscar)
         panel_layout.addStretch()
 
