@@ -761,6 +761,7 @@ class Project360Qt(QWidget):
         """Persiste o arraste de um alarme/evento na timeline."""
         try:
             import copy
+            import datetime as _dt
             if ev.event_type == "alarm":
                 from services.alert_service import AlertService
                 svc = AlertService()
@@ -768,10 +769,16 @@ class Project360Qt(QWidget):
                 if not a:
                     return
                 orig = copy.deepcopy(a)
+                # preserva "dia todo" (sem hora) — não inventa 00:00
+                had_time = bool(str(getattr(orig, "alert_time", "") or "").strip())
                 a.alert_date = new_start.strftime("%Y-%m-%d")
-                a.alert_time = new_start.strftime("%H:%M") or None
+                a.alert_time = new_start.strftime("%H:%M") if had_time else None
                 if getattr(a, "status", None) == "overdue":
                     a.status = "pending"
+                elif getattr(a, "status", None) == "completed":
+                    # só reativa se arrastar para DEPOIS de hoje
+                    if new_start.date() > _dt.date.today():
+                        a.status = "pending"
                 svc.update_alert(a, orig)
             else:
                 from services.event_service import EventService
