@@ -158,6 +158,26 @@ class ActivitySummaryQt(QWidget):
         btn_concluidos.clicked.connect(self._toggle_concluidos)
         self.btn_concluidos = btn_concluidos
 
+        btn_comentarios = QPushButton("💬 Somente Comentários: ON")
+        btn_comentarios.setCheckable(True)
+        btn_comentarios.setChecked(True)
+        btn_comentarios.setObjectName("secondary")
+        btn_comentarios.setFixedWidth(210)
+        btn_comentarios.setStyleSheet("""
+            QPushButton {
+                padding: 6px 14px; border-radius: 5px; font-weight: bold;
+                background-color: #c2185b; color: #fff; border: none;
+            }
+            QPushButton:hover { background-color: #e91e63; }
+            QPushButton:checked { background-color: #c2185b; color: #fff; border: none; }
+            QPushButton:checked:hover { background-color: #e91e63; }
+            QPushButton:!checked { background-color: transparent; color: #aaa; border: 1px solid #555; }
+            QPushButton:!checked:hover { background-color: #2d2d55; color: #fff; border: 1px solid #4a6fe3; }
+            QPushButton:pressed { background-color: #e91e63; }
+        """)
+        btn_comentarios.clicked.connect(self._toggle_comentarios)
+        self.btn_comentarios = btn_comentarios
+
         btn_buscar = QPushButton("🔍 Buscar")
         btn_buscar.setObjectName("secondary")
         btn_buscar.setFixedWidth(120)
@@ -169,6 +189,7 @@ class ActivitySummaryQt(QWidget):
         panel_layout.addLayout(col_proj)
         panel_layout.addLayout(col_reg)
         panel_layout.addWidget(btn_concluidos)
+        panel_layout.addWidget(btn_comentarios)
         panel_layout.addWidget(btn_buscar)
         panel_layout.addStretch()
 
@@ -194,6 +215,11 @@ class ActivitySummaryQt(QWidget):
     def _toggle_concluidos(self):
         on = self.btn_concluidos.isChecked()
         self.btn_concluidos.setText(f"✅ Exibir concluídos: {'ON' if on else 'OFF'}")
+        self._buscar()
+
+    def _toggle_comentarios(self):
+        on = self.btn_comentarios.isChecked()
+        self.btn_comentarios.setText(f"💬 Somente Comentários: {'ON' if on else 'OFF'}")
         self._buscar()
 
     def _load_projects(self):
@@ -345,6 +371,13 @@ class ActivitySummaryQt(QWidget):
                     show_concluidos = self.btn_concluidos.isChecked()
                     if not show_concluidos:
                         rows = [r for r in rows if (r["task_status"] or "").strip() != "Concluído"]
+
+                    if not rows:
+                        continue
+
+                    # Filtro: se "Somente Comentários" estiver ON, mantém só COMENTÁRIO
+                    if self.btn_comentarios.isChecked():
+                        rows = [r for r in rows if ACTION_TRANSLATION.get(str(r["action"] or "").upper(), str(r["action"] or "").upper()) == "COMENTÁRIO"]
 
                     if not rows:
                         continue

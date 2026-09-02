@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QPushButton
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QEvent
 from PySide6.QtGui import QFont
 
 
@@ -31,7 +31,9 @@ class CollapsibleSection(QWidget):
         font = QFont()
         font.setBold(True)
         self.header.setFont(font)
-        self.header.clicked.connect(self.toggle)
+        # toggle só na setinha (primeiros ~30px); clique no título não colapsa
+        self._arrow_hit_w = 30
+        self.header.installEventFilter(self)
         layout.addWidget(self.header)
 
         self.body = QWidget()
@@ -136,3 +138,18 @@ class CollapsibleSection(QWidget):
     def set_collapsed(self, collapsed):
         self._collapsed = bool(collapsed)
         self._update_header()
+
+    def eventFilter(self, obj, event):
+        # só a setinha colapsa/expande; clique (1 ou 2x) no título não deve colapsar
+        if obj is self.header:
+            t = event.type()
+            if t == event.Type.MouseButtonPress:
+                if event.button() == Qt.LeftButton and event.pos().x() < self._arrow_hit_w:
+                    self.toggle()
+                    return True
+                # clique fora da setinha: não colapsa, deixa seguir (menu, dblclick de navegação, etc.)
+                return False
+            if t == event.Type.MouseButtonDblClick:
+                # duplo clique nunca colapsa aqui; deixa o filtro da view (navegação) decidir
+                return False
+        return super().eventFilter(obj, event)
