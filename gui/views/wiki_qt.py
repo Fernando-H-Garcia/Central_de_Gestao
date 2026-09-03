@@ -1143,11 +1143,48 @@ class WikiQt(QWidget):
 
         menu.addSeparator()
 
+        export_a = QAction("📤 Exportar", self)
+        export_a.triggered.connect(lambda: self._export_attachment(att))
+        menu.addAction(export_a)
+
+        menu.addSeparator()
+
         del_a = QAction("🗑️ Excluir", self)
         del_a.triggered.connect(lambda: self._remove_attachment(att))
         menu.addAction(del_a)
 
         menu.exec_(self.lst_attachments.viewport().mapToGlobal(pos))
+
+    def _export_attachment(self, att):
+        import os, re, shutil
+        raw_name = getattr(att, 'file_name', '') or 'arquivo'
+        clean_name = re.sub(r'^[0-9a-fA-F-]{8,}_', '', raw_name)
+        # sem hash: já limpo; garante nome válido
+        clean_name = clean_name.strip() or 'arquivo'
+        src = getattr(att, 'file_path', '') or ''
+        if not src or not os.path.exists(src):
+            QMessageBox.warning(self, "Exportar", f"Arquivo não encontrado:\n{src or clean_name}")
+            return
+        # janela para escolher lugar — save dialog com nome simplificado pré-preenchido
+        default_dir = os.path.expanduser("~/Documents")
+        # tenta inferir extensão para filtro
+        ext = os.path.splitext(clean_name)[1]
+        filt = f"*{ext} (*{ext})" if ext else "Todos os arquivos (*)"
+        dest, _ = QFileDialog.getSaveFileName(self, "Exportar Anexo", os.path.join(default_dir, clean_name), filt)
+        if not dest:
+            return
+        # garante que o nome final seja o simplificado se usuário só escolheu pasta
+        # (getSaveFileName já retorna caminho completo)
+        try:
+            # se destino for diretório (usuário colou pasta), anexa nome
+            if os.path.isdir(dest):
+                dest = os.path.join(dest, clean_name)
+            # cria diretórios se necessário
+            os.makedirs(os.path.dirname(dest) or ".", exist_ok=True)
+            shutil.copy2(src, dest)
+            QMessageBox.information(self, "Exportar", f"Arquivo exportado para:\n{dest}")
+        except Exception as e:
+            QMessageBox.critical(self, "Erro ao Exportar", f"Não foi possível exportar:\n{e}")
 
     def _move_attachment(self, att):
         pages = KnowledgePageService().get_all_active()

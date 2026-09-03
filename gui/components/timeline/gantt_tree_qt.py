@@ -364,8 +364,9 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             painter.setBrush(muted)
             painter.drawRoundedRect(rect, 4, 4)
             painter.save()
-            painter.setClipRect(QRectF(today_x - 0.5, row_rect.top(),
-                                       x2_view - today_x + 1, row_rect.height()))
+            vivid_clip = QRectF(today_x - 0.5, row_rect.top(),
+                                x2_view - today_x + 1, row_rect.height()).intersected(row_rect.adjusted(-1, 0, 1, 0))
+            painter.setClipRect(vivid_clip)
             painter.setBrush(color)
             painter.drawRoundedRect(rect, 4, 4)
             painter.restore()
@@ -482,8 +483,9 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             painter.setBrush(muted)
             painter.drawRoundedRect(rect, 4, 4)
             painter.save()
-            painter.setClipRect(QRectF(today_x - 0.5, row_rect.top(),
-                                       x2_view - today_x + 1, row_rect.height()))
+            vivid_clip2 = QRectF(today_x - 0.5, row_rect.top(),
+                                 x2_view - today_x + 1, row_rect.height()).intersected(row_rect.adjusted(-1, 0, 1, 0))
+            painter.setClipRect(vivid_clip2)
             painter.setBrush(color)
             painter.drawRoundedRect(rect, 4, 4)
             painter.restore()
@@ -535,7 +537,9 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         rows = {}
         for t_item, vrect in self._visible_rows():
             rows[t_item.id] = vrect.center().y()
-
+        # clipa tudo da timeline — nada invade a coluna de nomes quando pan
+        painter.save()
+        painter.setClipRect(tl_rect)
         for ev in self.events:
             if ev.event_type == "event" and not self.show_events:
                 continue
@@ -555,19 +559,42 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             if y is None:
                 continue
 
+            # visibilidade por ícone — não desenha nada que esteja sobre a coluna de nomes
+            # (clip sozinho deixaria “fatia” na borda; guard skip evita o ícone inteiro sobre nomes)
+            start_visible = tl_rect.left() - 10 <= x_view <= tl_rect.right() + 10
+            end_visible = True
+            has_duration = bool(ev.end_datetime and ev.event_type == "event" and end_x_view > x_view)
+            if has_duration:
+                end_visible = tl_rect.left() - 10 <= end_x_view <= tl_rect.right() + 10
+                if not start_visible and not end_visible:
+                    # ambos sobre nomes ou fora à esquerda/direita — tenta clipar a linha mas não desenha ícones
+                    pass
+            elif not start_visible:
+                continue
+
             painter.save()
             hovered = (ev is self._hover_ev)
             # Hover: halo de destaque sob os ícones (início E fim quando tem duração)
             if hovered:
-                painter.setPen(QPen(QColor(255, 255, 255, 200)))
-                pen = painter.pen()
-                pen.setWidth(2)
-                painter.setPen(pen)
-                painter.setBrush(QColor(255, 255, 255, 30))
-                painter.drawEllipse(QPointF(x_view, y), 14, 14)
-                if ev.end_datetime and ev.event_type == "event" and end_x_view > x_view:
+                if start_visible:
+                    painter.setPen(QPen(QColor(255, 255, 255, 200)))
+                    pen = painter.pen()
+                    pen.setWidth(2)
+                    painter.setPen(pen)
+                    painter.setBrush(QColor(255, 255, 255, 30))
+                    painter.drawEllipse(QPointF(x_view, y), 14, 14)
+                if has_duration and end_visible:
+                    # garante pen/brush do halo também para o fim
+                    painter.setPen(QPen(QColor(255, 255, 255, 200)))
+                    pen = painter.pen()
+                    pen.setWidth(2)
+                    painter.setPen(pen)
+                    painter.setBrush(QColor(255, 255, 255, 30))
                     painter.drawEllipse(QPointF(end_x_view, y), 14, 14)
             if ev.event_type == "alarm":
+                if not start_visible:
+                    painter.restore()
+                    continue
                 done = getattr(ev, "status", "") == "completed"
                 if done:
                     painter.setBrush(QColor("#6b7280"))
@@ -594,16 +621,32 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             else:
                 # roxo vivo — distinto das barras (azuis), marco (verde) e alarme (laranja)
                 event_violet = QColor("#8b5cf6")
-                painter.setBrush(event_violet)
-                painter.setPen(Qt.NoPen)
-                painter.drawEllipse(QPointF(x_view, y), 6, 6)
-                if end_x_view > x_view:
-                    pen = QPen(event_violet)
-                    pen.setWidth(2)
-                    painter.setPen(pen)
-                    painter.drawLine(QPointF(x_view + 6, y), QPointF(end_x_view - 6, y))
-                    painter.drawEllipse(QPointF(end_x_view, y), 6, 6)
+                if has_duration:
+                    # linha clipada à área da timeline — não invade nomes
+                    lx1 = max(x_view + 6, tl_rect.left()) if start_visible else tl_rect.left()
+                    lx2 = min(end_x_view - 6, tl_rect.right()) if end_visible else tl_rect.right()
+                    if start_visible:
+                        painter.setBrush(event_violet)
+                        painter.setPen(Qt.NoPen)
+                        painter.drawEllipse(QPointF(x_view, y), 6, 6)
+                    if lx1 < lx2:
+                        pen = QPen(event_violet)
+                        pen.setWidth(2)
+                        painter.setPen(pen)
+                        painter.drawLine(QPointF(lx1, y), QPointF(lx2, y))
+                    if end_visible:
+                        painter.setBrush(event_violet)
+                        painter.setPen(Qt.NoPen)
+                        painter.drawEllipse(QPointF(end_x_view, y), 6, 6)
+                else:
+                    if not start_visible:
+                        painter.restore()
+                        continue
+                    painter.setBrush(event_violet)
+                    painter.setPen(Qt.NoPen)
+                    painter.drawEllipse(QPointF(x_view, y), 6, 6)
             painter.restore()
+        painter.restore()
 
     def _draw_today_line(self, painter: QPainter, tl_rect: QRectF):
         today_x = self._x_view(self.geometry.datetime_to_x(datetime.datetime.now()))
@@ -703,6 +746,8 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
 
     def _draw_deadlines(self, painter: QPainter, tl_rect: QRectF):
         """Marcadores 🚩 vermelhos dos Prazos Estimados na linha da tarefa."""
+        painter.save()
+        painter.setClipRect(tl_rect)
         for t_item, vrect in self._visible_rows():
             cy = vrect.center().y()
             for mark in getattr(t_item, 'deadlines', []) or []:
@@ -736,6 +781,7 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
                     QPointF(cx, cy - 3),
                 ]))
                 painter.restore()
+        painter.restore()
 
     def _deadline_at(self, pos):
         """Marcador de prazo estimado sob o cursor → (DeadlineMark, x) ou (None, None)."""
