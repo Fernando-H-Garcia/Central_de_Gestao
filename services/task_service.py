@@ -131,6 +131,15 @@ class TaskService:
                     agenda_svc.recalculate_task_blocked_status(dep.task_id)
             except Exception as e:
                 print(f"[TaskService] Erro ao recalcular dependentes após conclusão: {e}")
+            # Desativar alarmes ativos da tarefa concluída
+            try:
+                from services.alert_service import AlertService
+                svc = AlertService()
+                for al in svc.get_alerts_for_entity("task", task.id):
+                    if getattr(al, "status", None) in ("pending", "overdue"):
+                        svc.complete_alert(al.id)
+            except Exception as e:
+                print(f"[TaskService] Erro ao desativar alarmes da tarefa concluída {task.id}: {e}")
             
         notify_entity_updated("task", updated.id, "update")
         print(f"[PERF TASK_SVC] update_task FINISHED in {(time.perf_counter()-t_ts0)*1000:.2f}ms")
