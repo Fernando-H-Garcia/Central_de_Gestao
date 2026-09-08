@@ -91,10 +91,10 @@ class TaskDetailQt(QWidget):
         # Header
         header_layout = QHBoxLayout()
         
-        self.btn_back = QPushButton("← Voltar")
-        self.btn_back.setObjectName("secondary")
-        self.btn_back.clicked.connect(self._on_back_clicked)
-        header_layout.addWidget(self.btn_back)
+        from gui.components.back_nav_widget_qt import BackNavWidget
+        self.back_nav = BackNavWidget()
+        self.back_nav.go_back_requested.connect(self._on_back_clicked)
+        header_layout.addWidget(self.back_nav)
         
         self.lbl_title = QLabel(f"Tarefa #{self.task.id}: {self.task.title}")
         self.lbl_title.setObjectName("header")

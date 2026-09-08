@@ -370,5 +370,66 @@ class MainWindow(QMainWindow):
                 continue
             return
 
+    # ── Histórico para o botão Voltar + setinha ──────────────────
+    def _label_for_target(self, target):
+        if target is None:
+            return "—"
+        kind, tid = target
+        if kind == "page":
+            names = ["Monitor", "Projetos", "Resumo das Atividades", "Agenda Geral", "Documentação"]
+            try:
+                return names[tid] if 0 <= tid < len(names) else f"Página {tid}"
+            except Exception:
+                return f"Página {tid}"
+        if kind == "project":
+            try:
+                from database.repositories.project_repository import ProjectRepository
+                p = ProjectRepository().get_by_id(int(tid))
+                return p.name if p and getattr(p, "name", None) else f"Projeto #{tid}"
+            except Exception:
+                return f"Projeto #{tid}"
+        if kind == "task":
+            try:
+                from database.repositories.task_repository import TaskRepository
+                t = TaskRepository().get_by_id(int(tid))
+                return t.title if t and getattr(t, "title", None) else f"Tarefa #{tid}"
+            except Exception:
+                return f"Tarefa #{tid}"
+        return f"{kind} {tid}"
+
+    def get_history_for_menu(self):
+        """Lista para o menu da setinha: [(target, label, is_current)] com atual no topo."""
+        out = []
+        # atual primeiro
+        if self._current_target is not None:
+            out.append((self._current_target, self._label_for_target(self._current_target), True))
+        # histórico do mais recente para o mais antigo, sem duplicar o atual
+        seen = set()
+        if self._current_target is not None:
+            seen.add(self._current_target)
+        for t in reversed(self._nav_history):
+            if t in seen:
+                continue
+            seen.add(t)
+            out.append((t, self._label_for_target(t), False))
+        return out
+
+    def jump_to_target(self, target):
+        """Pula para qualquer alvo do histórico (usado pela setinha do Voltar)."""
+        if target is None or target == self._current_target:
+            return
+        # remove o alvo da pilha se já estiver lá (evita duplicata) e empilha o atual
+        if target in self._nav_history:
+            self._nav_history = [t for t in self._nav_history if t != target]
+        if self._current_target is not None:
+            self._push_target(self._current_target)
+        kind = target[0]
+        if kind == "page":
+            self._show_page(target[1])
+        elif kind == "project":
+            self._show_project(target[1])
+        elif kind == "task":
+            self._show_task(target[1])
+
     def load_stylesheet(self):
         pass

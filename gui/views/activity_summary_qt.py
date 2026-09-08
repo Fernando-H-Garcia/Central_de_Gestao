@@ -105,10 +105,11 @@ class ActivitySummaryQt(QWidget):
 
         # Header
         self.header = PageHeader("Resumo das Atividades")
-        btn_back = QPushButton("← Voltar")
-        btn_back.setObjectName("secondary")
-        btn_back.clicked.connect(self.go_back.emit)
-        self.header.add_left_widget(btn_back)
+        from gui.components.back_nav_widget_qt import BackNavWidget
+        back_nav = BackNavWidget()
+        back_nav.go_back_requested.connect(self.go_back.emit)
+        self.back_nav = back_nav
+        self.header.add_left_widget(back_nav)
         main_layout.addWidget(self.header)
 
         # Command panel

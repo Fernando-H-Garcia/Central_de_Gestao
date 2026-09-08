@@ -171,10 +171,10 @@ class Project360Qt(QWidget):
         # 🔝 Top Header 🔝
         header_layout = QHBoxLayout()
         
-        self.btn_back = QPushButton("← Voltar")
-        self.btn_back.setObjectName("secondary")
-        self.btn_back.clicked.connect(self._on_back_clicked)
-        header_layout.addWidget(self.btn_back)
+        from gui.components.back_nav_widget_qt import BackNavWidget
+        self.back_nav = BackNavWidget()
+        self.back_nav.go_back_requested.connect(self._on_back_clicked)
+        header_layout.addWidget(self.back_nav)
         
         self.lbl_title = QLabel("Visão 360°")
         self.lbl_title.setObjectName("header")
