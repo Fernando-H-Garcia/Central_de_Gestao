@@ -53,7 +53,7 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
     open_task_requested = Signal(object)
     edit_task_requested = Signal(object)
     # Criar alarme/evento vinculados à tarefa (menu de contexto)
-    create_alarm_requested = Signal(object)
+    create_alarm_requested = Signal(object, object)  # task, datetime sob o mouse | None
     create_event_requested = Signal(object)
     # Excluir alarme/evento (menu de contexto no ícone)
     delete_event_requested = Signal(object)
@@ -1487,7 +1487,11 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
                 mouse_date = None
             self.edit_deadline_at_requested.emit(task_ref, mouse_date)
         elif chosen == act_alarm:
-            self.create_alarm_requested.emit(task_ref)
+            if pos.x() >= self.timeline_left():
+                mouse_dt = self._datetime_at_x(pos.x() - self.timeline_left() + self._offset_x)
+            else:
+                mouse_dt = None
+            self.create_alarm_requested.emit(task_ref, mouse_dt)
         elif chosen == act_event:
             self.create_event_requested.emit(task_ref)
 

@@ -12,7 +12,7 @@ from gui.components.drag_drop_tree_qt import fit_branch_arrows
 class TimelineViewQt(QWidget):
     open_task_detail_signal = Signal(int)
     edit_task_signal = Signal(object)   # Task (raw) — abre TaskDialogQt no host
-    create_alarm_signal = Signal(object)  # Task (raw) — abre AlarmDialogQt no host
+    create_alarm_signal = Signal(object, object)  # Task (raw), datetime sob o mouse | None — abre AlarmDialogQt no host
     create_event_signal = Signal(object)  # Task (raw) — abre EventDialogQt no host
     deadline_moved_signal = Signal(int, int, object)   # task_id, deadline_id, nova data
     edit_deadline_signal = Signal(object, object)         # Task (raw) ou id, deadline_id | None

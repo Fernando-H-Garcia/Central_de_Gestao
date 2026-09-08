@@ -9,9 +9,9 @@ class AlertRepository(BaseRepository[Alert]):
     def create(self, alert: Alert) -> Alert:
         with get_db_cursor() as cursor:
             cursor.execute('''
-                INSERT INTO alerts (entity_type, entity_id, title, description, alert_date, alert_time, priority, status, recurrence_type)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (alert.entity_type, alert.entity_id, alert.title, alert.description, alert.alert_date, alert.alert_time, alert.priority, alert.status, alert.recurrence_type))
+                INSERT INTO alerts (entity_type, entity_id, title, description, alert_date, alert_time, priority, status, recurrence_type, recurrence_interval, recurrence_count, recurrence_group_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (alert.entity_type, alert.entity_id, alert.title, alert.description, alert.alert_date, alert.alert_time, alert.priority, alert.status, alert.recurrence_type, getattr(alert, 'recurrence_interval', None), getattr(alert, 'recurrence_count', None), getattr(alert, 'recurrence_group_id', None)))
             alert.id = cursor.lastrowid
             return alert
 
@@ -19,9 +19,9 @@ class AlertRepository(BaseRepository[Alert]):
         with get_db_cursor() as cursor:
             cursor.execute('''
                 UPDATE alerts
-                SET title = ?, description = ?, alert_date = ?, alert_time = ?, priority = ?, status = ?, recurrence_type = ?, updated_at = datetime('now')
+                SET title = ?, description = ?, alert_date = ?, alert_time = ?, priority = ?, status = ?, recurrence_type = ?, recurrence_interval = ?, recurrence_count = ?, recurrence_group_id = ?, updated_at = datetime('now')
                 WHERE id = ?
-            ''', (alert.title, alert.description, alert.alert_date, alert.alert_time, alert.priority, alert.status, alert.recurrence_type, alert.id))
+            ''', (alert.title, alert.description, alert.alert_date, alert.alert_time, alert.priority, alert.status, alert.recurrence_type, getattr(alert, 'recurrence_interval', None), getattr(alert, 'recurrence_count', None), getattr(alert, 'recurrence_group_id', None), alert.id))
             return alert
 
     def get_all(self, include_archived=False, include_deleted=False) -> list:

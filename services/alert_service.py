@@ -25,7 +25,10 @@ class AlertService:
         alert_time: Optional[str] = None,
         priority: str = 'medium',
         status: str = 'pending',
-        recurrence_type: str = 'none'
+        recurrence_type: str = 'none',
+        recurrence_interval: Optional[int] = None,
+        recurrence_count: Optional[int] = None,
+        recurrence_group_id: Optional[str] = None
     ) -> Alert:
         alert = Alert(
             entity_type=entity_type,
@@ -36,19 +39,61 @@ class AlertService:
             alert_time=alert_time,
             priority=priority,
             status=status,
-            recurrence_type=recurrence_type
+            recurrence_type=recurrence_type,
+            recurrence_interval=recurrence_interval,
+            recurrence_count=recurrence_count,
+            recurrence_group_id=recurrence_group_id
         )
         created = self.alert_repo.create(alert)
         self._log_activity(created.id, "CREATED", {"title": {"from": None, "to": title}})
         notify_entity_updated("alert", created.id, "create")
         return created
 
+    def create_repeated_alerts(
+        self,
+        entity_type: str,
+        entity_id: int,
+        title: str,
+        alert_date: str,
+        description: Optional[str] = None,
+        alert_time: Optional[str] = None,
+        priority: str = 'medium',
+        recurrence_interval: int = 1,
+        recurrence_count: int = 1
+    ) -> list:
+        """Cria Y alarmes a cada X dias. Retorna lista dos alarmes criados."""
+        import uuid as _uuid
+        from datetime import datetime as _dt, timedelta
+        group_id = str(_uuid.uuid4())
+        base = _dt.strptime(alert_date, "%Y-%m-%d")
+        alerts = []
+        for i in range(max(1, recurrence_count)):
+            d = (base + timedelta(days=recurrence_interval * i)).strftime("%Y-%m-%d")
+            # título com índice quando há repetição
+            t = title if recurrence_count <= 1 else (title if i == 0 else f"{title} ({i+1}/{recurrence_count})")
+            a = self.create_alert(
+                entity_type=entity_type,
+                entity_id=entity_id,
+                title=t,
+                alert_date=d,
+                description=description,
+                alert_time=alert_time,
+                priority=priority,
+                status="pending",
+                recurrence_type="custom" if recurrence_count > 1 else "none",
+                recurrence_interval=recurrence_interval if recurrence_count > 1 else None,
+                recurrence_count=recurrence_count if recurrence_count > 1 else None,
+                recurrence_group_id=group_id if recurrence_count > 1 else None
+            )
+            alerts.append(a)
+        return alerts
+
     def update_alert(self, alert: Alert, original: Alert) -> Alert:
         updated = self.alert_repo.update(alert)
         changes = {}
-        for field in ["title", "description", "alert_date", "alert_time", "priority", "status", "recurrence_type"]:
-            old_val = getattr(original, field)
-            new_val = getattr(alert, field)
+        for field in ["title", "description", "alert_date", "alert_time", "priority", "status", "recurrence_type", "recurrence_interval", "recurrence_count", "recurrence_group_id"]:
+            old_val = getattr(original, field, None)
+            new_val = getattr(alert, field, None)
             if old_val != new_val:
                 changes[field] = {"from": old_val, "to": new_val}
         if changes:

@@ -18,7 +18,10 @@ class Alert:
         created_at: Optional[str] = None,
         updated_at: Optional[str] = None,
         snoozed_until: Optional[str] = None,
-        snooze_count: int = 0
+        snooze_count: int = 0,
+        recurrence_interval: Optional[int] = None,
+        recurrence_count: Optional[int] = None,
+        recurrence_group_id: Optional[str] = None
     ):
         self.id = id
         self.entity_type = entity_type
@@ -34,3 +37,6 @@ class Alert:
         self.updated_at = updated_at or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.snoozed_until = snoozed_until
         self.snooze_count = snooze_count
+        self.recurrence_interval = recurrence_interval
+        self.recurrence_count = recurrence_count
+        self.recurrence_group_id = recurrence_group_id

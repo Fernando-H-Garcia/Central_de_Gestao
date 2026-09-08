@@ -834,14 +834,14 @@ class Project360Qt(QWidget):
         from core.event_bus import event_bus
         event_bus.emit("entity_updated")
 
-    def _create_alarm_from_timeline(self, task_or_id):
+    def _create_alarm_from_timeline(self, task_or_id, mouse_dt=None):
         """Menu de contexto do Planejamento → 🔔 Criar Alarme na tarefa."""
         try:
             task = self._resolve_timeline_task(task_or_id)
             if task is None:
                 return
             from gui.dialogs_qt.alarm_dialog_qt import AlarmDialogQt
-            dialog = AlarmDialogQt(self, task=task)
+            dialog = AlarmDialogQt(self, task=task, initial_dt=mouse_dt)
             dialog.exec()
             self.load_data()
         except Exception:
