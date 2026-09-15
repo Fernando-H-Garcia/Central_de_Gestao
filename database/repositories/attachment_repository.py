@@ -47,7 +47,13 @@ class AttachmentRepository:
         with get_db_cursor() as cursor:
             cursor.execute(f"""
                 UPDATE {self.table_name}
-                SET entity_type = ?, entity_id = ?
+                SET entity_type = ?, entity_id = ?, file_name = ?, file_path = ?, mime_type = ?
                 WHERE id = ?
-            """, (attachment.entity_type, attachment.entity_id, attachment.id))
+            """, (attachment.entity_type, attachment.entity_id, attachment.file_name, attachment.file_path, attachment.mime_type, attachment.id))
             return attachment
+
+    def rename(self, attachment_id: int, new_file_name: str) -> Attachment:
+        with get_db_cursor() as cursor:
+            cursor.execute(f"UPDATE {self.table_name} SET file_name = ? WHERE id = ?", (new_file_name, attachment_id))
+            cursor.execute(f"SELECT * FROM {self.table_name} WHERE id = ?", (attachment_id,))
+            return self._row_to_model(cursor.fetchone())

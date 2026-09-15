@@ -1135,6 +1135,10 @@ class WikiQt(QWidget):
         open_d.triggered.connect(lambda: self._open_attachment_folder(item))
         menu.addAction(open_d)
 
+        rename_a = QAction("✏️ Renomear", self)
+        rename_a.triggered.connect(lambda _, a=att: self._rename_attachment(a))
+        menu.addAction(rename_a)
+
         menu.addSeparator()
 
         move_a = QAction("↗️ Mover para...", self)
@@ -1227,6 +1231,32 @@ class WikiQt(QWidget):
             self._load_attachments()
         except Exception as e:
             QMessageBox.critical(self, "Erro", f"Não foi possível mover o anexo:\n{e}")
+
+    def _rename_attachment(self, att):
+        import re as _re, os as _os
+        # nome exibido sem prefixo uuid_ para edição
+        raw_name = getattr(att, 'file_name', '') or ''
+        clean_name = _re.sub(r'^[0-9a-fA-F-]{8,}_', '', raw_name)
+        stem, ext = _os.path.splitext(clean_name)
+        # exibe só o nome sem extensão; extensão será preservada
+        from PySide6.QtWidgets import QInputDialog
+        label = f"Novo nome (formato '{ext}' será mantido):" if ext else "Novo nome:"
+        new_name, ok = QInputDialog.getText(self, "Renomear Anexo", label, text=stem)
+        if not ok:
+            return
+        new_name = new_name.strip()
+        if not new_name:
+            QMessageBox.warning(self, "Renomear", "O nome não pode estar vazio.")
+            return
+        # compara base sem extensão para evitar falso "sem alteração"
+        if new_name == stem or new_name == clean_name or f"{new_name}{ext}" == clean_name:
+            return
+        from services.attachment_service import AttachmentService
+        try:
+            AttachmentService().rename_attachment(att.id, new_name)
+            self._load_attachments()
+        except Exception as e:
+            QMessageBox.critical(self, "Erro", f"Não foi possível renomear:\n{e}")
 
     def _open_attachment(self, item):
         att = item.data(Qt.UserRole)

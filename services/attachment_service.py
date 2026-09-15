@@ -68,6 +68,65 @@ class AttachmentService:
         att.entity_id = target_entity_id
         return self.repository.update(att)
 
+    def rename_attachment(self, attachment_id: int, new_file_name: str) -> Attachment:
+        new_file_name = (new_file_name or "").strip()
+        if not new_file_name:
+            raise ValueError("Nome do arquivo não pode ser vazio")
+        # sanitiza: remove separadores de caminho
+        new_file_name = new_file_name.replace("\\", "_").replace("/", "_")
+        if not new_file_name:
+            raise ValueError("Nome inválido")
+        att = self.repository.get_by_id(attachment_id)
+        if not att:
+            raise ValueError("Anexo não encontrado")
+        # ── preserva o formato/extensão original (não deixa alterar) ──
+        old_ext = Path(att.file_name).suffix if getattr(att, 'file_name', None) else ""
+        # extrai apenas a base do nome informado, descartando extensão digitada
+        input_path = Path(new_file_name)
+        if input_path.suffix:
+            new_base = input_path.stem
+        else:
+            new_base = new_file_name
+        new_base = new_base.strip().replace("\\", "_").replace("/", "_")
+        if not new_base:
+            raise ValueError("Nome inválido")
+        # reconstrói com a extensão original (formato inalterado)
+        final_name = f"{new_base}{old_ext}" if old_ext else new_base
+        if final_name == att.file_name:
+            return att
+        new_file_name = final_name
+        # tenta renomear arquivo físico mantendo prefixo uuid_ se existir
+        try:
+            old_path = Path(att.file_path) if att.file_path else None
+            if old_path and old_path.exists():
+                # preserva diretório, renomeia parte após uuid_
+                new_dest_name = f"{att.uuid}_{new_file_name}"
+                new_path = old_path.parent / new_dest_name
+                # se o arquivo já tem o mesmo nome, não precisa mover
+                if old_path.resolve() != new_path.resolve():
+                    # evita sobrescrever: se destino existe, adiciona sufixo antes da extensão original
+                    if new_path.exists():
+                        stem = Path(new_file_name).stem
+                        suffix = Path(new_file_name).suffix  # == old_ext
+                        counter = 1
+                        while new_path.exists():
+                            alt_name = f"{stem} ({counter}){suffix}"
+                            new_path = old_path.parent / f"{att.uuid}_{alt_name}"
+                            counter += 1
+                            # atualiza new_file_name para refletir o nome real salvo
+                            new_file_name = alt_name
+                    old_path.rename(new_path)
+                    att.file_path = str(new_path)
+        except Exception:
+            # falha no FS não deve impedir atualização do nome lógico
+            pass
+        att.file_name = new_file_name
+        # mime permanece o mesmo pois extensão não muda; mantém atualização defensiva
+        mt, _ = mimetypes.guess_type(new_file_name)
+        if mt:
+            att.mime_type = mt
+        return self.repository.update(att)
+
     def delete_attachment(self, attachment_id: int):
         # Soft delete in database
         self.repository.soft_delete(attachment_id)

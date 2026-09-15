@@ -1,5 +1,14 @@
 # Changelog
 
+
+## [0.8.1] - 2026-09-15
+
+### Added
+- Renomear anexo na Documentacao (botao direito, preserva extensao)
+
+### Fixed
+- 
+
 Todas as mudanças notáveis no Central de Gestão serão documentadas aqui.
 
 ## [0.8.0] - 2024-06-30

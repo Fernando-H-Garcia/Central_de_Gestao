@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Versão única do Central de Gestão — fonte da verdade para build, installer e release."""
 
-VERSION = "0.8.0"
+VERSION = "0.8.1"
 VERSION_SHORT = "0.8"
 BUILD = "1"
 
