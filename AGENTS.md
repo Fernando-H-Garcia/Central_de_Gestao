@@ -440,6 +440,60 @@
 | Symptom | Cause | Fix |
 |---|---|---|
 | `DLL load failed while importing QtWidgets` | PySide6 6.11+ on Python 3.11 | Install PySide6 6.6.x (`pip install "PySide6>=6.6,<6.7"`) |
+
+## Learnings & Troubleshooting
+
+### Custom Tooltip in QTreeWidget (Task Name on Hover)
+- Implemented in both `DragDropTreeWidget` (task lists) and `GanttTree` (Planning tab)
+- Uses `QTimer` with 1300ms delay (`SingleShot`) to show tooltip after hover
+- Tooltip text wraps at ~42 chars/line (max 6 words × 6 chars), multi-line via `\n`
+- Positioned at `mapToGlobal(pos) + QPoint(20, 20)` (offset from cursor)
+- Constrained to widget viewport: `max_x = widget_global.x() + width - 300`, `max_y = widget_global.y() + height - 100`
+- **Critical**: Must import `QPoint` from `PySide6.QtCore` (missing import caused `NameError: QPoint not defined`)
+
+### Stale Bytecode Cache Issues
+- Python caches `.pyc` in `__pycache__` folders; old code persists across restarts
+- Error logs showed crashes from 2026-08-10 code even after fixes
+- **Fix**: Run with `python -B main.py` (disables bytecode writing) OR delete all `__pycache__` folders before running
+- Always verify with `python -B -c "from module import Class; print('OK')"` after changes
+
+### Missing Signal Handler Method
+- `GanttTree` connected `currentItemChanged` to `_on_current_changed` but method was missing
+- Added `_on_current_changed(self, current, previous)` to track `selected_item_id` for hover highlighting
+
+### Navigation History Crash
+- `RuntimeError: libshiboken: Internal C++ object already deleted` when navigating back
+- Root cause: cached views in `_project_views`/`_task_views` not cleaned up when deleted
+- **Fix**: Connect `destroyed` signal to remove from cache: `view.destroyed.connect(lambda: self._task_views.pop(task_id, None))`
+
+### Duplicate Keyword Argument in Function Call
+- `_rebuild_project_tabs(..., project_repo, kind="events", ..., project_repo=project_repo)` caused `TypeError: got multiple values for argument`
+- **Rule**: Never pass same argument as both positional and keyword; remove duplicate from kwargs
+### Stale Data After Editing via Timeline (root cause + regra)
+- Sintoma: arrastar tarefa/prazo na aba Planejamento gravava no banco, mas a aba Tarefas/Agenda/detalhe continuava mostrando data/status antigos
+- Causa: handlers `_on_timeline_task_moved` / `_on_timeline_deadline_moved` não emitiam `entity_updated` nem chamavam `load_data()`
+- **Regra**: TODO ponto que persiste alteração (service, repo direto, dialog, ação de drag) deve garantir `notify_entity_updated(...)` (ou emitir `entity_updated` direto) + `load_data()` local. Services já notificam (`TaskService.update_task`, `AlertService.*`, `EventService` emite `snapshot_updated`, `IdeaService`, `ProjectService`, `AgendaService`, `NoteService`) — mas updates DIRETOS de repo (`alert_repo.update`, `page_repo.update`, `_deadline_repo().update`, `ActivityLogRepository`) NÃO notificam: ou troque pelo service que notifica, ou emita `notify_entity_updated(entity_type, id, action)`
+- Dialogs que abrem services já notificam; handlers de CRIAÇÃO/EDIÇÃO/EXCLUSÃO em views (ex.: `do_add`/`do_upd`/`do_del` de prazo estimado, `_delete_estimated_deadline`, `edit_activity`/`delete_activity`, `_apply_custom_snooze`) precisavam do emit manual — agora corrigidos
+- Views assinam `entity_updated` via `event_bus.subscribe`: `tasks_qt`, `projects_qt`, `project_360_qt`, `task_detail_qt`, `agenda_qt`, `activity_summary_qt`, `workbench_qt` (corrigido), `ideas_qt` (corrigido), `notes_qt` (corrigido), `wiki_qt` (só `snapshot_updated` — recarrega página ao abrir)
+- `AlarmDialogQt` sem `task` agora mostra combo de tarefa (`cmb_task`) — criar com `entity_id=0` ficava invisível na Agenda Geral (agrupamento pula `task_repo.get_by_id(0) → None`)
+
+### Snapshot do data_context está morto (cuidado)
+- `core/snapshot_worker.py` nunca é iniciado e `request_reload()` nunca é chamado de lugar nenhum
+- Logo `DataContext.get_snapshot()` retorna sempre o `DataSnapshot` vazio → getters (`get_all_active`, `get_tasks_by_project`, `get_subtasks`) caem no fallback do repo (por isso os dados ficam corretos)
+- **Se um dia iniciarem o worker, views passam a ler snapshot velho** — alterações feitas via drag/dialogs NÃO atualizam o snapshot (services não chamam `request_reload`). Ou invalide/troque o snapshot a cada `entity_updated`, ou remova o caminho de snapshot
+
+### View sem subscription fica congelada
+- Sintoma: edita algo numa tela, outra tela (aberta) não muda
+- Causa: view nunca assinou `entity_updated` (`workbench_qt` era o caso). Views top-level todas agora assinam `snapshot_updated` + `entity_updated` → `safe_load_data`/`load_data`; ao destruir, fazer `event_bus.unsubscribe` no `destroyed`
+
+### event_bus.emit é assíncrono (16ms) e com batch por id
+- Emit agrupa eventos pendentes e despacha num timer de 16ms — NÃO assuma atualização síncrona logo após `emit`
+- Handlers de UI devem também fazer `load_data()` local quando precisarem de refresh imediato
+- `emit("entity_updated")` sem payload chega como `data=None` — handlers devem tolerar (`safe_load_data(_=None)`)
+
+### NotesQt é código morto
+- `gui/views/notes_qt.py` (`NotesQt`) nunca é instanciada em nenhum lugar; faltava import de `event_bus` (NameError latente) — corrigido mas a view segue não usada
+
 | EXE is 2.5 MB (too small) | `.spec` is in one-folder mode (COLLECT) | Remove COLLECT, EXE must include `a.binaries, a.zipfiles, a.datas` |
 | `PERFORMANCE_DEBUG = True` causes excessive I/O | Set to `False` in `utils/instrumentation.py:4` |
 | App crashes writing logs to `Program Files` | `LOGS_DIR` resolves to wrong path | Check `config.py:LOGS_DIR` — must use `data_root()` → `%LOCALAPPDATA%\CentralGestao\logs\` when bundled |

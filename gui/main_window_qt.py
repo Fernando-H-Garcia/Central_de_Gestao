@@ -316,6 +316,7 @@ class MainWindow(QMainWindow):
             view = Project360Qt(project_id)
             view.go_back.connect(self._navigate_back)
             view.open_task_detail_signal.connect(lambda tid: self.show_task_detail(tid, origin_widget=view))
+            view.destroyed.connect(lambda: self._project_views.pop(project_id, None))
             self.stacked_widget.addWidget(view)
             self._project_views[project_id] = view
 
@@ -341,6 +342,7 @@ class MainWindow(QMainWindow):
             if view.task is None:
                 return
             view.go_back.connect(self._navigate_back)
+            view.destroyed.connect(lambda: self._task_views.pop(task_id, None))
             self.stacked_widget.addWidget(view)
             self._task_views[task_id] = view
 

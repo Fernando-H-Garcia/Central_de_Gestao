@@ -12,7 +12,7 @@ import datetime
 from PySide6.QtWidgets import (QTreeWidget, QTreeWidgetItem, QToolTip,
                                 QHeaderView, QMenu, QAbstractItemView,
                                 QTreeWidgetItemIterator)
-from PySide6.QtCore import Qt, Signal, QTimer, QRectF, QPointF, QSize, QRect
+from PySide6.QtCore import Qt, Signal, QTimer, QRectF, QPointF, QPoint, QSize, QRect
 from PySide6.QtGui import QPainter, QColor, QPen, QFont, QBrush, QPolygonF
 
 from gui.components.drag_drop_tree_qt import TranslucentDragMixin
@@ -94,6 +94,17 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         self._tip_timer.setInterval(1500)
         self._tip_timer.timeout.connect(self._refresh_tooltip)
 
+        # Task name tooltip (left column) - 1.3s delay
+        self._task_tooltip_timer = QTimer(self)
+        self._task_tooltip_timer.setSingleShot(True)
+        self._task_tooltip_timer.setInterval(1300)
+        self._task_tooltip_timer.timeout.connect(self._show_task_name_tooltip)
+        self._task_tooltip_item = None
+        self._task_tooltip_pos = None
+
+        # Highlight completed rows when filter is active
+        self._highlight_completed = False
+
         self._has_dragged = False
         self._is_panning = False
         self._pan_start_x = 0
@@ -139,6 +150,53 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         t = current.data(0, Qt.UserRole) if current else None
         self.selected_item_id = t.id if t else None
         self.viewport().update()
+
+    def set_highlight_completed(self, enabled: bool):
+        """Enable/disable highlighting of completed task rows."""
+        if self._highlight_completed != enabled:
+            self._highlight_completed = enabled
+            self.viewport().update()
+
+    def _show_task_name_tooltip(self):
+        if not self._task_tooltip_item or not self._task_tooltip_pos:
+            return
+        item = self._task_tooltip_item
+        t = item.data(0, Qt.UserRole)
+        if not t or not hasattr(t, 'title') or not t.title:
+            return
+        
+        title = t.title
+        # Format: max 6 words of 6 chars = ~42 chars per line, wrap lines
+        words = title.split()
+        lines = []
+        current_line = ""
+        for word in words:
+            if len(current_line) + len(word) + 1 <= 42:
+                current_line += (" " if current_line else "") + word
+            else:
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+        if current_line:
+            lines.append(current_line)
+        tooltip_text = "\n".join(lines)
+        
+        # Position tooltip offset from cursor, constrained to viewport
+        global_pos = self.viewport().mapToGlobal(self._task_tooltip_pos)
+        global_pos += QPoint(20, 20)  # Offset from mouse pointer
+        
+        # Ensure tooltip stays within widget bounds
+        widget_rect = self.viewport().rect()
+        widget_global = self.viewport().mapToGlobal(QPoint(0, 0))
+        max_x = widget_global.x() + widget_rect.width() - 300
+        max_y = widget_global.y() + widget_rect.height() - 100
+        if global_pos.x() > max_x:
+            global_pos.setX(max_x)
+        if global_pos.y() > max_y:
+            global_pos.setY(max_y)
+        
+        from PySide6.QtWidgets import QToolTip
+        QToolTip.showText(global_pos, tooltip_text, self)
 
     # ---------- geometria ----------
 
@@ -191,6 +249,22 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
     # ---------- paint ----------
 
     def paintEvent(self, event):
+        # Draw completed row backgrounds BEFORE super().paintEvent() so they appear under text
+        if self._highlight_completed:
+            painter = QPainter(self.viewport())
+            painter.setRenderHint(QPainter.Antialiasing)
+            try:
+                for t_item, vrect in self._visible_rows():
+                    ds = getattr(t_item, 'display_status', t_item.status)
+                    if ds == "Concluído":
+                        # Draw a subtle green background for completed tasks
+                        row_rect = QRectF(0, vrect.y(), self.width(), vrect.height())
+                        highlight_color = QColor(SUCCESS_GREEN)
+                        highlight_color.setAlpha(40)  # Subtle transparency
+                        painter.fillRect(row_rect, highlight_color)
+            finally:
+                painter.end()
+
         super().paintEvent(event)
         painter = QPainter(self.viewport())
         painter.setRenderHint(QPainter.Antialiasing)
@@ -1220,6 +1294,21 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             else:
                 self._hide_tooltip()
         else:
+            # Task name tooltip for left column (task name area)
+            index = self.indexAt(pos)
+            if index.isValid() and pos.x() < self.timeline_left():
+                item = self.itemFromIndex(index)
+                if item != self._task_tooltip_item:
+                    self._task_tooltip_timer.stop()
+                    self._task_tooltip_item = item
+                    self._task_tooltip_pos = pos
+                    if item:
+                        self._task_tooltip_timer.start()
+            else:
+                self._task_tooltip_timer.stop()
+                self._task_tooltip_item = None
+                self._task_tooltip_pos = None
+            
             if self._hover_item_id is not None or self._hover_ev is not None:
                 self._hover_item_id = None
                 self._hover_ev = None
@@ -1243,6 +1332,9 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             self._hover_item_id = None
             self._hover_ev = None
             self.viewport().update()
+        self._task_tooltip_timer.stop()
+        self._task_tooltip_item = None
+        self._task_tooltip_pos = None
         self._hide_tooltip()
         super().leaveEvent(event)
 

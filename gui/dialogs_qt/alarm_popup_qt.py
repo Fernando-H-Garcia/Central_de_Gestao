@@ -344,6 +344,8 @@ class AlarmPopupQt(QDialog):
                 alarm.alert_time = new_time
                 alarm.status = 'pending'
                 self.alert_service.alert_repo.update(alarm)
+                from core.refresh_manager import notify_entity_updated
+                notify_entity_updated("alert", alarm_id, "snooze")
         except Exception:
             from config import LOGS_DIR
             log_path = os.path.join(LOGS_DIR, "app_errors.log")

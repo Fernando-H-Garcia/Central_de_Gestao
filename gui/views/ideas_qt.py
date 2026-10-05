@@ -58,6 +58,7 @@ class IdeasQt(QWidget):
         
         self._snapshot_cb = lambda _: self.load_data()
         event_bus.subscribe("snapshot_updated", self._snapshot_cb)
+        event_bus.subscribe("entity_updated", self._snapshot_cb)
         self.destroyed.connect(self._cleanup_snapshot)
         
         # Table Area
@@ -119,6 +120,7 @@ class IdeasQt(QWidget):
         
     def _cleanup_snapshot(self):
         event_bus.unsubscribe("snapshot_updated", self._snapshot_cb)
+        event_bus.unsubscribe("entity_updated", self._snapshot_cb)
 
     def toggle_archived(self):
         self.show_archived = self.btn_archived.isChecked()

@@ -3,6 +3,7 @@ from typing import List, Optional
 from models.entities import KnowledgePage
 from database.repositories.knowledge_page_repository import KnowledgePageRepository
 from database.repositories.activity_log_repository import ActivityLogRepository, ActivityLog
+from core.refresh_manager import notify_entity_updated
 
 class KnowledgePageService:
     def __init__(self):
@@ -18,6 +19,7 @@ class KnowledgePageService:
         page = KnowledgePage(title=title, content=content, parent_id=parent_id, category=category, is_favorite=is_favorite, last_reviewed_at=last_reviewed_at, review_interval_days=review_interval_days)
         created_page = self.page_repo.create(page)
         self._log_activity(created_page.id, "CREATED", {"title": {"from": None, "to": title}})
+        notify_entity_updated("wiki", created_page.id, "create")
         return created_page
 
     def reorder_page(self, page_id: int, sort_order: int, parent_id: int = None):
@@ -33,6 +35,7 @@ class KnowledgePageService:
                 changes[field] = {"from": old_val, "to": new_val}
         if changes:
             self._log_activity(page.id, "UPDATED", changes)
+        notify_entity_updated("wiki", page.id, "update")
         return updated
 
     def get_by_id(self, page_id: int) -> Optional[KnowledgePage]:
@@ -48,14 +51,17 @@ class KnowledgePageService:
     def archive_page(self, page_id: int):
         self.page_repo.archive(page_id)
         self._log_activity(page_id, "ARCHIVED")
+        notify_entity_updated("wiki", page_id, "archive")
 
     def restore_page(self, page_id: int):
         self.page_repo.restore(page_id)
         self._log_activity(page_id, "RESTORED")
+        notify_entity_updated("wiki", page_id, "restore")
 
     def soft_delete_page(self, page_id: int):
         self.page_repo.soft_delete(page_id)
         self._log_activity(page_id, "DELETED")
+        notify_entity_updated("wiki", page_id, "delete")
 
     def get_tags(self, page_id: int) -> List[str]:
         return self.page_repo.get_tags_for_page(page_id)

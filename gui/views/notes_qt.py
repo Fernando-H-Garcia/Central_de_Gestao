@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt
 from services.note_service import NoteService
 from models.entities import Note
 from core.refresh_manager import notify_entity_updated
+from core.event_bus import event_bus
 import copy
 
 class NotesQt(QWidget):
@@ -22,10 +23,12 @@ class NotesQt(QWidget):
         
         self._snapshot_cb = lambda _: self.load_data()
         event_bus.subscribe("snapshot_updated", self._snapshot_cb)
+        event_bus.subscribe("entity_updated", self._snapshot_cb)
         self.destroyed.connect(self._cleanup_snapshot)
 
     def _cleanup_snapshot(self):
         event_bus.unsubscribe("snapshot_updated", self._snapshot_cb)
+        event_bus.unsubscribe("entity_updated", self._snapshot_cb)
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)

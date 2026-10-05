@@ -1,6 +1,7 @@
 from PySide6.QtWidgets import QTreeWidget, QAbstractItemView, QTreeWidgetItem, QTreeWidgetItemIterator
-from PySide6.QtCore import Qt, Signal, QTimer, QPoint, QMimeData
-from PySide6.QtGui import QDrag, QPainter, QPixmap, QRegion
+from PySide6.QtCore import Qt, Signal, QTimer, QPoint, QMimeData, QRect
+from PySide6.QtGui import QDrag, QPainter, QPixmap, QRegion, QFontMetrics
+
 
 class SortableTreeWidgetItem(QTreeWidgetItem):
     def __init__(self, parent=None, sort_values=None):
@@ -19,6 +20,7 @@ class SortableTreeWidgetItem(QTreeWidgetItem):
             except TypeError:
                 return str(val1) < str(val2)
         return self.text(column) < other.text(column)
+
 
 class TranslucentDragMixin:
     """Fantasma de drag translúcido para QTreeWidget.
@@ -66,8 +68,9 @@ class TranslucentDragMixin:
         drag.setHotSpot(QPoint(60, rect.height() // 2))
         drag.exec(actions, Qt.MoveAction)
 
+
 class DragDropTreeWidget(TranslucentDragMixin, QTreeWidget):
-    item_moved = Signal(int, object) # task_id, new_parent_id (ou None para raiz)
+    item_moved = Signal(int, object)  # task_id, new_parent_id (ou None para raiz)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -78,11 +81,83 @@ class DragDropTreeWidget(TranslucentDragMixin, QTreeWidget):
         self.setDropIndicatorShown(True)
         self.setDragDropOverwriteMode(False)
 
-# Em árvores "locais" (ex.: detalhe de tarefa) os itens do topo são filhos
+        # Word wrap for title column
+        self.setWordWrap(True)
+        self.setTextElideMode(Qt.ElideNone)
+
+        # Custom tooltip system
+        self._tooltip_timer = QTimer(self)
+        self._tooltip_timer.setSingleShot(True)
+        self._tooltip_timer.setInterval(1300)  # 1.3s
+        self._tooltip_timer.timeout.connect(self._show_custom_tooltip)
+        self._tooltip_item = None
+        self._tooltip_pos = None
+        self.setMouseTracking(True)
+
+        # Em árvores "locais" (ex.: detalhe de tarefa) os itens do topo são filhos
         # de uma tarefa âncora e NÃO devem virar tarefa raiz do projeto no drop.
         # None = a raiz da árvore é a raiz do projeto (comportamento padrão em
         # Project360/Tasks). Use set_drop_root_parent para limitar o drop.
         self._drop_root_parent_id = None
+
+    def _show_custom_tooltip(self):
+        if not self._tooltip_item or not self._tooltip_pos:
+            return
+        item = self._tooltip_item
+        task = item.data(0, Qt.UserRole)
+        if not task or not hasattr(task, 'title') or not task.title:
+            return
+
+        title = task.title
+        # Format: max 6 words of 6 chars = ~42 chars per line, wrap lines
+        words = title.split()
+        lines = []
+        current_line = ""
+        for word in words:
+            if len(current_line) + len(word) + 1 <= 42:
+                current_line += (" " if current_line else "") + word
+            else:
+                if current_line:
+                    lines.append(current_line)
+                current_line = word
+        if current_line:
+            lines.append(current_line)
+        tooltip_text = "\n".join(lines)
+
+        # Position tooltip offset from cursor, constrained to viewport
+        global_pos = self.viewport().mapToGlobal(self._tooltip_pos)
+        global_pos += QPoint(20, 20)  # Offset from mouse pointer
+
+        # Ensure tooltip stays within widget bounds
+        widget_rect = self.viewport().rect()
+        widget_global = self.viewport().mapToGlobal(QPoint(0, 0))
+        max_x = widget_global.x() + widget_rect.width() - 300
+        max_y = widget_global.y() + widget_rect.height() - 100
+        if global_pos.x() > max_x:
+            global_pos.setX(max_x)
+        if global_pos.y() > max_y:
+            global_pos.setY(max_y)
+
+        from PySide6.QtWidgets import QToolTip
+        QToolTip.showText(global_pos, tooltip_text, self)
+
+    def mouseMoveEvent(self, event):
+        item = self.itemAt(event.pos())
+        if item != self._tooltip_item:
+            self._tooltip_timer.stop()
+            self._tooltip_item = item
+            self._tooltip_pos = event.pos()
+            if item:
+                self._tooltip_timer.start()
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event):
+        self._tooltip_timer.stop()
+        self._tooltip_item = None
+        self._tooltip_pos = None
+        from PySide6.QtWidgets import QToolTip
+        QToolTip.hideText()
+        super().leaveEvent(event)
 
     def set_drop_root_parent(self, task_id):
         """Define a tarefa que é o 'pai' dos itens de nível topo desta árvore.
@@ -160,6 +235,7 @@ class DragDropTreeWidget(TranslucentDragMixin, QTreeWidget):
             # Deixa a UI atualizar e então o handler persiste o novo pai
             QTimer.singleShot(0, lambda: self.item_moved.emit(task.id, new_parent))
 
+
 def fit_branch_arrows(tree):
     """Ajusta indentacao e largura da coluna 0 para as setas de expansao nao
     serem recortadas em arvores profundas. Qt desenha a seta no inicio da
@@ -169,12 +245,14 @@ def fit_branch_arrows(tree):
     """
     root = tree.invisibleRootItem()
     max_depth = 0
+
     def _measure(parent, depth):
         nonlocal max_depth
         for i in range(parent.childCount()):
             _measure(parent.child(i), depth + 1)
         if depth > max_depth:
             max_depth = depth
+
     _measure(root, 0)
 
     indent = 20

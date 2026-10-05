@@ -178,6 +178,7 @@ class TimelineViewQt(QWidget):
 
     def _on_filters_changed(self):
         self._update_visible_items()
+        self.tree.set_highlight_completed(self.chk_completed.isChecked())
 
     def set_zoom(self, mode: str):
         if mode == "day":

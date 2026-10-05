@@ -922,11 +922,13 @@ class Project360Qt(QWidget):
                 date_str = adate.strftime("%Y-%m-%d")
                 a = alert_svc.get_alert(aid) if aid else None
                 if a:
+                    import copy as _copy
+                    orig_a = _copy.deepcopy(a)
                     a.alert_date = date_str
                     a.title = atitle
                     if getattr(a, "status", None) not in ("pending", "overdue", "completed"):
                         a.status = "pending"
-                    alert_svc.alert_repo.update(a)
+                    alert_svc.update_alert(a, orig_a)
                 else:
                     created = alert_svc.create_alert(
                         entity_type="task",
@@ -1035,6 +1037,8 @@ class Project360Qt(QWidget):
                      "estimated_deadline_desc": {"to": desc}})
                 refresh()
                 self.load_data()
+                from core.event_bus import event_bus
+                event_bus.emit("entity_updated")
 
             def do_upd():
                 did = selected_id[0]
@@ -1058,6 +1062,8 @@ class Project360Qt(QWidget):
                          "estimated_deadline_desc": {"to": desc}})
                 refresh()
                 self.load_data()
+                from core.event_bus import event_bus
+                event_bus.emit("entity_updated")
 
             def do_del():
                 did = selected_id[0]
@@ -1095,6 +1101,8 @@ class Project360Qt(QWidget):
                 selected_id[0] = None
                 refresh()
                 self.load_data()
+                from core.event_bus import event_bus
+                event_bus.emit("entity_updated")
 
             list_w.itemClicked.connect(on_select)
             btn_add.clicked.connect(do_add)
@@ -1161,6 +1169,8 @@ class Project360Qt(QWidget):
                 task.id, "DEADLINE_REMOVED",
                 {"estimated_deadline": {"to": (d.deadline_date.strftime("%d/%m/%Y") if d.deadline_date else "")},
                  "estimated_deadline_desc": {"to": d.description or ""}})
+            from core.event_bus import event_bus
+            event_bus.emit("entity_updated")
             self.load_data()
         except Exception:
             import traceback
@@ -1175,6 +1185,8 @@ class Project360Qt(QWidget):
             d.deadline_date = new_date
             self._deadline_repo().update(d)
             self._sync_deadline_alarms(d, new_date)
+            from core.event_bus import event_bus
+            event_bus.emit("entity_updated")
             self.load_data()
         except Exception:
             import traceback
@@ -1222,6 +1234,9 @@ class Project360Qt(QWidget):
             edited.start_date = new_start
             edited.due_date = new_end
             self.task_service.update_task(edited, orig)
+            from core.event_bus import event_bus
+            event_bus.emit("entity_updated")
+            self.load_data()
             print(f"[PERF P360] _on_timeline_task_moved update_task finished in {(time.perf_counter()-t0)*1000:.2f}ms")
         except Exception:
             import traceback

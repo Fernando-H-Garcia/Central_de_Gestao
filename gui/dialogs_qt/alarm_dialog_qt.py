@@ -78,6 +78,22 @@ class AlarmDialogQt(QDialog):
             lbl_task = QLabel(f"📋 Tarefa: <b>{self.task.title}</b>")
             lbl_task.setWordWrap(True)
             layout.addWidget(lbl_task)
+        elif not self.alarm:
+            # sem tarefa pré-selecionada (ex.: + Novo Alarme na Agenda Geral): permite escolher
+            layout.addWidget(QLabel("Tarefa vinculada:"))
+            self.cmb_task = QComboBox()
+            try:
+                from services.task_service import TaskService
+                from services.project_service import ProjectService
+                task_repo = TaskService().task_repo
+                project_repo = ProjectService().project_repo
+                projects = {p.id: p.name for p in project_repo.get_all(include_archived=False, include_deleted=False)}
+                for t in task_repo.get_all(include_archived=False, include_deleted=False):
+                    pname = projects.get(t.project_id, "?")
+                    self.cmb_task.addItem(f"{pname} · {t.title}", t.id)
+            except Exception:
+                pass
+            layout.addWidget(self.cmb_task)
 
         # Título
         layout.addWidget(QLabel("Título do Alarme:"))
@@ -312,7 +328,13 @@ class AlarmDialogQt(QDialog):
                 self.on_save(self.alarm)
         else:
             entity_type = "task"
-            entity_id = self.task.id if self.task else 0
+            if self.task:
+                entity_id = self.task.id
+            elif getattr(self, 'cmb_task', None) is not None and self.cmb_task.currentData():
+                entity_id = self.cmb_task.currentData()
+            else:
+                QMessageBox.warning(self, "Aviso", "Selecione uma tarefa para o alarme.")
+                return
 
             if do_repeat:
                 alarms = self.alert_service.create_repeated_alerts(

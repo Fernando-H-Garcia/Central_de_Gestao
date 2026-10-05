@@ -132,6 +132,7 @@ class IdeaService:
                     """, (new_uuid, proj.id, att['file_path'], att['file_name'], att['mime_type'], att['file_size'], att['checksum']))
                     
         self._log_activity(idea_id, "PROMOTED_TO_PROJECT", {"project_id": proj.id, "project_title": project_title})
+        notify_entity_updated("idea", idea_id, "update")
         return proj.id
 
     def promote_to_task(self, idea_id: int, task_title: str, description_text: Optional[str], copy_tags: bool, copy_attachments: bool, link_idea: bool, project_id: Optional[int] = None, priority: str = "Média", status: str = "Backlog", due_date=None, alert_date=None, alert_message=None) -> int:
@@ -182,4 +183,5 @@ class IdeaService:
                     """, (new_uuid, task.id, att['file_path'], att['file_name'], att['mime_type'], att['file_size'], att['checksum']))
                     
         self._log_activity(idea_id, "PROMOTED_TO_TASK", {"task_id": task.id, "task_title": task_title})
+        notify_entity_updated("idea", idea_id, "update")
         return task.id

@@ -60,6 +60,15 @@ class AgendaQt(QWidget):
         # Sub-tab Alarmes
         tab_alarmes = QWidget()
         layout_alarmes = QVBoxLayout(tab_alarmes)
+
+        btn_layout_a = QHBoxLayout()
+        btn_layout_a.addStretch()
+        self.btn_new_alarm = QPushButton("🔔 + Novo Alarme")
+        self.btn_new_alarm.setObjectName("secondary")
+        self.btn_new_alarm.clicked.connect(self.new_alarm)
+        btn_layout_a.addWidget(self.btn_new_alarm)
+        layout_alarmes.addLayout(btn_layout_a)
+
         self.project_alarm_tabs = QTabWidget()
         self.project_alarm_tabs.setStyleSheet(self._nested_tab_style())
         # Cada projeto com alarmes vira uma sub-aba aqui
@@ -103,6 +112,24 @@ class AgendaQt(QWidget):
             QTabBar::tab:hover:!selected { color: #d8d8f0; }
         """
         
+    def new_alarm(self):
+        try:
+            from gui.dialogs_qt.alarm_dialog_qt import AlarmDialogQt
+            dialog = AlarmDialogQt(self)
+            dialog.exec()
+            self.load_data()
+        except Exception as e:
+            import traceback
+            import os
+            from config import LOGS_DIR
+            log_path = os.path.join(LOGS_DIR, "app_errors.log")
+            try:
+                with open(log_path, "a") as f:
+                    f.write("\nCRASH IN NEW_ALARM (agenda_qt):\n")
+                    traceback.print_exc(file=f)
+            except:
+                pass
+
     def new_event(self):
         try:
             from gui.dialogs_qt.event_dialog_qt import EventDialogQt

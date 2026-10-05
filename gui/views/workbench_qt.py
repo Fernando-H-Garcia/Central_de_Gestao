@@ -21,7 +21,18 @@ class WorkbenchQt(QWidget):
         
         self.setup_ui()
         self.load_data()
-        
+
+        self._refresh_cb = lambda _=None: self.load_data()
+        from core.event_bus import event_bus
+        event_bus.subscribe("snapshot_updated", self._refresh_cb)
+        event_bus.subscribe("entity_updated", self._refresh_cb)
+        self.destroyed.connect(self._cleanup_bus)
+
+    def _cleanup_bus(self):
+        from core.event_bus import event_bus
+        event_bus.unsubscribe("snapshot_updated", self._refresh_cb)
+        event_bus.unsubscribe("entity_updated", self._refresh_cb)
+
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(20, 20, 20, 20)

@@ -99,6 +99,8 @@ class TaskDetailQt(QWidget):
         self.lbl_title = QLabel(f"Tarefa #{self.task.id}: {self.task.title}")
         self.lbl_title.setObjectName("header")
         self.lbl_title.setAlignment(Qt.AlignCenter)
+        self.lbl_title.setWordWrap(True)
+        self.lbl_title.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         header_layout.addWidget(self.lbl_title, stretch=1)
         
         self.btn_edit = QPushButton("✏️ Editar Tarefa")
@@ -311,6 +313,8 @@ class TaskDetailQt(QWidget):
             repo = ActivityLogRepository()
             repo.update_changed_fields(log_id, text.strip())
             self.load_data()
+            from core.event_bus import event_bus
+            event_bus.emit("entity_updated")
             
     def delete_activity(self, log_id):
         reply = QMessageBox.question(self, "Confirmar", "Tem certeza que deseja excluir esta atividade?", QMessageBox.Yes | QMessageBox.No)
@@ -319,6 +323,8 @@ class TaskDetailQt(QWidget):
             repo = ActivityLogRepository()
             repo.delete(log_id)
             self.load_data()
+            from core.event_bus import event_bus
+            event_bus.emit("entity_updated")
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Wheel and isinstance(obj, QScrollBar):
