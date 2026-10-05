@@ -494,6 +494,16 @@
 ### NotesQt é código morto
 - `gui/views/notes_qt.py` (`NotesQt`) nunca é instanciada em nenhum lugar; faltava import de `event_bus` (NameError latente) — corrigido mas a view segue não usada
 
+### Diálogos modais agora se ajustam ao conteúdo (sem scrollbars)
+- **Regra para qualquer diálogo novo**: chamar `fit_dialog_to_content(self, min_w=..., min_h=...)` ao final de `__init__` (depois de setup_ui + populate). Ele mede o conteúdo e cresce o diálogo, com teto de 96% da tela
+- `QScrollArea` dentro de diálogos precisa de `QSizePolicy.Expanding` — senão o layout NÃO estica a área e o conteúdo aparece cortado com scrollbar fantasma
+- `QScrollArea.sizeHint()` NÃO reflete o conteúdo → `fit_dialog_to_content` soma (`inner.sizeHint() vs sa.viewport()`) e valida com a viewport real
+- Caixas `QLineEdit`/`QTextEdit` de texto longo NÃO podem ter tamanho fixo: usar `autogrow_text_edit(edit, min_h=..., max_h=...)` (gui/theme.py:521), que quebra linha e cresce a caixa — e o diálogo junto
+- **Campos de Título usam `TitleEdit`** (`gui/widgets/title_edit.py`) — troca o antigo `QLineEdit` que escondia texto longo
+- Contar linhas por `document().size().height()` do `QTextEdit` NÃO funciona para medir wraps (QPlainTextDocumentLayout retorna blocos); por isso `autogrow_text_edit` estima via `fm.horizontalAdvance` por palavra
+- `QComboBox` com itens longos infla `sizeHint()`/`minimumSizeHint` horizontal → barra de rolagem horizontal no diálogo inteiro. Usar `SlimComboBox` (gui/theme.py) nos diálogos em vez de `QComboBox()` cru
+- Cascata: concluir uma tarefa pai em `TaskService.update_task` marca toda a subárvore como Concluída (status + completed_at + notificações + alarmes desligados)
+
 | EXE is 2.5 MB (too small) | `.spec` is in one-folder mode (COLLECT) | Remove COLLECT, EXE must include `a.binaries, a.zipfiles, a.datas` |
 | `PERFORMANCE_DEBUG = True` causes excessive I/O | Set to `False` in `utils/instrumentation.py:4` |
 | App crashes writing logs to `Program Files` | `LOGS_DIR` resolves to wrong path | Check `config.py:LOGS_DIR` — must use `data_root()` → `%LOCALAPPDATA%\CentralGestao\logs\` when bundled |
