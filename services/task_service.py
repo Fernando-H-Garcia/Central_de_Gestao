@@ -140,7 +140,29 @@ class TaskService:
                         svc.complete_alert(al.id)
             except Exception as e:
                 print(f"[TaskService] Erro ao desativar alarmes da tarefa concluída {task.id}: {e}")
-            
+
+            # Concluir a tarefa pai conclui toda a subárvore de descendentes
+            try:
+                for st_id in self._get_subtree_ids(task.id):
+                    st = self.task_repo.get_by_id(st_id)
+                    if st is None or st.status == "Concluído":
+                        continue
+                    old_st_status = st.status
+                    st.status = "Concluído"
+                    st.completed_at = datetime.now()
+                    self.task_repo.update(st)
+                    self._log_activity(st_id, "UPDATED", {"status": {"from": old_st_status, "to": "Concluído"}})
+                    try:
+                        from services.alert_service import AlertService
+                        svc_st = AlertService()
+                        for al in svc_st.get_alerts_for_entity("task", st_id):
+                            if getattr(al, "status", None) in ("pending", "overdue"):
+                                svc_st.complete_alert(al.id)
+                    except Exception as e:
+                        print(f"[TaskService] Erro ao desativar alarmes da subtarefa {st_id}: {e}")
+            except Exception as e:
+                print(f"[TaskService] Erro ao concluir subtarefas de {task.id}: {e}")
+
         notify_entity_updated("task", updated.id, "update")
         print(f"[PERF TASK_SVC] update_task FINISHED in {(time.perf_counter()-t_ts0)*1000:.2f}ms")
         return updated

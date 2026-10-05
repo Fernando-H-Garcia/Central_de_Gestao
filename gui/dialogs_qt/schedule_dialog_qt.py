@@ -1,12 +1,12 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
     QLineEdit, QComboBox, QPushButton, QMessageBox, QDateEdit, QScrollArea, QWidget
-)
+, QSizePolicy)
 from PySide6.QtCore import Qt, QDate
 from services.agenda_service import AgendaService
 from services.task_service import TaskService
 from services.project_service import ProjectService
-from gui.theme import style_calendar_today
+from gui.theme import style_calendar_today, SlimComboBox
 
 class ScheduleDialogQt(QDialog):
     def __init__(self, parent=None, entity_type="", entity_id=0, agenda_item=None, on_save=None):
@@ -21,10 +21,10 @@ class ScheduleDialogQt(QDialog):
         self.project_service = ProjectService()
         
         self.setWindowTitle("Programar Período de Trabalho" if not agenda_item else "Editar Período")
-        self.resize(480, 550)
-        
         self.setup_ui()
         self.populate_fields()
+        from gui.theme import fit_dialog_to_content
+        fit_dialog_to_content(self, min_w=480, min_h=550)
         
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -32,12 +32,10 @@ class ScheduleDialogQt(QDialog):
         
         # Load entity title
         title_text = f"{self.entity_type.capitalize()} ID: {self.entity_id}"
-        self.default_effort = "0.0"
         if self.entity_type == 'task':
             t = self.task_service.task_repo.get_by_id(self.entity_id)
             if t:
                 title_text = f"Tarefa: {t.title}"
-                self.default_effort = str(getattr(t, "estimated_hours", 0.0))
         elif self.entity_type == 'project':
             p = self.project_service.project_repo.get_by_id(self.entity_id)
             if p:
@@ -69,12 +67,8 @@ class ScheduleDialogQt(QDialog):
         style_calendar_today(self.dp_end)
         layout.addWidget(self.dp_end)
         
-        layout.addWidget(QLabel("Esforço Estimado (Horas):"))
-        self.ent_effort = QLineEdit(self.default_effort)
-        layout.addWidget(self.ent_effort)
-        
         layout.addWidget(QLabel("Status do Agendamento:"))
-        self.opt_status = QComboBox()
+        self.opt_status = SlimComboBox()
         self.opt_status.addItems(["planejado", "em_andamento", "pausado", "concluido"])
         layout.addWidget(self.opt_status)
         
@@ -85,7 +79,7 @@ class ScheduleDialogQt(QDialog):
             other_tasks = [t for t in all_tasks if t.id != self.entity_id]
             self.task_choices = {"Nenhuma": None}
             
-            self.opt_dep = QComboBox()
+            self.opt_dep = SlimComboBox()
             self.opt_dep.addItem("Nenhuma")
             for ot in other_tasks:
                 name = f"{ot.id} - {ot.title}"
@@ -94,11 +88,12 @@ class ScheduleDialogQt(QDialog):
             layout.addWidget(self.opt_dep)
             
             layout.addWidget(QLabel("Força da Dependência:"))
-            self.opt_dep_strength = QComboBox()
+            self.opt_dep_strength = SlimComboBox()
             self.opt_dep_strength.addItems(["obrigatória", "recomendada", "informativa"])
             layout.addWidget(self.opt_dep_strength)
             
         layout.addStretch()
+        scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         scroll.setWidget(scroll_widget)
         main_layout.addWidget(scroll)
         
@@ -124,7 +119,6 @@ class ScheduleDialogQt(QDialog):
             if self.agenda_item.end_date:
                 qd = QDate.fromString(self.agenda_item.end_date, "yyyy-MM-dd")
                 if qd.isValid(): self.dp_end.setDate(qd)
-            self.ent_effort.setText(str(self.agenda_item.effort_hours))
             self.opt_status.setCurrentText(self.agenda_item.schedule_status)
             
         if self.entity_type == 'task':
@@ -140,13 +134,12 @@ class ScheduleDialogQt(QDialog):
         start = self.dp_start.date().toString("yyyy-MM-dd")
         end = self.dp_end.date().toString("yyyy-MM-dd")
         
-        try:
-            effort = float(self.ent_effort.text().strip() or 0)
-        except ValueError:
-            QMessageBox.warning(self, "Aviso", "O esforço em horas deve ser um valor numérico.")
-            return
-            
         status = self.opt_status.currentText()
+        # mantém o esforço existente (se houver) ou zera para novas programações
+        if self.agenda_item:
+            effort = getattr(self.agenda_item, 'effort_hours', 0.0) or 0.0
+        else:
+            effort = 0.0
         
         if self.agenda_item:
             self.agenda_item.start_date = start

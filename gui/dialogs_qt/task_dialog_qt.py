@@ -1,12 +1,12 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
     QLineEdit, QTextEdit, QComboBox, QPushButton, QMessageBox, QDateEdit, QCheckBox, QScrollArea, QWidget
-)
+, QSizePolicy)
 from PySide6.QtCore import Qt, QDate
 from models.entities import Task
 from services.project_service import ProjectService
 import copy
-from gui.theme import set_combobox_colors, STATUS_COLORS, ENERGY_COLORS, apply_combobox_dynamic_color, get_status_color, get_energy_color, style_calendar_today, CHECKBOX_STYLE
+from gui.theme import set_combobox_colors, STATUS_COLORS, ENERGY_COLORS, apply_combobox_dynamic_color, get_status_color, get_energy_color, style_calendar_today, CHECKBOX_STYLE, SlimComboBox
 
 class TaskDialogQt(QDialog):
     def __init__(self, parent=None, task: Task = None, on_save=None):
@@ -19,11 +19,10 @@ class TaskDialogQt(QDialog):
         self.projects = self.project_service.get_all_active()
         
         self.setWindowTitle("Criação de Tarefa" if not task else "Editor de Tarefa")
-        self.resize(500, 650)
-        
-
         self.setup_ui()
         self.populate_fields()
+        from gui.theme import fit_dialog_to_content
+        fit_dialog_to_content(self, min_w=500, min_h=650)
         
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -38,24 +37,27 @@ class TaskDialogQt(QDialog):
         
         # Title
         layout.addWidget(QLabel("Título:"))
-        self.ent_title = QLineEdit()
+        from gui.widgets.title_edit import TitleEdit
+        self.ent_title = TitleEdit()
         layout.addWidget(self.ent_title)
         
         # Context
         layout.addWidget(QLabel("Descrição / Contexto:"))
         self.ent_context = QTextEdit()
         self.ent_context.setMaximumHeight(100)
+        from gui.theme import autogrow_text_edit
+        autogrow_text_edit(self.ent_context, min_h=80, max_h=200)
         layout.addWidget(self.ent_context)
         
         # Status
         layout.addWidget(QLabel("Status:"))
-        self.opt_status = QComboBox()
+        self.opt_status = SlimComboBox()
         self.opt_status.addItems(["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"])
         layout.addWidget(self.opt_status)
         
         # Energy
         layout.addWidget(QLabel("Prioridade / Energia:"))
-        self.opt_energy = QComboBox()
+        self.opt_energy = SlimComboBox()
         self.opt_energy.addItems(["Baixa", "Média", "Alta", "Máxima"])
         
         set_combobox_colors(self.opt_status, STATUS_COLORS)
@@ -68,7 +70,7 @@ class TaskDialogQt(QDialog):
         
         # Project
         layout.addWidget(QLabel("Projeto Vinculado:"))
-        self.opt_proj = QComboBox()
+        self.opt_proj = SlimComboBox()
         self.proj_dict = {"Nenhum": None}
         self.opt_proj.addItem("Nenhum")
         for p in self.projects:
@@ -79,7 +81,7 @@ class TaskDialogQt(QDialog):
         
         # Parent Task
         layout.addWidget(QLabel("Tarefa Pai:"))
-        self.opt_parent_task = QComboBox()
+        self.opt_parent_task = SlimComboBox()
         self.parent_task_dict = {}
         self._populate_parent_tasks()
         self.opt_proj.currentIndexChanged.connect(self._on_project_changed)
@@ -111,11 +113,6 @@ class TaskDialogQt(QDialog):
         style_calendar_today(self.ent_due)
         layout.addWidget(self.ent_due)
 
-        # Estimated Hours
-        layout.addWidget(QLabel("Esforço Estimado (Horas):"))
-        self.ent_estimated_hours = QLineEdit("0.0")
-        layout.addWidget(self.ent_estimated_hours)
-
         # Regras: só FILHA de pai não-marco é bloqueada (tarefa raiz pode ser Marco);
         # Marco não tem data final (só a data do marco)
         self.opt_parent_task.currentIndexChanged.connect(self._on_parent_changed)
@@ -123,6 +120,7 @@ class TaskDialogQt(QDialog):
         self.ent_start.dateChanged.connect(self._sync_milestone_due)
 
         layout.addStretch()
+        scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         scroll.setWidget(scroll_widget)
         main_layout.addWidget(scroll)
         
@@ -234,7 +232,6 @@ class TaskDialogQt(QDialog):
                 qdate = QDate.fromString(due_date_str, "yyyy-MM-dd")
                 if qdate.isValid():
                     self.ent_due.setDate(qdate)
-            self.ent_estimated_hours.setText(str(getattr(self.task, "estimated_hours", 0.0)))
             self.chk_milestone.setChecked(getattr(self.task, "is_milestone", False))
         else:
             self.opt_status.setCurrentText("Pendente")
@@ -262,11 +259,7 @@ class TaskDialogQt(QDialog):
         start_date = self.ent_start.date().toString("yyyy-MM-dd")
         due_date = self.ent_due.date().toString("yyyy-MM-dd")
         
-        try:
-            est_hours = float(self.ent_estimated_hours.text().strip() or 0.0)
-        except ValueError:
-            est_hours = 0.0
-            
+        est_hours = 0.0
         is_ms = self.chk_milestone.isChecked()
         if is_ms:
             # marco não tem prazo: data final = data do marco

@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, QDate
 from models.entities import Project
 import copy
 from core.event_bus import event_bus
-from gui.theme import set_combobox_colors, ENERGY_COLORS, apply_combobox_dynamic_color, get_energy_color, style_calendar_today
+from gui.theme import set_combobox_colors, ENERGY_COLORS, apply_combobox_dynamic_color, get_energy_color, style_calendar_today, SlimComboBox
 
 class ProjectDialogQt(QDialog):
     def __init__(self, parent=None, project: Project = None, on_save=None):
@@ -17,10 +17,10 @@ class ProjectDialogQt(QDialog):
         self._saved_project_id = project.id if project else None
 
         self.setWindowTitle("Criação de Projeto" if not project else "Editor de Projeto")
-        self.resize(520, 480)
-
         self.setup_ui()
         self.populate_fields()
+        from gui.theme import fit_dialog_to_content
+        fit_dialog_to_content(self, min_w=520, min_h=480)
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -37,7 +37,8 @@ class ProjectDialogQt(QDialog):
 
         # Name
         layout.addWidget(QLabel("Nome do Projeto:"))
-        self.ent_name = QLineEdit()
+        from gui.widgets.title_edit import TitleEdit
+        self.ent_name = TitleEdit()
         layout.addWidget(self.ent_name)
 
         # Objective
@@ -47,7 +48,7 @@ class ProjectDialogQt(QDialog):
 
         # Priority
         layout.addWidget(QLabel("Prioridade:"))
-        self.opt_prio = QComboBox()
+        self.opt_prio = SlimComboBox()
         self.opt_prio.addItems(["Baixa", "Média", "Alta", "Crítica"])
         set_combobox_colors(self.opt_prio, ENERGY_COLORS)
         apply_combobox_dynamic_color(self.opt_prio, get_energy_color)

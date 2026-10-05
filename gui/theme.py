@@ -1,7 +1,7 @@
 # gui/theme.py
-from PySide6.QtCore import Qt, QDate
+from PySide6.QtCore import Qt, QDate, QSize
 from PySide6.QtGui import QColor, QBrush, QPixmap, QIcon, QPainter, QTextCharFormat, QFont
-from PySide6.QtWidgets import QCalendarWidget
+from PySide6.QtWidgets import QCalendarWidget, QComboBox
 
 # ═══════════════════════════════════════════════════════════════════════
 # DESIGN SYSTEM
@@ -63,6 +63,19 @@ SHADOW_POPUP = "drop-shadow(0 8px 16px rgba(0,0,0,0.5))"
 # ═══════════════════════════════════════════════════════════════════════
 # STYLESHEET BUILDER
 # ═══════════════════════════════════════════════════════════════════════
+
+class SlimComboBox(QComboBox):
+    """ComboBox cujo tamanho NÃO infla com itens longos (evita a barra de rolagem horizontal).
+    O dropdown continua mostrando todos os itens normalmente."""
+
+    def minimumSizeHint(self):
+        h = super().minimumSizeHint()
+        return QSize(min(h.width(), 220), h.height())
+
+    def sizeHint(self):
+        h = super().sizeHint()
+        return QSize(min(h.width(), 220), h.height())
+
 
 def _qss(*rules: str) -> str:
     return "; ".join(rules) + ";"
@@ -491,6 +504,105 @@ def style_calendar_today(date_edit):
     def on_page_changed(year, month):
         cal.setDateTextFormat(QDate.currentDate(), today_fmt)
     cal.currentPageChanged.connect(on_page_changed)
+
+
+def fit_dialog_to_content(dlg, min_w=480, min_h=420):
+    """Redimensiona o diálogo para caber todo o conteúdo (sem scroll vertical/horizontal),
+    respeitando os mínimos informados e o tamanho da tela."""
+    from PySide6.QtWidgets import QApplication, QScrollArea
+    # Combos com títulos longos inflam o minimumSizeHint horizontal → barra de rolagem
+    from PySide6.QtWidgets import QComboBox
+    for c in dlg.findChildren(QComboBox):
+        try:
+            c.setMinimumContentsLength(10)
+            c.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        except Exception:
+            pass
+    for sa in dlg.findChildren(QScrollArea):
+        inner = sa.widget()
+        if inner is not None and inner.layout() is not None:
+            inner.layout().invalidate()
+    dlg.layout().activate()
+    dlg.layout().update()
+    dlg.adjustSize()
+    # O QScrollArea não reflete a altura do conteúdo no sizeHint — calcular a diferença
+    extra = 0
+    for sa in dlg.findChildren(QScrollArea):
+        inner = sa.widget()
+        if inner is None:
+            continue
+        need = inner.sizeHint().height() + sa.frameWidth() * 2
+        cur = sa.viewport().height() if sa.viewport() is not None else sa.height()
+        extra += max(0, need - cur)
+    hint = dlg.sizeHint()
+    screen = QApplication.primaryScreen()
+    avail = screen.availableGeometry() if screen else None
+    w = max(min_w, hint.width() + 32)
+    h = max(min_h, hint.height() + 32 + extra)
+    if avail is not None:
+        w = min(w, int(avail.width() * 0.92))
+        h = min(h, int(avail.height() * 0.96))
+    dlg.resize(int(w), int(h))
+
+
+def autogrow_text_edit(edit, min_h=60, max_h=300):
+    """Caixa de texto que cresce (com quebra de linha) conforme o conteúdo,
+    expandindo o diálogo junto — nunca mostra a barra de rolagem do diálogo."""
+    from PySide6.QtWidgets import QApplication, QDialog
+
+    def _wrapped_line_count():
+        """Conta as linhas que o texto ocuparia com a largura atual da caixa."""
+        fm = edit.fontMetrics()
+        width = max(20, edit.viewport().width() - 16)
+        total = 0
+        doc = edit.document()
+        block = doc.begin()
+        while block.isValid():
+            text = block.text()
+            if not text.strip():
+                total += 1
+                block = block.next()
+                continue
+            cur = ""
+            for word in text.split():
+                trial = (cur + " " + word).strip()
+                if fm.horizontalAdvance(trial) <= width:
+                    cur = trial
+                else:
+                    total += 1
+                    cur = word
+            total += 1
+            block = block.next()
+        return total
+
+    def _update():
+        line_h = edit.fontMetrics().height()
+        h = _wrapped_line_count() * line_h + line_h * 0.5 + 12
+        h = int(max(min_h, min(h, max_h)))
+        old = edit.height()
+        if abs(h - old) > 2:
+            edit.setFixedHeight(h)
+            dlg = edit.window()
+            if isinstance(dlg, QDialog):
+                try:
+                    screen = QApplication.primaryScreen()
+                    avail = screen.availableGeometry()
+                    new_h = dlg.height() + (h - old)
+                    if new_h <= avail.height() * 0.96:
+                        dlg.resize(dlg.width(), new_h)
+                except Exception:
+                    pass
+
+    edit.textChanged.connect(_update)
+    _update()
+
+    # forçar quebra de linha em caixas de texto longas
+    try:
+        from PySide6.QtWidgets import QPlainTextEdit, QTextEdit
+        if isinstance(edit, (QPlainTextEdit, QTextEdit)):
+            edit.setLineWrapMode(QTextEdit.WidgetWidth if isinstance(edit, QTextEdit) else QPlainTextEdit.WidgetWidth)
+    except Exception:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════════════════

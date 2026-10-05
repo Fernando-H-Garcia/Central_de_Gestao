@@ -981,6 +981,8 @@ class Project360Qt(QWidget):
             layout.addWidget(QLabel("Descrição (opcional):"))
             desc_edit = QPlainTextEdit()
             desc_edit.setMaximumHeight(60)
+            from gui.theme import autogrow_text_edit
+            autogrow_text_edit(desc_edit, min_h=50, max_h=150)
             desc_edit.setPlaceholderText("Exibida no tooltip da timeline")
             layout.addWidget(desc_edit)
 
@@ -996,6 +998,9 @@ class Project360Qt(QWidget):
             btns.addStretch()
             btns.addWidget(btn_close)
             layout.addLayout(btns)
+
+            from gui.theme import fit_dialog_to_content
+            fit_dialog_to_content(dlg, min_w=440, min_h=420)
 
             selected_id = [None]
 

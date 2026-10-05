@@ -188,6 +188,8 @@ class TaskDetailQt(QWidget):
         self.txt_desc.setStyleSheet("background-color: #1c1c2e; border: 1px solid #2a2a3f; border-radius: 5px;")
         self.txt_desc.setPlainText(self.task.context or "Sem contexto.")
         self.txt_desc.setMaximumHeight(80)
+        from gui.theme import autogrow_text_edit
+        autogrow_text_edit(self.txt_desc, min_h=60, max_h=150)
         layout.addWidget(self.txt_desc)
         
         header_sub = QHBoxLayout()

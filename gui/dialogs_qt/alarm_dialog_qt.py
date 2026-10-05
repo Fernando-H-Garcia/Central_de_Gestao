@@ -2,12 +2,12 @@ from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QLineEdit, QTextEdit, QComboBox, QPushButton,
     QDateEdit, QTimeEdit, QCheckBox, QSpinBox, QScrollArea, QWidget, QMessageBox
-)
+, QSizePolicy)
 from PySide6.QtCore import Qt, QDate, QTime
 from gui.theme import (
     set_combobox_colors, ENERGY_COLORS, apply_combobox_dynamic_color, get_energy_color,
     CHECKBOX_STYLE
-)
+, SlimComboBox)
 from services.alert_service import AlertService
 
 # Mapeamento: exibição PT → valor BD
@@ -37,7 +37,6 @@ class AlarmDialogQt(QDialog):
             title_str = f'para "{task.title}"' if task else ""
             self.setWindowTitle(f"🔔 Criar Alarme {title_str}")
             
-        self.resize(480, 600)
         self.setup_ui()
         self.populate_data()
         # pré-preenche com data sob o mouse (planejamento) quando criando
@@ -56,10 +55,9 @@ class AlarmDialogQt(QDialog):
                     self.ent_time.setTime(QTime(dt.hour, dt.minute))
             except Exception:
                 pass
-        # ajusta altura ao conteúdo (sem obrigar scroll para o Repetir)
-        self.adjustSize()
-        if self.height() < 600:
-            self.resize(480, 600)
+        # ajusta ao conteúdo (sem obrigar scroll para o Repetir)
+        from gui.theme import fit_dialog_to_content
+        fit_dialog_to_content(self, min_w=480, min_h=600)
 
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -81,7 +79,7 @@ class AlarmDialogQt(QDialog):
         elif not self.alarm:
             # sem tarefa pré-selecionada (ex.: + Novo Alarme na Agenda Geral): permite escolher
             layout.addWidget(QLabel("Tarefa vinculada:"))
-            self.cmb_task = QComboBox()
+            self.cmb_task = SlimComboBox()
             try:
                 from services.task_service import TaskService
                 from services.project_service import ProjectService
@@ -97,7 +95,8 @@ class AlarmDialogQt(QDialog):
 
         # Título
         layout.addWidget(QLabel("Título do Alarme:"))
-        self.ent_title = QLineEdit()
+        from gui.widgets.title_edit import TitleEdit
+        self.ent_title = TitleEdit()
         self.ent_title.setPlaceholderText("Ex: Verificar status do relatório")
         layout.addWidget(self.ent_title)
 
@@ -105,12 +104,14 @@ class AlarmDialogQt(QDialog):
         layout.addWidget(QLabel("Descrição (opcional):"))
         self.ent_desc = QTextEdit()
         self.ent_desc.setMaximumHeight(90)
+        from gui.theme import autogrow_text_edit
+        autogrow_text_edit(self.ent_desc, min_h=70, max_h=180)
         self.ent_desc.setPlaceholderText("Detalhes adicionais...")
         layout.addWidget(self.ent_desc)
 
         # Prioridade
         layout.addWidget(QLabel("Prioridade:"))
-        self.opt_priority = QComboBox()
+        self.opt_priority = SlimComboBox()
         self.opt_priority.addItems(list(PRIORITY_MAP.keys()))
         self.opt_priority.setCurrentText("Média")
         set_combobox_colors(self.opt_priority, ENERGY_COLORS)
@@ -195,6 +196,7 @@ class AlarmDialogQt(QDialog):
         layout.addWidget(self.lbl_repeat_hint)
 
         layout.addStretch()
+        scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         scroll.setWidget(scroll_widget)
         main_layout.addWidget(scroll)
 

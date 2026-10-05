@@ -16,17 +16,18 @@ class EventDialogQt(QDialog):
         self.event_service = EventService()
         
         self.setWindowTitle("Editor de Evento")
-        self.resize(500, 550)
-        
         self.setup_ui()
         self.populate_fields()
+        from gui.theme import fit_dialog_to_content
+        fit_dialog_to_content(self, min_w=500, min_h=550)
         
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(20, 20, 20, 20)
         
         main_layout.addWidget(QLabel("Título do Evento:"))
-        self.ent_title = QLineEdit()
+        from gui.widgets.title_edit import TitleEdit
+        self.ent_title = TitleEdit()
         main_layout.addWidget(self.ent_title)
         
         from PySide6.QtWidgets import QHBoxLayout
@@ -59,6 +60,8 @@ class EventDialogQt(QDialog):
         main_layout.addWidget(QLabel("Descrição / Alerta:"))
         self.ent_desc = QTextEdit()
         self.ent_desc.setMaximumHeight(100)
+        from gui.theme import autogrow_text_edit
+        autogrow_text_edit(self.ent_desc, min_h=80, max_h=200)
         main_layout.addWidget(self.ent_desc)
         
         main_layout.addStretch()

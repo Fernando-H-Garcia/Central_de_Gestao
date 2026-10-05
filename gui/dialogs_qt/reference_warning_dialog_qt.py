@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QFrame, QScrollArea, QWidget
-)
+, QSizePolicy)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
@@ -24,6 +24,8 @@ class ReferenceWarningDialog(QDialog):
         self.setMinimumWidth(520)
         self.setModal(True)
         self.setup_ui(entity_type_label, entity_name, references)
+        from gui.theme import fit_dialog_to_content
+        fit_dialog_to_content(self, min_w=520, min_h=300)
 
     def setup_ui(self, entity_type_label: str, entity_name: str, references: list):
         main = QVBoxLayout(self)
@@ -103,6 +105,7 @@ class ReferenceWarningDialog(QDialog):
                 list_layout.addWidget(ref_frame)
 
             list_layout.addStretch()
+            scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
             scroll.setWidget(list_widget)
             main.addWidget(scroll, stretch=1)
 

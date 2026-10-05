@@ -1,11 +1,11 @@
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
     QLineEdit, QTextEdit, QComboBox, QPushButton, QMessageBox, QScrollArea, QWidget
-)
+, QSizePolicy)
 from PySide6.QtCore import Qt
 from models.entities import Idea
 from services.project_service import ProjectService
-from gui.theme import set_combobox_colors, STATUS_COLORS, ENERGY_COLORS, apply_combobox_dynamic_color, get_status_color, get_energy_color
+from gui.theme import set_combobox_colors, STATUS_COLORS, ENERGY_COLORS, apply_combobox_dynamic_color, get_status_color, get_energy_color, SlimComboBox
 
 class IdeaDialogQt(QDialog):
     def __init__(self, parent=None, idea: Idea = None, on_save=None, project_id=None, task_id=None):
@@ -18,9 +18,10 @@ class IdeaDialogQt(QDialog):
         self.projects = self.project_service.get_all_active()
         
         self.setWindowTitle("Nova Ideia" if not idea else "Editar Ideia")
-        self.resize(500, 600)
         self.setup_ui()
         self.populate_fields()
+        from gui.theme import fit_dialog_to_content
+        fit_dialog_to_content(self, min_w=500, min_h=600)
         
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
@@ -33,28 +34,29 @@ class IdeaDialogQt(QDialog):
         layout = QVBoxLayout(scroll_widget)
         
         layout.addWidget(QLabel("Título:"))
-        self.ent_title = QLineEdit()
+        from gui.widgets.title_edit import TitleEdit
+        self.ent_title = TitleEdit()
         layout.addWidget(self.ent_title)
         
         layout.addWidget(QLabel("Categoria:"))
-        self.opt_category = QComboBox()
+        self.opt_category = SlimComboBox()
         self.opt_category.addItems(["Geral", "Melhoria", "Nova Funcionalidade", "Pesquisa", "Inovação"])
         layout.addWidget(self.opt_category)
         
         layout.addWidget(QLabel("Projeto Vinculado:"))
-        self.opt_project = QComboBox()
+        self.opt_project = SlimComboBox()
         self.opt_project.addItem("Nenhum", None)
         for p in self.projects:
             self.opt_project.addItem(p.name, p.id)
         layout.addWidget(self.opt_project)
         
         layout.addWidget(QLabel("Status:"))
-        self.opt_status = QComboBox()
+        self.opt_status = SlimComboBox()
         self.opt_status.addItems(["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"])
         layout.addWidget(self.opt_status)
         
         layout.addWidget(QLabel("Prioridade:"))
-        self.opt_priority = QComboBox()
+        self.opt_priority = SlimComboBox()
         self.opt_priority.addItems(["Baixa", "Média", "Alta", "Crítica"])
         layout.addWidget(self.opt_priority)
         
@@ -67,7 +69,10 @@ class IdeaDialogQt(QDialog):
         layout.addWidget(QLabel("Descrição:"))
         self.ent_desc = QTextEdit()
         layout.addWidget(self.ent_desc)
+        from gui.theme import autogrow_text_edit
+        autogrow_text_edit(self.ent_desc, min_h=80, max_h=200)
         
+        scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         scroll.setWidget(scroll_widget)
         main_layout.addWidget(scroll)
         

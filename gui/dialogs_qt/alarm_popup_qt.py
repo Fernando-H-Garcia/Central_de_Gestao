@@ -7,7 +7,7 @@ Toca um som de aviso e permite Concluir ou Adiar cada alarme.
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
     QPushButton, QScrollArea, QWidget, QFrame, QMenu
-)
+, QSizePolicy)
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont
 import os
@@ -194,6 +194,8 @@ class AlarmPopupQt(QDialog):
         self.setMinimumWidth(520)
         self.setWindowModality(Qt.ApplicationModal)
         self.setup_ui()
+        from gui.theme import fit_dialog_to_content
+        fit_dialog_to_content(self, min_w=520, min_h=360)
         # Toca som após renderizar
         QTimer.singleShot(100, play_alarm_sound)
 
@@ -237,6 +239,7 @@ class AlarmPopupQt(QDialog):
             self.cards_layout.addWidget(card)
 
         self.cards_layout.addStretch()
+        scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         scroll.setWidget(container)
         main_layout.addWidget(scroll)
 

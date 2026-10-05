@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from models.entities import Idea
 from services.project_service import ProjectService
+from gui.theme import SlimComboBox, fit_dialog_to_content, autogrow_text_edit
 
 class PromoteIdeaDialogQt(QDialog):
     def __init__(self, parent=None, idea: Idea = None, default_type="project", on_promote=None):
@@ -15,36 +16,40 @@ class PromoteIdeaDialogQt(QDialog):
         self.projects = self.project_service.get_all_active()
         
         self.setWindowTitle("Promover Ideia")
-        self.resize(400, 500)
         self.default_type = default_type
         
         self.setup_ui()
         self.populate_fields()
+        from gui.theme import fit_dialog_to_content
+        fit_dialog_to_content(self, min_w=400, min_h=500)
         
     def setup_ui(self):
         main_layout = QVBoxLayout(self)
         
         main_layout.addWidget(QLabel("Transformar em:"))
-        self.opt_type = QComboBox()
+        self.opt_type = SlimComboBox()
         self.opt_type.addItems(["Projeto", "Tarefa"])
         self.opt_type.currentTextChanged.connect(self.on_type_changed)
         main_layout.addWidget(self.opt_type)
         
         self.lbl_project = QLabel("Projeto Destino (para a Tarefa):")
         main_layout.addWidget(self.lbl_project)
-        self.opt_project = QComboBox()
+        self.opt_project = SlimComboBox()
         self.opt_project.addItem("Nenhum", None)
         for p in self.projects:
             self.opt_project.addItem(p.name, p.id)
         main_layout.addWidget(self.opt_project)
         
         main_layout.addWidget(QLabel("Novo Título:"))
-        self.ent_title = QLineEdit()
+        from gui.widgets.title_edit import TitleEdit
+        self.ent_title = TitleEdit()
         main_layout.addWidget(self.ent_title)
         
         main_layout.addWidget(QLabel("Nova Descrição:"))
         self.ent_desc = QTextEdit()
         main_layout.addWidget(self.ent_desc)
+        from gui.theme import autogrow_text_edit
+        autogrow_text_edit(self.ent_desc, min_h=80, max_h=200)
         
         self.chk_keep_linked = QCheckBox("Manter Ideia vinculada")
         self.chk_keep_linked.setChecked(True)
