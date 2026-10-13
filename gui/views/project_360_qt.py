@@ -11,7 +11,7 @@ from gui.components.buttons import ToggleButton
 from gui.components.context_menu_qt import ContextMenuQt
 from gui.components.progress_bar import ProgressBar
 from services.project_service import ProjectService
-from gui.theme import get_status_color, get_energy_color, format_colored_label, format_status, get_archived_color
+from gui.theme import get_status_color, get_energy_color, format_colored_label, format_status, get_archived_color, FONT_TITLE
 from services.task_service import TaskService
 from services.event_service import EventService
 from services.alert_service import AlertService
@@ -173,7 +173,7 @@ class Project360Qt(QWidget):
         
         # 🔝 Top Header 🔝
         from gui.components.page_header import PageHeader
-        self.header = PageHeader("Visão 360°")
+        self.header = PageHeader("Visão 360°", title_font=FONT_TITLE)
 
         from gui.components.back_nav_widget_qt import BackNavWidget
         self.back_nav = BackNavWidget()

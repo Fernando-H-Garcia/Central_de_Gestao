@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import (QFrame, QHBoxLayout, QVBoxLayout, QLabel,
                                QWidget, QSizePolicy)
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFontMetrics
+from PySide6.QtGui import QFontMetrics, QFont
 from gui.theme import TEXT_SECONDARY, FONT_BODY_LG
 
 
@@ -80,20 +80,26 @@ class ElidedTitle(QLabel):
         self._refresh()
 
     def _wrap_text(self, fm, largura):
-        """Quebra o texto em no maximo `max_lines` linhas que cabem em
-        `largura`. A ultima linha recebe reticencias.
+        """Quebra o texto em linhas que cabem em `largura`, com teto de
+        MAX_LINHAS; se sobrar texto, a ultima linha ganha reticencias.
 
         Feito a mao, e nao com QLabel.wordWrap, porque o wordWrap do Qt
         depende de heightForWidth/sizeHint e o layout acabava usando uma
         altura calculada com a largura errada.
 
-        O limite de linhas e essencial: a fonte do cabecalho e grande
-        (28px) e um titulo de entidade longo exigiria dezenas de linhas,
-        empurrando todo o conteudo para fora da tela.
+        O teto e essencial: a fonte do cabecalho e grande (28px) e um
+        titulo de entidade longo exigiria dezenas de linhas, empurrando
+        o conteudo para fora da tela.
+
+        A quebra completa ANTES de aplicar o teto. Cortar no meio do
+        laco perdia a palavra corrente -- "Alarmes SGPA painel solar"
+        virava "Alarmes SGPA..." e perdia "painel", que caberia.
         """
         palavras = self._full_text.split()
         if not palavras:
             return [""]
+
+        # 1. quebra natural, sem limite
         linhas, atual = [], palavras[0]
         for p in palavras[1:]:
             tentativa = f"{atual} {p}"
@@ -102,17 +108,24 @@ class ElidedTitle(QLabel):
             else:
                 linhas.append(atual)
                 atual = p
-                if len(linhas) == self._max_lines:
-                    break
-        restou = palavras[1 + sum(len(l.split()) for l in linhas):]
-        if self._max_lines and len(linhas) == self._max_lines and restou:
-            # ainda ha texto: marca com reticencias
-            while linhas and fm.horizontalAdvance(linhas[-1] + "…") > largura:
-                linhas[-1] = linhas[-1].rsplit(" ", 1)[0]
-                restou = palavras[1 + sum(len(l.split()) for l in linhas):]
+        linhas.append(atual)
+
+        # 2. teto de linhas
+        if not self._max_lines or len(linhas) <= self._max_lines:
+            return linhas
+
+        linhas = linhas[:self._max_lines]
+        # 3. encolhe a ultima ate a reticencia caber
+        while linhas and fm.horizontalAdvance(linhas[-1] + "…") > largura:
+            partes = linhas[-1].rsplit(" ", 1)
+            if len(partes) == 1:
+                # palavra sozinha e maior que a linha: corta na raiz
+                cabe = max(1, int(largura / max(1, fm.horizontalAdvance("x"))))
+                linhas[-1] = linhas[-1][:max(1, cabe - 1)]
+            else:
+                linhas[-1] = partes[0]
+        if linhas:
             linhas[-1] = linhas[-1] + "…"
-        else:
-            linhas.append(atual)
         return linhas
 
     def _refresh(self):
@@ -155,7 +168,8 @@ class PageHeader(QFrame):
           - os botoes ficam SEMPRE no extremo direito, depois dos paineis.
     """
 
-    def __init__(self, title="", subtitle="", parent=None, wrap_title=True):
+    def __init__(self, title="", subtitle="", parent=None, wrap_title=True,
+                 title_font=None, max_lines=2):
         super().__init__(parent)
         self.setObjectName("pageHeader")
 
@@ -169,8 +183,12 @@ class PageHeader(QFrame):
         text_area = QVBoxLayout()
         text_area.setSpacing(2)
 
-        self.title_label = ElidedTitle(title, wrap=wrap_title)
-        self.title_label.setObjectName("header")
+        self.title_label = ElidedTitle(title, wrap=wrap_title, max_lines=max_lines)
+        # Variante do tema: #header (28px, titulo de pagina curto) ou
+        # #headerEntity (22px, titulo dinamico de entidade).
+        # Nao da para baixar a fonte com setFont: o QSS tem prioridade e
+        # continuaria aplicando os 28px.
+        self.title_label.setObjectName("headerEntity" if title_font else "header")
         text_area.addWidget(self.title_label)
 
         self.subtitle_label = QLabel(subtitle)

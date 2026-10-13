@@ -7,7 +7,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QTimer, QEvent
 from PySide6.QtWidgets import QScrollBar
 from PySide6.QtWidgets import QSizePolicy
-from gui.theme import get_status_color, get_energy_color, format_colored_label, format_status, get_archived_color
+from gui.theme import get_status_color, get_energy_color, format_colored_label, format_status, get_archived_color, FONT_TITLE
 from PySide6.QtGui import QColor, QBrush, QAction
 from gui.components.context_menu_qt import ContextMenuQt
 from services.task_service import TaskService
@@ -91,7 +91,7 @@ class TaskDetailQt(QWidget):
         
         # Header
         from gui.components.page_header import PageHeader
-        self.header = PageHeader()
+        self.header = PageHeader(title_font=FONT_TITLE)
 
         from gui.components.back_nav_widget_qt import BackNavWidget
         self.back_nav = BackNavWidget()
@@ -662,6 +662,13 @@ class TaskDetailQt(QWidget):
             event_bus.emit("entity_updated")
 
     def load_data(self):
+        # O titulo precisa ser montado aqui: showEvent chama load_data(),
+        # e nao safe_load_data(). Antes ele vinha no construtor do QLabel
+        # e, ao migrar para PageHeader(), essa atribuicao foi perdida --
+        # a tela abria com o titulo vazio.
+        if self.task:
+            self.lbl_title.setText(f"Tarefa #{self.task.id}: {self.task.title}")
+
         self.load_subtasks()
         # Load Logs
         from database.repositories.activity_log_repository import ActivityLogRepository

@@ -178,6 +178,15 @@ QLabel#header {{
     font-size: {FONT_HEADER}px;
     font-weight: bold;
 }}
+/* Titulo de entidade (Projeto, Tarefa). Menor que #header porque o texto e
+   dinamico e pode ter dezenas de caracteres: a 28px um titulo de ~1000px
+   de largura vira duas linhas truncadas mesmo em janela grande.
+   Precisa ser uma regra do tema -- setFont() do widget nao surte efeito
+   sobre um font-size vindo de QSS. */
+QLabel#headerEntity {{
+    font-size: {FONT_TITLE}px;
+    font-weight: bold;
+}}
 QLabel#subtitle {{
     color: {TEXT_SECONDARY};
 }}
