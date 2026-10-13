@@ -15,7 +15,7 @@ SQLite é o banco oficial. Migrations versionadas em `database/migrations/`.
 ## Consequências
 - Dados ficam em arquivo único: **`novo_cerebro.db`**
 - Backup simples (cópia do arquivo)
-- Sem concorrência multiusuário (limitação aceita, ver ADR-009 e Roadmap)
+- Sem concorrência multiusuário (limitação aceita)
 - Instala em `Program Files` sem permissão de escrita — dados do usuário ficam
   em `%LOCALAPPDATA%` (ver [ADR-002](ADR-002-LOCALAPPDATA.md))
 
@@ -25,6 +25,17 @@ SQLite é o banco oficial. Migrations versionadas em `database/migrations/`.
 - Hoje há **25 arquivos de migration** em `database/migrations/`, com
   `schema_version = 26` no banco. O número salta quando uma migration entrega
   mais de uma versão de schema, então *contagem de arquivos ≠ versão do schema*.
-- A restrição "sem concorrência multiusuário" **segue valendo**. Não existe
-  plano de suporte multiusuário em nenhum documento do repositório — se
-  isso mudar, esta ADR precisa ser revogada por uma nova.
+- Varredura nas 27 tabelas (2026-10-13): **nenhuma coluna de usuário,
+  proprietário, responsável ou permissão**. A restrição multiusuário não é só
+  de concorrência — hoje o modelo de dados não tem como expressar *quem* é o
+  dono de um projeto ou o responsável por uma tarefa.
+
+## Planejado
+
+A evolução para vários usuários (Gerente / Desenvolvedor, bancos locais
+independentes e compartilhamento seletivo) está em
+[`Plano-Multiusuario.md`](../Plano-Multiusuario.md). A etapa 1 (auditoria do
+banco) foi concluída e está registrada no próprio plano.
+
+Quando a etapa 2 começar, esta ADR deve ser **revogada por uma nova** — este
+registro permanece como a decisão que valia até lá.

@@ -26,7 +26,8 @@ Todos os fatos foram verificados no código em **2026-10-13**.
 | [`Testes.md`](Testes.md) | Suítes, regras de isolamento de banco, cobertura |
 | [`Composicao-do-Projeto.md`](Composicao-do-Projeto.md) | Hard rules, versionamento, branches, commits |
 | [`DEPRECATION.md`](DEPRECATION.md) | O que está em desuso e o que substitui |
-| [`Roadmap.md`](Roadmap.md) | Estado do projeto e pendências |
+| [Roadmap.md](Roadmap.md) | Estado do projeto e pendências |
+| [Plano-Multiusuario.md](Plano-Multiusuario.md) | Evolução para Gerente/Desenvolvedor (6 etapas) |
 
 ## ADRs e BUGs
 

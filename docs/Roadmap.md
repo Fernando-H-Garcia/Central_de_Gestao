@@ -22,6 +22,14 @@ Estado verificado em **2026-10-13**.
   - Sprint 1: Design System (cores, tipografia, espaçamentos) — feito
   - Sprints 2–5: componentes reutilizáveis, barra lateral, cabeçalhos,
     cards de indicadores
+- [ ] **Multiusuário** — plano completo em
+      [`Plano-Multiusuario.md`](Plano-Multiusuario.md)
+  - Etapa 1 (auditoria do banco) — ✅ feita
+  - Etapas 2–6 (usuários/permissões, compartilhamento de tarefas,
+    sincronização, anexos, transporte P2P) — ⬜ pendentes
+  - **Bloqueio de decisão:** o Gerente precisa abrir qualquer projeto
+    mesmo com o PC do Desenvolvedor desligado? Isso define se precisa de
+    cópia sincronizada total ou de serviço persistente
 
 ## Pendente
 
@@ -37,9 +45,11 @@ Estado verificado em **2026-10-13**.
 
 ## Não planejado
 
-Não há plano de suporte multiusuário em nenhum documento do repositório.
-O [ADR-001](adr/ADR-001-SQLite.md) registra "sem concorrência multiusuário"
-como limitação aceita. Se isso mudar, precisa de ADR nova.
+> **Atualizado 2026-10-13:** multiusuário **passou a ter plano próprio** em
+> [`Plano-Multiusuario.md`](Plano-Multiusuario.md). O
+> [ADR-001](adr/ADR-001-SQLite.md) segue registrando "sem concorrência
+> multiusuário" como a decisão atual — ela só será revogada quando a etapa 2
+> começar.
 
 ## Dívidas técnicas conhecidas
 
