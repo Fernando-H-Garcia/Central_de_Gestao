@@ -18,6 +18,9 @@ build_pyi/
 # Logs
 logs/*.log
 
+# Backups locais de banco (sao copies de runtime, nunca versionadas)
+backups/
+
 # OS
 Thumbs.db
 .DS_Store
