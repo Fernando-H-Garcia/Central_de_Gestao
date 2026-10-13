@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame,
-    QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView, QProgressBar,
+    QTabWidget, QTableWidget, QTableWidgetItem, QHeaderView,
     QAbstractItemView, QMenu, QTreeWidget, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal, QSettings
@@ -8,6 +8,7 @@ from PySide6.QtGui import QColor, QBrush, QFont
 
 from gui.components.drag_drop_tree_qt import DragDropTreeWidget, SortableTreeWidgetItem
 from gui.components.buttons import ToggleButton
+from gui.components.progress_bar import ProgressBar
 from services.project_service import ProjectService
 from gui.theme import get_status_color, get_energy_color, format_colored_label, format_status, get_archived_color
 from services.task_service import TaskService
@@ -207,22 +208,7 @@ class Project360Qt(QWidget):
         stats_layout.addStretch()
         overview_layout.addLayout(stats_layout)
         
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setTextVisible(True)
-        self.progress_bar.setMinimum(0)
-        self.progress_bar.setMaximum(100)
-        self.progress_bar.setStyleSheet("""
-            QProgressBar {
-                border: 1px solid #2a2a3f;
-                border-radius: 5px;
-                text-align: center;
-                color: white;
-            }
-            QProgressBar::chunk {
-                background-color: #2563EB;
-                border-radius: 5px;
-            }
-        """)
+        self.progress_bar = ProgressBar(0, 100, text="")
         overview_layout.addWidget(self.progress_bar)
         
         main_layout.addLayout(overview_layout)
@@ -430,6 +416,48 @@ class Project360Qt(QWidget):
             card.set_active(t == title)
         self.load_data()
 
+    def _progress_color(self, total, concluidas):
+        """Cor da barra de progresso do projeto.
+
+        Mesma convencao do Gantt (gantt_tree_qt.bar_color): a cor
+        comunica o ESTADO do projeto, nao a porcentagem. Azul e progresso
+        normal; verde so quando acabou; vermelho so quando ha tarefa
+        atrasada; laranja quando o prazo esta encima.
+        """
+        from gui.theme import ACCENT_BLUE, SUCCESS_GREEN, ERROR_RED, WARNING_ORANGE
+        import datetime as _dt
+
+        if total and concluidas >= total:
+            return SUCCESS_GREEN
+
+        tasks = self.task_service.get_tasks_by_project(self.project_id)
+        if self.show_archived_tasks:
+            tasks = [t for t in self.task_service.get_all_archived()
+                     if t.project_id == self.project_id]
+
+        hoje = _dt.datetime.now().date()
+
+        for t in tasks:
+            if t.status == 'Concluído' or not t.due_date:
+                continue
+            try:
+                venc = _dt.datetime.fromisoformat(str(t.due_date)).date()
+            except (ValueError, TypeError):
+                continue
+            if venc < hoje:
+                return ERROR_RED
+
+        due = getattr(self.project, 'due_date', None)
+        if due and getattr(self.project, 'status', '') != 'Concluído':
+            try:
+                dias = (_dt.datetime.fromisoformat(str(due)).date() - hoje).days
+                if dias <= 7:
+                    return WARNING_ORANGE
+            except (ValueError, TypeError):
+                pass
+
+        return ACCENT_BLUE
+
     def load_data(self):
         import time
         t_ld_start = time.perf_counter()
@@ -476,8 +504,9 @@ class Project360Qt(QWidget):
         total = len(tasks)
         concluidas = sum(1 for t in tasks if t.status == 'Concluído')
         pct = int((concluidas / total * 100) if total > 0 else 0)
-        self.progress_bar.setValue(pct)
-        self.progress_bar.setFormat(f"{pct}% ({concluidas}/{total} Tarefas Concluídas)")
+        self.progress_bar.set_value(pct)
+        self.progress_bar.set_text(f"{pct}% ({concluidas}/{total} Tarefas Concluídas)")
+        self.progress_bar.set_color(self._progress_color(total, concluidas))
         
         em_andamento = sum(1 for t in tasks if t.status == 'Em Andamento')
         aguardando = sum(1 for t in tasks if t.status == 'Aguardando')
