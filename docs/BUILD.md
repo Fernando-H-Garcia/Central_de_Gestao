@@ -2,6 +2,20 @@
 
 Guia definitivo para gerar o executável e o instalador.
 
+> Este é o documento **canônico** de build. Se qualquer outro documento
+> discordar (historicamente falharam com a versão do Python e com o modo de
+> empacotamento), este está certo. Verificado em **2026-10-13**.
+
+## Ponto de entrada
+
+```powershell
+.\venv_build\Scripts\python.exe scripts\ops\control_panel.py build
+.\venv_build\Scripts\python.exe scripts\ops\control_panel.py build --release
+```
+
+Os scripts soltos (`scripts/build/build_release.py`) funcionam, mas estão
+deprecados — ver [`DEPRECATION.md`](DEPRECATION.md).
+
 ## Pré-requisitos
 
 | Item | Versão | Notas |
@@ -27,13 +41,31 @@ Guia definitivo para gerar o executável e o instalador.
 
 Esperado: `PySide6: 6.6.x, Qt: 6.6.x`
 
+> ⚠️ O `build_release.py` emite `[AVISO] Versao Python: 3.11.5 (esperado 3.12)`.
+> **Esse aviso está errado** — o valor esperado no script está invertido.
+> Python 3.12 quebra o build. Ignore o aviso.
+
 ## Build
 
-### ⚠️ Antes de buildar — banco de seed limpo
+### ⚠️ Antes de buildar — backup do banco
 
-O instalador embala `database/novo_cerebro.db` como seed. **Nunca faça o build com o banco de produção**, senão o instalador distribuirá seus dados reais.
+`build_release.py` **não altera** `database/novo_cerebro.db` (verificado em
+2026-10-13). Ainda assim, faça backup antes e confira o hash depois:
 
-Gere um banco vazio (schema puro, sem dados) antes de buildar:
+```powershell
+New-Item -ItemType Directory -Force backups | Out-Null
+Copy-Item database\novo_cerebro.db backups\pre_build.db
+(Get-FileHash database\novo_cerebro.db -Algorithm SHA256).Hash
+```
+
+### Opcional — banco de seed limpo (só para publicar)
+
+O instalador embala `database/novo_cerebro.db` como seed. **Nunca publique com
+o banco de desenvolvimento**, senão o instalador distribuirá seus dados reais.
+
+> **Só faça isso se for publicar uma versão.** Para validar um build local,
+> este passo é desnecessário — o `build_release.py` não toca no banco.
+> Restaurar o banco ao final é obrigatório.
 
 ```powershell
 .\venv_build\Scripts\python.exe -c "
@@ -72,7 +104,7 @@ Remove-Item database\seed_empty.db -ErrorAction SilentlyContinue
 ### Buildar
 
 ```powershell
-.\venv_build\Scripts\python.exe scripts\build\build_release.py --release
+.\venv_build\Scripts\python.exe scripts\ops\control_panel.py build --release
 ```
 
 ### Artefatos
@@ -81,6 +113,26 @@ Remove-Item database\seed_empty.db -ErrorAction SilentlyContinue
 |---|---|---|
 | `build\dist\CentralDeGestao.exe` | ~46 MB | Executável one-file, self-contained |
 | `build\CentralDeGestao_Installer.exe` | ~70 MB | Instalador Inno Setup (inclui VC++ Redist) |
+
+### 🚨 Se o EXE sair com poucos MB
+
+Regrediu para **one-folder**. O sintoma é um `COLLECT` de volta no
+`CentralDeGestao.spec` — o build **passa** e entrega silenciosamente a pasta
+`_internal/`. Ver [ADR-011](adr/ADR-011-OneFile.md).
+
+O sinal correto no relatório é: `Single EXE (onefile) - 1 arquivo`.
+
+### Validar (não basta compilar)
+
+```powershell
+Start-Process build\dist\CentralDeGestao.exe
+Start-Sleep 25
+Get-Content $env:LOCALAPPDATA\CentralGestao\logs\boot.log
+```
+
+O app está de pé quando o log mostra `primeiro paint recebido`. Confira
+também que `app_errors.log` não tem `ERROR` **na data de hoje** (o log guarda
+histórico). Procedimento completo em [`Release.md`](Release.md).
 
 ### Copiar para distribuição
 

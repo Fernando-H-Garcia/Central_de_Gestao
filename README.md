@@ -1,51 +1,74 @@
 # Central de Gestão
 
-Sistema desktop para gerenciamento de projetos, tarefas, ideias, notas, documentação wiki e agenda pessoal.
+Sistema desktop para gerenciamento de projetos, tarefas, ideias, notas,
+documentação wiki e agenda pessoal.
 
-![Python](https://img.shields.io/badge/Python-3.12-blue) ![PySide6](https://img.shields.io/badge/PySide6-6.6-green) ![SQLite](https://img.shields.io/badge/SQLite-3-orange)
+![Python](https://img.shields.io/badge/Python-3.11-blue) ![PySide6](https://img.shields.io/badge/PySide6-6.6-green) ![Qt](https://img.shields.io/badge/Qt-6.6-green) ![SQLite](https://img.shields.io/badge/SQLite-orange)
 
 ## Funcionalidades
 
-- **Projetos** — Cadastro, edição, exclusão com análise de impacto
-- **Tarefas** — CRUD completo, dependências, alarmes, atividade logging
-- **Wiki** — Documentação com formatação Markdown, links entre páginas, autocomplete `[[` e `{{`
-- **Agenda** — Eventos, alarmes recorrentes, calendário
-- **Ideias** — Captura rápida, promoção para tarefa/projeto
-- **Notas** — Anotações rápidas
-- **Resumo de Atividades** — Histórico agrupado por projeto/tarefa com links clicáveis
+- **Projetos** — cadastro, edição, exclusão com análise de impacto
+- **Tarefas** — CRUD completo, subtarefas com árvore, dependências, alarmes
+- **Planning** — timeline/Gantt com barra arrastável, zoom contínuo e
+  **prazos estimados** com marcadores e alarmes automáticos
+- **Wiki** — Markdown, links entre páginas, autocomplete `[[` e `{{`
+- **Agenda** — eventos, alarmes e calendário com dia atual destacado
+- **Ideias** — captura rápida, promoção para tarefa/projeto
+- **Notas** — anotações rápidas
+- **Resumo de Atividades** — histórico agrupado por projeto/tarefa, com
+  seções recolhíveis e links clicáveis
 
 ## Instalação
 
-Baixe o instalador mais recente da página de [Releases](https://github.com/Fernando-H-Garcia/Central_de_Gestao/releases) e execute.
+Baixe o instalador mais recente da página de
+[Releases](https://github.com/Fernando-H-Garcia/Central_de_Gestao/releases) e
+execute.
 
-O programa será instalado em `Program Files\Central de Gestão` e os dados do usuário ficam em `%LOCALAPPDATA%\CentralGestao\`.
+O programa é instalado em `Program Files\Central de Gestão`; os dados do
+usuário ficam em `%LOCALAPPDATA%\CentralGestao\` e sobrevivem à desinstalação.
 
 ## Build
 
-```bash
-cd build
-python -m PyInstaller build.spec --clean --noconfirm
-# Opcional: gerar instalador com Inno Setup
-ISCC.exe installer.iss
+```powershell
+.\venv_build\Scripts\python.exe scripts\ops\control_panel.py build --release
 ```
+
+Ambiente obrigatório: **Python 3.11**, PySide6 6.6.x, PyInstaller 6.21+.
+Procedimento completo, incluindo criação do venv, em [`docs/BUILD.md`](docs/BUILD.md).
+
+| Artefato | Tamanho |
+|---|---|
+| `build\dist\CentralDeGestao.exe` | ~46 MB (one-file) |
+| `build\CentralDeGestao_Installer.exe` | ~70 MB |
 
 ## Documentação
 
-A documentação completa está em [`docs/`](docs/README.md):
-- [`docs/engineering/`](docs/engineering/) — 32 documentos técnicos (arquitetura, build, deploy, etc.)
-- [`docs/adr/`](docs/adr/) — Architecture Decision Records
-- [`docs/bugs/`](docs/bugs/) — Registro de bugs e correções
+Comece por [`docs/README.md`](docs/README.md).
+
+| Onde | O quê |
+|---|---|
+| [`docs/Arquitetura.md`](docs/Arquitetura.md) | Camadas, fluxo de boot, banco, Qt |
+| [`docs/BUILD.md`](docs/BUILD.md) | Como compilar |
+| [`docs/Release.md`](docs/Release.md) | Como publicar uma versão |
+| [`docs/Testes.md`](docs/Testes.md) | Suítes e regras de isolamento de banco |
+| [`docs/Composicao-do-Projeto.md`](docs/Composicao-do-Projeto.md) | Regras que não podem ser quebradas |
+| [`docs/adr/`](docs/adr/) | Architecture Decision Records |
+| [`docs/bugs/`](docs/bugs/) | Registro de bugs e correções |
+
+`AGENTS.md` na raiz traz as regras para agentes de IA e o histórico de
+aprenderizados do projeto.
 
 ## Tecnologias
 
-- **GUI:** PySide6 (Qt6)
-- **Banco:** SQLite com migrations versionadas
-- **Build:** PyInstaller (one-folder) + Inno Setup
-- **Arquitetura:** 5 camadas (GUI → Services → Repositories → Models → Database), EventBus, Repository pattern
+- **GUI:** PySide6 6.6 / Qt 6.6
+- **Banco:** SQLite com migrations versionadas (25 arquivos, schema v26)
+- **Build:** PyInstaller (one-file) + Inno Setup 6
+- **Arquitetura:** camadas `GUI → Services → Repositories → Models → Database`,
+  EventBus para comunicação entre views, Repository pattern
 
 ## Versão
 
-Atual: **v0.8.0** — [CHANGELOG](CHANGELOG.md)
+Atual: **0.8.1** — [CHANGELOG](CHANGELOG.md)
 
 ## Licença
 

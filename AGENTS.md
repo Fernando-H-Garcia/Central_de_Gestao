@@ -1,6 +1,13 @@
 ## Goal
-- Maintain a documentation/wiki system with formatting tools, reference integrity, safe entity deletion/archiving, clickable links in activity logs, centralized calendar today-highlight, and a new Activity Summary view
+- Maintain a documentation/wiki system with formatting tools, reference integrity, safe entity deletion/archiving, clickable links in activity logs, centralized calendar today-highlight, and an Activity Summary view
 - **Redesign Visual**: Modernizar toda a interface com Design System unificado (cores, tipografia, espaçamentos, componentes reutilizáveis), sem alterar regras de negócio
+
+## Documentação (docs/)
+- **`docs/BUILD.md` é o canônico de build.** Se qualquer outro doc discordar dele (já falhou com versão do Python e modo de empacotamento), o BUILD.md está certo
+- Índice e mapa: `docs/README.md`. ADRs em `docs/adr/`, bugs em `docs/bugs/`
+- **Nunca escrever número fixo que envelhece** ("20 migrations"). Preferir método ("consulte `schema_version`"). Hoje: **25 arquivos de migration, schema v26**; 128 arquivos `.py`, ~20.7k linhas
+- **ADR é imutável**: desatualizado = marcar **Superado** + apontar para o novo, nunca editar em silêncio
+- Regra do que já errou 3x na doc: **Python 3.11** (não 3.12), build **one-file** (não one-folder), banco **`novo_cerebro.db`** (não `brain.db`)
 
 ## Constraints & Preferences
 - Formatting toolbar must have white tooltip text on dark background
@@ -349,6 +356,27 @@
 - `QChildEvent` event filter + `QTimer.singleShot(0, …)` used to apply calendar today-highlight because `calendarWidget()` returns `None` until the popup is first shown
 - Monkey-patching `setCalendarPopup` chosen over subclassing to avoid modifying every dialog file
 - Activity Summary is a top-level nav item (sidebar button), not a sub-view, for simplicity
+
+## Qt gotchas que já custaram tempo (verificar antes de assumir)
+- **`Card` já nasce com layout próprio** (`gui/components/card.py`). O Qt **recusa** `setLayout()` quando o widget já tem um — os filhos ficam órfãos e invisíveis, sem erro. Use `card.layout()` (`wiki_qt.py:354`, `alarm_popup_qt.py:284` são os exemplos)
+- **`ContextMenuQt.popup_at(widget, pos)` espera a pos em coordenadas do widget** e faz o `mapToGlobal` internamente. Passar `mapToGlobal(pos)` converte duas vezes e o menu abre longe do cursor. `customContextMenuRequested` já emite pos de viewport — passe direto
+- **`QWidget.setLayout()` silencioso**: não levanta exceção, só não faz nada. Se um widget "some" da tela depois de adicionado a um Card/layout, suspeite disto antes de suspectar CSS
+- **Modo `offscreen` não tem fontes** — texto sai como tofu. Para conferir visual, remova `QT_QPA_PLATFORM=offscreen` e use a plataforma Windows (o widget pisca na tela, mas sai legível)
+- **Em teste headless, qualquer `exec()` modal trava para sempre.** Neutralize só a apresentação: `QMessageBox.exec = lambda self: QMessageBox.Ok`
+
+## Regras para janela de dialogo nova
+- `fit_dialog_to_content(self, min_w=..., min_h=...)` ao fim do `__init__`, **depois** de setup_ui + populate
+- Campos de título usam `TitleEdit` (`gui/widgets/title_edit.py`), não `QLineEdit` — quebra linha e cresce
+- Descrição/nota longa usa `autogrow_text_edit` (theme.py), não altura fixa
+- `SlimComboBox` em vez de `QComboBox()` cru: item longo infla `sizeHint` e cria scrollbar horizontal no dialogo inteiro
+- Diálogo de listagem: `PageHeader` + botão primário à direita + lista + botão de fechar. Criar/edição vai em diálogo **próprio**, não em campos soltos no rodapé da lista
+
+## Testes que gravam no banco — regras obrigatórias
+- `config.DB_PATH` resolve para a **raiz do repositório** quando roda do código-fonte (só vira `%LOCALAPPDATA%` empacotado). Sem redirecionar, o teste grava no banco de desenvolvimento
+- Redirecionar `config.DB_PATH` **antes de qualquer import** que toque o banco, e instalar trava de segurança que **aborta** se `PRAGMA database_list` não apontar para a cópia temporária
+- Já vazou dado de teste no banco do repo **duas vezes** nesta sessão (3 prazos, 2 alarmes, 14 logs). Restaurar do backup e conferir SHA-256 depois
+- Convenção: `tests\smoke_<assunto>.py`, saída `N ok / M fail`, `exit 1` se falhar, rodar com `python -B`
+- Documentação completa em `docs/Testes.md`
 
 ## Critical Context
 - Error message `QWindowsWindow::setGeometry: Unable to set geometry…` is a harmless Qt/Windows warning when minimum window size exceeds screen space
