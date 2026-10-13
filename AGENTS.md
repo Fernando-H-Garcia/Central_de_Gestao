@@ -252,7 +252,7 @@
 ### Sprint 3 – Barra Lateral
 - Redesenho completo: mais limpa, menos pesada, mais moderna
 - Adicionar ícones
-- Itens: Monitor, Projetos, Agenda, Documentação, Wiki, Resumo, Configurações
+- Itens: Projetos, Resumo das Atividades, Agenda Geral, Documenta\u00e7\u00e3o
 - Hover suave, item ativo destacado, transições
 
 ### Sprint 4 – Cabeçalho das Páginas
@@ -502,7 +502,7 @@
 - Causa: handlers `_on_timeline_task_moved` / `_on_timeline_deadline_moved` não emitiam `entity_updated` nem chamavam `load_data()`
 - **Regra**: TODO ponto que persiste alteração (service, repo direto, dialog, ação de drag) deve garantir `notify_entity_updated(...)` (ou emitir `entity_updated` direto) + `load_data()` local. Services já notificam (`TaskService.update_task`, `AlertService.*`, `EventService` emite `snapshot_updated`, `IdeaService`, `ProjectService`, `AgendaService`, `NoteService`) — mas updates DIRETOS de repo (`alert_repo.update`, `page_repo.update`, `_deadline_repo().update`, `ActivityLogRepository`) NÃO notificam: ou troque pelo service que notifica, ou emita `notify_entity_updated(entity_type, id, action)`
 - Dialogs que abrem services já notificam; handlers de CRIAÇÃO/EDIÇÃO/EXCLUSÃO em views (ex.: `do_add`/`do_upd`/`do_del` de prazo estimado, `_delete_estimated_deadline`, `edit_activity`/`delete_activity`, `_apply_custom_snooze`) precisavam do emit manual — agora corrigidos
-- Views assinam `entity_updated` via `event_bus.subscribe`: `tasks_qt`, `projects_qt`, `project_360_qt`, `task_detail_qt`, `agenda_qt`, `activity_summary_qt`, `workbench_qt` (corrigido), `ideas_qt` (corrigido), `notes_qt` (corrigido), `wiki_qt` (só `snapshot_updated` — recarrega página ao abrir)
+- Views assinam `entity_updated` via `event_bus.subscribe`: `tasks_qt`, `projects_qt`, `project_360_qt`, `task_detail_qt`, `agenda_qt`, `activity_summary_qt`, `ideas_qt` (corrigido), `notes_qt` (corrigido), `wiki_qt` (só `snapshot_updated` — recarrega página ao abrir)
 - `AlarmDialogQt` sem `task` agora mostra combo de tarefa (`cmb_task`) — criar com `entity_id=0` ficava invisível na Agenda Geral (agrupamento pula `task_repo.get_by_id(0) → None`)
 
 ### Snapshot do data_context está morto (cuidado)
@@ -512,7 +512,7 @@
 
 ### View sem subscription fica congelada
 - Sintoma: edita algo numa tela, outra tela (aberta) não muda
-- Causa: view nunca assinou `entity_updated` (`workbench_qt` era o caso). Views top-level todas agora assinam `snapshot_updated` + `entity_updated` → `safe_load_data`/`load_data`; ao destruir, fazer `event_bus.unsubscribe` no `destroyed`
+- Causa: view nunca assinou `entity_updated`. Views top-level todas agora assinam `snapshot_updated` + `entity_updated` → `safe_load_data`/`load_data`; ao destruir, fazer `event_bus.unsubscribe` no `destroyed`
 
 ### event_bus.emit é assíncrono (16ms) e com batch por id
 - Emit agrupa eventos pendentes e despacha num timer de 16ms — NÃO assuma atualização síncrona logo após `emit`
@@ -560,6 +560,6 @@
 - `services/alert_service.py`: `complete_alert_silent`, `snooze_alert_silent` methods (no event emission)
 - `gui/dialogs_qt/alarm_popup_qt.py`: `_handle_complete` / `_handle_snooze` fixed to defer `self.accept()` via timer; exception logging; `_remove_card` no longer calls `accept()`
 - `gui/dialogs_qt/alarm_dialog_qt.py`, `project_dialog_qt.py`, `task_dialog_qt.py`, `schedule_dialog_qt.py`, `event_dialog_qt.py`, `alarm_popup_qt.py`: all patched with `style_calendar_today` (now redundant due to monkey-patch)
-- `gui/main_window_qt.py`: Sidebar nav buttons (Monitor, Projetos, Resumo Atividades, Agenda Geral, Documentação), `_on_global_navigate` for wiki nav at index 4
+- `gui/main_window_qt.py`: sidebar com `NAV_PAGES` como fonte unica (emoji, nome, view). Nunca usar indice literal em `change_page()`: use `self._page_index("Documenta\u00e7\u00e3o")`. `_on_global_navigate` roteia links wiki/projeto/tarefa/ideia
 - `gui/views/activity_summary_qt.py`: Activity summary view with project filter, record count, grouped results, clickable links, human-readable detail formatting
 - `logs/app_errors.log`: Exceptions from popup handlers, slot crashes logged here

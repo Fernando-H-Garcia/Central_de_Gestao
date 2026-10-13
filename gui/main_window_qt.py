@@ -5,6 +5,28 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QPaintEvent
 from gui.theme import FONT_TITLE, FONT_CAPTION
+
+# Fonte unica de verdade da navegacao lateral: a ordem da lista E o indice
+# da pagina no stacked_widget.
+#
+# Antes existiam tres listas hardcoded e independentes (botoes, paginas e
+# rotulos do historico) mais um indice fixo solto -- change_page(4) significava
+# "Documentacao". Remover um item da sidebar exigia acertar as tres listas E
+# todos os indices fixos; foi exatamente o que aconteceu ao remover "Monitor".
+NAV_PAGES = [
+    ("\U0001F4C1", "Projetos", "gui.views.projects_qt:ProjectsQt"),
+    ("\U0001F4CB", "Resumo das Atividades", "gui.views.activity_summary_qt:ActivitySummaryQt"),
+    ("\U0001F4C5", "Agenda Geral", "gui.views.agenda_qt:AgendaQt"),
+    ("\U0001F4D6", "Documenta\u00e7\u00e3o", "gui.views.wiki_qt:WikiQt"),
+]
+NAV_NAMES = [nome for _, nome, _ in NAV_PAGES]
+
+
+def _build_nav_page(spec):
+    """Instancia a view da navegacao a partir de "modulo:Classe"."""
+    import importlib
+    module_path, class_name = spec.split(":")
+    return getattr(importlib.import_module(module_path), class_name)()
 try:
     import sip
 except ImportError:
@@ -151,7 +173,7 @@ class MainWindow(QMainWindow):
         elif e_type == "task":
             self.show_task_detail(e_id)
         elif e_type in ("wiki", "knowledge_page"):
-            self.change_page(4)  # Switch to "Documentação" tab
+            self.change_page(self._page_index("Documentação"))
             # WikiQt catches the same navigate_to event and opens the page
         elif e_type == "idea":
             from services.idea_service import IdeaService
@@ -209,15 +231,8 @@ class MainWindow(QMainWindow):
         self.btn_group.setExclusive(True)
 
         self.nav_buttons = {}
-        nav_defs = [
-            ("📊", "Monitor"),
-            ("📁", "Projetos"),
-            ("📋", "Resumo das Atividades"),
-            ("📅", "Agenda Geral"),
-            ("📖", "Documentação"),
-        ]
 
-        for i, (emoji, item) in enumerate(nav_defs):
+        for i, (emoji, item, _spec) in enumerate(NAV_PAGES):
             btn = QPushButton(f"  {emoji}  {item}")
             btn.setCheckable(True)
             if i == 0:
@@ -243,44 +258,37 @@ class MainWindow(QMainWindow):
         
         # Main content area
         self.stacked_widget = QStackedWidget()
-        
-        from gui.views.workbench_qt import WorkbenchQt
-        from gui.views.wiki_qt import WikiQt
-        from gui.views.projects_qt import ProjectsQt
-        from gui.views.agenda_qt import AgendaQt
-        from gui.views.activity_summary_qt import ActivitySummaryQt
-        
-        nav_items = ["Monitor", "Projetos", "Resumo das Atividades", "Agenda Geral", "Documentação"]
-        
-        # Add placeholders and actual views
-        for i, item in enumerate(nav_items):
-            if item == "Monitor":
-                page = WorkbenchQt()
-            elif item == "Projetos":
-                page = ProjectsQt()
-            elif item == "Resumo das Atividades":
-                page = ActivitySummaryQt()
-                page.go_back.connect(self._navigate_back)
-            elif item == "Agenda Geral":
-                page = AgendaQt()
-            elif item == "Documentação":
-                page = WikiQt()
-            else:
-                page = QWidget()
-                
+
+        for _emoji, item, spec in NAV_PAGES:
+            page = _build_nav_page(spec)
             self.stacked_widget.addWidget(page)
-            
+
             # If the page emits open_task_detail_signal, connect it
             if hasattr(page, "open_task_detail_signal"):
                 # Notice we capture 'page' via pw=page to avoid late-binding closure issues!
                 page.open_task_detail_signal.connect(lambda tid, pw=page: self.show_task_detail(tid, origin_widget=pw))
-            
-            if item == "Projetos":
+
+            if hasattr(page, "go_back"):
+                page.go_back.connect(self._navigate_back)
+            if item == "Projetos" and hasattr(page, "open_project_360"):
                 page.open_project_360.connect(self.show_project_360)
                 
         main_layout.addWidget(self.sidebar)
         main_layout.addWidget(self.stacked_widget, stretch=1)
         
+    def _page_index(self, nome):
+        """Índice de uma página pelo nome.
+
+        Nunca chame change_page(<número literal>): o índice muda quando um
+        item entra ou sai da sidebar. Era assim que `change_page(4)`
+        (Documentação) sobreviveu à remoção do Monitor e passou a apontar
+        para a tela errada.
+        """
+        try:
+            return NAV_NAMES.index(nome)
+        except ValueError:
+            return 0
+
     def change_page(self, idx):
         self._push_target(self._current_target)
         self._show_page(idx)
@@ -378,9 +386,8 @@ class MainWindow(QMainWindow):
             return "—"
         kind, tid = target
         if kind == "page":
-            names = ["Monitor", "Projetos", "Resumo das Atividades", "Agenda Geral", "Documentação"]
             try:
-                return names[tid] if 0 <= tid < len(names) else f"Página {tid}"
+                return NAV_NAMES[tid] if 0 <= tid < len(NAV_NAMES) else f"Página {tid}"
             except Exception:
                 return f"Página {tid}"
         if kind == "project":

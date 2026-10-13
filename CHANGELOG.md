@@ -20,8 +20,10 @@ publicado para este bloco.
   - `DeadlineEditDialog`: Descrição e Data (nessa ordem), com Salvar e Cancelar
   - Marcador da timeline: duplo clique abre o formulário de edição;
     botão direito → "Editar Prazos" abre a lista da tarefa
-- **Suítes de teste** (`tests/`): 15 suítes, incluindo 4 de prazos
-  Estimados com trava de segurança contra escrita no banco de desenvolvimento
+- **Suítes de teste** (`tests/`): **16 suítes** versionadas, incluindo 4 de
+  Prazos Estimados (com trava de segurança contra escrita no banco de
+  desenvolvimento) e 1 de navegação da sidebar
+- `NAV_PAGES` como fonte única da navegação lateral, com `_page_index(nome)`
 
 ### Fixed
 - Menu de contexto dos prazos abria **longe do cursor** — a posição era
@@ -35,6 +37,7 @@ publicado para este bloco.
   próprio e o Qt recusa `setLayout()` quando já existe um
 
 ### Changed
+- **Janela “Monitor” removida** da sidebar (`gui/views/workbench_qt.py` deletado, sem referência restante no projeto)
 - Documentação reorganizada: 72 → 28 documentos. Removidos 43 arquivos finos
   e duplicados, e consolidados os fatos em 8 documentos substantes
 - ADR-011 criado (one-file) e ADR-003 marcado como superado

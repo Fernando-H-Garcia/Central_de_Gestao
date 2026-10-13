@@ -12,7 +12,7 @@ Estado verificado em **2026-10-13**.
 - [x] Wiki com `[[` / `{{`, anexos e links clicáveis
 - [x] Timeline / Gantt (Planning) com barra arrastável, zoom e prazos
 - [x] Design System: fonte única de verdade visual, componentes reutilizáveis
-- [x] Testes automatizados (15 suítes)
+- [x] Testes automatizados (16 suítes)
 - [x] Build validado: EXE 46,1 MB · instalador 70,1 MB · EXE executado
 
 ## Em andamento

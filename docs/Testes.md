@@ -23,18 +23,22 @@ bytecode em cache depois de editar os fontes.
 | `smoke_prefill.py` | 15 | Regra da data: prazo existente > data sob o mouse > hoje |
 | `smoke_gantt_prazo.py` | 12 | Duplo clique vs botão direito no marcador da timeline |
 
+## Suíte de navegação (sidebar)
+
+| Suíte | Checks | Cobre |
+|---|---|---|
+| `smoke_sidebar.py` | 32 | Monta a `MainWindow` real, navega pelas 4 telas e confere que `NAV_PAGES` e a fonte unica |
+
 ## Suítes de Design System (Parte 1)
 
 `smoke_1a`, `smoke_1b`, `smoke_1c`, `smoke_card_regressao`, `smoke_1d`,
 `smoke_1e`, `smoke_risco`, `smoke_1f`, `smoke_perigo`, `smoke_header`,
 `smoke_1g`.
 
-Essas são análise estática (AST sobre o código-fonte), não executam a UI.
+Essas são análise estática (AST sobre o código-fonte); `smoke_1a`, `1b`,
+`1c` e `1g` também instanciam widgets de verdade.
 
-**Total: 15 suítes.**
-
-> Essas suítes vivem em `tests/` no repositório. Se encontrar versões só em
-> pasta temporária, elas não foram salvas ainda.
+**Total: 16 suítes**, todas versionadas em `tests/`.
 
 ---
 
