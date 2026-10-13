@@ -4,6 +4,12 @@ import datetime
 from gui.components.timeline.timeline_models import TimelineItem, TimelineEvent
 from gui.components.timeline.timeline_aggregation import TimelineAggregation
 
+# Dias restantes ate o prazo para o item entrar em "Tempo esgotando"
+# (laranja). Unico ponto de verdade: o Gantt e a barra de progresso do
+# projeto em Project360Qt._progress_color usam este mesmo numero, para
+# que a mesma cor signifique a mesma coisa em qualquer tela.
+RISCO_DIAS = 3
+
 class TimelineMapper:
     @staticmethod
     def map_tasks_to_timeline(tasks: List[Any], subtasks_by_parent: Dict[int, List[Any]]) -> List[TimelineItem]:
@@ -112,7 +118,7 @@ class TimelineMapper:
         if not is_done and not is_milestone:
             if eff_end is not None and eff_end < today:
                 derived = "ATRASADA"
-            elif eff_end is not None and (eff_end - today).days <= 3:
+            elif eff_end is not None and (eff_end - today).days <= RISCO_DIAS:
                 derived = "Tempo esgotando"
             elif eff_start is None:
                 derived = "NÃO INICIADA"
@@ -174,7 +180,7 @@ class TimelineMapper:
         if not is_done and not is_milestone:
             if eff_end is not None and eff_end < today:
                 derived = "ATRASADA"
-            elif eff_end is not None and (eff_end - today).days <= 3:
+            elif eff_end is not None and (eff_end - today).days <= RISCO_DIAS:
                 derived = "Tempo esgotando"
             elif eff_start is None:
                 derived = "NÃO INICIADA"

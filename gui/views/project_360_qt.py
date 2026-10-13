@@ -419,12 +419,23 @@ class Project360Qt(QWidget):
     def _progress_color(self, total, concluidas):
         """Cor da barra de progresso do projeto.
 
-        Mesma convencao do Gantt (gantt_tree_qt.bar_color): a cor
-        comunica o ESTADO do projeto, nao a porcentagem. Azul e progresso
-        normal; verde so quando acabou; vermelho so quando ha tarefa
-        atrasada; laranja quando o prazo esta encima.
+        A cor comunica o ESTADO, nunca a porcentagem. Ordem de decisao
+        (a primeira que casar vence):
+
+        1. verde  -- todas as tarefas concluiram
+        2. vermelho -- alguma tarefa NAO concluida com prazo ja vencido
+        3. vermelho -- o prazo do PROJETO ja venceu
+        4. laranja -- o prazo do projeto vence em ate RISCO_DIAS dias
+                       (inclusive hoje)
+        5. azul    -- normal
+
+        O corte de RISCO_DIAS e o mesmo do Gantt
+        (timeline_mapper.py: "Tempo esgotando" quando (fim - hoje).days <= 3),
+        para que laranja signifique a mesma coisa na barra e nas barras do
+        Planejamento.
         """
         from gui.theme import ACCENT_BLUE, SUCCESS_GREEN, ERROR_RED, WARNING_ORANGE
+        from gui.components.timeline.timeline_mapper import RISCO_DIAS
         import datetime as _dt
 
         if total and concluidas >= total:
@@ -437,24 +448,31 @@ class Project360Qt(QWidget):
 
         hoje = _dt.datetime.now().date()
 
-        for t in tasks:
-            if t.status == 'Concluído' or not t.due_date:
-                continue
+        def dias_ate(valor):
+            """Dias ate a data, ou None se nao houver data valida."""
+            if not valor:
+                return None
             try:
-                venc = _dt.datetime.fromisoformat(str(t.due_date)).date()
+                return (_dt.datetime.fromisoformat(str(valor)).date() - hoje).days
             except (ValueError, TypeError):
+                return None
+
+        # 2. tarefa vencida e nao concluida
+        for t in tasks:
+            if t.status == 'Concluído' or getattr(t, 'is_milestone', False):
                 continue
-            if venc < hoje:
+            d = dias_ate(t.due_date)
+            if d is not None and d < 0:
                 return ERROR_RED
 
-        due = getattr(self.project, 'due_date', None)
-        if due and getattr(self.project, 'status', '') != 'Concluído':
-            try:
-                dias = (_dt.datetime.fromisoformat(str(due)).date() - hoje).days
-                if dias <= 7:
+        # 3 e 4. prazo do proprio projeto
+        if getattr(self.project, 'status', '') != 'Concluído':
+            d = dias_ate(getattr(self.project, 'due_date', None))
+            if d is not None:
+                if d < 0:
+                    return ERROR_RED
+                if d <= RISCO_DIAS:
                     return WARNING_ORANGE
-            except (ValueError, TypeError):
-                pass
 
         return ACCENT_BLUE
 
