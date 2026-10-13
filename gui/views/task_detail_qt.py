@@ -99,9 +99,9 @@ class TaskDetailQt(QWidget):
         self.header.add_left_widget(self.back_nav)
 
         # titulo centro -> alinhado a esquerda, como nas demais telas.
-        # Sem wordWrap: o ElidedTitle ja trunca com reticencias conforme o
-        # espaco real, e o tooltip traz o texto completo. Com wordWrap o
-        # rotulo consumia a altura toda e espremia a linha.
+        # wordWrap PRESERVADO: e o comportamento original e mostra mais
+        # informacao que truncar. Quem garante que ele nao desaparece e o
+        # ElidedTitle + o stretch do titulo no PageHeader.
         self.lbl_title = self.header.title_label
 
         self.btn_edit = QPushButton("✏️ Editar Tarefa")

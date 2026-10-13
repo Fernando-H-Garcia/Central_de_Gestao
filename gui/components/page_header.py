@@ -18,18 +18,37 @@ class _Spacing(QWidget):
 class ElidedTitle(QLabel):
     """Titulo do cabecalho que nunca some.
 
-    Sem isto, um titulo longo era espremido pelo painel de Referencias e
-    pelos botoes: o QLabel recebia 102px para um texto de 2212px e
-    simplesmente nao desenhava nada. Aqui o texto e truncado com reticencias
-    conforme o espaco real, e o tooltip traz o texto completo.
+    Dois modos:
+      wrap=True (padrao) -- quebra em varias linhas, como o titulo fazia
+        antes. Preferido: mostra mais informacao sem cortar nada.
+      wrap=False -- trunca numa linha com reticencias.
+
+    Nos dois modos o texto completo fica no tooltip, e nenhum dos dois
+    deixa o rotulo com 0px de largura -- era o que acontecia: o QLabel
+    perdia a disputa por espaco e simplesmente nao desenhava nada.
     """
 
-    def __init__(self, text="", min_width=200, parent=None):
+    def __init__(self, text="", min_width=200, wrap=True, max_lines=2, parent=None):
         super().__init__(parent)
         self._full_text = text or ""
         self._min_width = min_width
-        # Ignored: o rotulo NAO exige espaco -- ele cede e trunca.
-        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        self._wrap = wrap
+        self._max_lines = max_lines
+        self.setWordWrap(False)  # a quebra e feita em _wrap_text
+        if wrap:
+            # Expanding (horizontal) + Preferred (vertical).
+            #
+            # Expanding: o rotulo ocupa TODO o espaco que sobrar, e o que
+            # faz o bloco da direita encostar na borda.
+            #
+            # Preferred e NAO Minimum na vertical: com wordWrap o
+            # sizeHint do QLabel depende da largura atual, e Minimum
+            # proibe encolher depois -- a altura ficava presa no valor
+            # calculado com a largura estreita (508px num titulo que
+            # cabia em 5 linhas).
+            self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        else:
+            self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.setMinimumWidth(min_width)
         self._refresh()
 
@@ -42,25 +61,88 @@ class ElidedTitle(QLabel):
         self._refresh()
 
     def text(self):
-        """Texto EXIBIDO (ja trunhado), como manda o QLabel.
+        """Texto EXIBIDO, como manda o QLabel.
 
-        Nao devolve o texto completo: quem precisar dele usa
-        full_text(). Devolver o completo aqui quebraria o contrato do
-        QLabel e enganaria quem mede o que o usuario ve.
+        No modo wrap devolve o texto com quebras de linha; no modo elide,
+        o texto truncado. Quem precisar do original usa full_text().
         """
         return super().text()
+
+    def set_wrap(self, wrap):
+        self._wrap = wrap
+        self.setWordWrap(wrap)
+        self.setSizePolicy(QSizePolicy.Expanding if wrap else QSizePolicy.Ignored,
+                          QSizePolicy.Preferred)
+        self._refresh()
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._refresh()
 
+    def _wrap_text(self, fm, largura):
+        """Quebra o texto em no maximo `max_lines` linhas que cabem em
+        `largura`. A ultima linha recebe reticencias.
+
+        Feito a mao, e nao com QLabel.wordWrap, porque o wordWrap do Qt
+        depende de heightForWidth/sizeHint e o layout acabava usando uma
+        altura calculada com a largura errada.
+
+        O limite de linhas e essencial: a fonte do cabecalho e grande
+        (28px) e um titulo de entidade longo exigiria dezenas de linhas,
+        empurrando todo o conteudo para fora da tela.
+        """
+        palavras = self._full_text.split()
+        if not palavras:
+            return [""]
+        linhas, atual = [], palavras[0]
+        for p in palavras[1:]:
+            tentativa = f"{atual} {p}"
+            if fm.horizontalAdvance(tentativa) <= largura:
+                atual = tentativa
+            else:
+                linhas.append(atual)
+                atual = p
+                if len(linhas) == self._max_lines:
+                    break
+        restou = palavras[1 + sum(len(l.split()) for l in linhas):]
+        if self._max_lines and len(linhas) == self._max_lines and restou:
+            # ainda ha texto: marca com reticencias
+            while linhas and fm.horizontalAdvance(linhas[-1] + "…") > largura:
+                linhas[-1] = linhas[-1].rsplit(" ", 1)[0]
+                restou = palavras[1 + sum(len(l.split()) for l in linhas):]
+            linhas[-1] = linhas[-1] + "…"
+        else:
+            linhas.append(atual)
+        return linhas
+
     def _refresh(self):
-        fm = QFontMetrics(self.font())
-        disponivel = max(0, self.width() - 2)
-        super().setText(
-            fm.elidedText(self._full_text, Qt.ElideRight, disponivel)
-        )
         self.setToolTip(self._full_text)
+
+        if not self._wrap:
+            self._clear_fixed_height()
+            fm = QFontMetrics(self.font())
+            truncado = fm.elidedText(self._full_text, Qt.ElideRight,
+                                     max(0, self.width() - 2))
+            if super().text() != truncado:
+                super().setText(truncado)
+            return
+
+        self.setWordWrap(False)
+        fm = QFontMetrics(self.font())
+        largura = max(20, self.width() - 2)
+        linhas = self._wrap_text(fm, largura)
+        texto = "\n".join(linhas)
+        if super().text() != texto:
+            super().setText(texto)
+
+        alvo = len(linhas) * fm.height() + 4
+        if abs(self.height() - alvo) > 1:
+            self.setFixedHeight(alvo)
+
+    def _clear_fixed_height(self):
+        if self.minimumHeight() != 0 or self.maximumHeight() != 16777215:
+            self.setMinimumHeight(0)
+            self.setMaximumHeight(16777215)
 
 
 class PageHeader(QFrame):
@@ -73,7 +155,7 @@ class PageHeader(QFrame):
           - os botoes ficam SEMPRE no extremo direito, depois dos paineis.
     """
 
-    def __init__(self, title="", subtitle="", parent=None):
+    def __init__(self, title="", subtitle="", parent=None, wrap_title=True):
         super().__init__(parent)
         self.setObjectName("pageHeader")
 
@@ -83,12 +165,11 @@ class PageHeader(QFrame):
 
         self._left_layout = QHBoxLayout()
         self._left_layout.setSpacing(8)
-        layout.addLayout(self._left_layout)
 
         text_area = QVBoxLayout()
         text_area.setSpacing(2)
 
-        self.title_label = ElidedTitle(title)
+        self.title_label = ElidedTitle(title, wrap=wrap_title)
         self.title_label.setObjectName("header")
         text_area.addWidget(self.title_label)
 
@@ -103,17 +184,22 @@ class PageHeader(QFrame):
 
         self._left_layout.addLayout(text_area, stretch=1)
 
+        # O stretch=1 do titulo precisa estar NO LAYOUT EXTERNO. Sem ele
+        # nenhum item externo tem fator de crescimento, o espaco extra ia
+        # para o addStretch() do fim e os paineis/botoes acabavam no meio
+        # da tela.
+        layout.addLayout(self._left_layout, 1)
+
         # Ordem deliberada: titulo | paineis | BOTOES no extremo direito.
-        # Antes os botoes vinham antes dos paineis, entao com o painel de
-        # Referencias (largo) o botao de acao acabava no meio da tela.
         self._right_layout = QHBoxLayout()
         self._right_layout.setSpacing(12)
         layout.addLayout(self._right_layout)
 
+        # Sem addStretch() aqui: quem empurra para a direita e o titulo,
+        # acima. Um stretch no fim puxaria os botoes de volta ao centro.
         self._button_layout = QHBoxLayout()
         self._button_layout.setSpacing(8)
         layout.addLayout(self._button_layout)
-        self._button_layout.addStretch()
 
     def set_title(self, title: str):
         self.title_label.setText(title)

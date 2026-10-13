@@ -162,16 +162,20 @@ class ReferencesPanelQt(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
-        self.btn_out = QPushButton("🔗 Referências (0)")
-        self.btn_out.setObjectName("secondary")
-        # QPushButton vem com Policy.Minimum, que CRESCE. Sem travar o
-        # tamanho, os dois botoes esticavam e o painel chegava a 534px --
-        # quase metade da janela, espremendo o titulo do cabecalho.
+        # COMPACTO de proposito. Com os rotulos por extenso ("🔗 Referências
+        # (0)" e "↩️ Citado por (5)") o painel media 462px e comia quase
+        # metade de uma janela de 1100px, espremendo o titulo do
+        # cabecalho a ~200px -- o titulo sumia. Icone + contador ocupa
+        # ~90px e libera ~370px para o titulo. O texto completo fica no
+        # tooltip e a lista continua abrindo no clique, como antes.
+        self.btn_out = QPushButton("🔗 0")
+        self.btn_out.setObjectName("secondaryCompact")
+        self.btn_out.setToolTip("Referências desta entidade")
         self.btn_out.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
 
-        self.btn_in = QPushButton("↩️ Citado por (0)")
-        self.btn_in.setObjectName("secondary")
-        self.btn_in.setToolTip("Entidades que referenciam esta")
+        self.btn_in = QPushButton("↩️ 0")
+        self.btn_in.setObjectName("secondaryCompact")
+        self.btn_in.setToolTip("Citado por")
         self.btn_in.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
 
         self.btn_out.clicked.connect(self._show_out_popup)
@@ -179,6 +183,12 @@ class ReferencesPanelQt(QWidget):
 
         self.btn_in.clicked.connect(self._show_in_popup)
         layout.addWidget(self.btn_in)
+
+    def _set_counts(self, out_n, in_n):
+        self.btn_out.setText(f"🔗 {out_n}")
+        self.btn_in.setText(f"↩️ {in_n}")
+        self.btn_out.setToolTip(f"Referências desta entidade ({out_n})")
+        self.btn_in.setToolTip(f"Citado por ({in_n})")
 
     def _show_out_popup(self):
         if not self._out_links:
@@ -208,8 +218,7 @@ class ReferencesPanelQt(QWidget):
 
     def refresh(self):
         if not self.entity_id:
-            self.btn_out.setText("🔗 Referências (0)")
-            self.btn_in.setText("↩️ Citado por (0)")
+            self._set_counts(0, 0)
             return
         try:
             from services.link_service import LinkService
@@ -229,8 +238,7 @@ class ReferencesPanelQt(QWidget):
                     "file_path": att.file_path,
                 })
 
-            self.btn_out.setText(f"🔗 Referências ({len(self._out_links)})")
-            self.btn_in.setText(f"↩️ Citado por ({len(self._in_links)})")
+            self._set_counts(len(self._out_links), len(self._in_links))
         except Exception:
             self.btn_out.setText("🔗 Referências (0)")
             self.btn_in.setText("↩️ Citado por (0)")
