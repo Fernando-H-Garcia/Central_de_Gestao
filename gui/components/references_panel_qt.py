@@ -1,12 +1,12 @@
 """
 ReferencePanelQt — Painel de referências entre entidades (Qt).
 
-Exibe dois botões pequenos: "🔗 Referências (N)" e "↩️ Referenciado por (N)".
+Exibe dois botões pequenos: "🔗 Referências (N)" e "↩️ Citado por (N)".
 Ao passar o mouse, mostra um popup flutuante com a lista.
 """
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
-    QFrame, QListWidget, QListWidgetItem
+    QFrame, QListWidget, QListWidgetItem, QSizePolicy
 )
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
@@ -164,9 +164,15 @@ class ReferencesPanelQt(QWidget):
 
         self.btn_out = QPushButton("🔗 Referências (0)")
         self.btn_out.setObjectName("secondary")
+        # QPushButton vem com Policy.Minimum, que CRESCE. Sem travar o
+        # tamanho, os dois botoes esticavam e o painel chegava a 534px --
+        # quase metade da janela, espremendo o titulo do cabecalho.
+        self.btn_out.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
 
-        self.btn_in = QPushButton("↩️ Referenciado por (0)")
+        self.btn_in = QPushButton("↩️ Citado por (0)")
         self.btn_in.setObjectName("secondary")
+        self.btn_in.setToolTip("Entidades que referenciam esta")
+        self.btn_in.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
 
         self.btn_out.clicked.connect(self._show_out_popup)
         layout.addWidget(self.btn_out)
@@ -203,7 +209,7 @@ class ReferencesPanelQt(QWidget):
     def refresh(self):
         if not self.entity_id:
             self.btn_out.setText("🔗 Referências (0)")
-            self.btn_in.setText("↩️ Referenciado por (0)")
+            self.btn_in.setText("↩️ Citado por (0)")
             return
         try:
             from services.link_service import LinkService
@@ -224,7 +230,7 @@ class ReferencesPanelQt(QWidget):
                 })
 
             self.btn_out.setText(f"🔗 Referências ({len(self._out_links)})")
-            self.btn_in.setText(f"↩️ Referenciado por ({len(self._in_links)})")
+            self.btn_in.setText(f"↩️ Citado por ({len(self._in_links)})")
         except Exception:
             self.btn_out.setText("🔗 Referências (0)")
-            self.btn_in.setText("↩️ Referenciado por (0)")
+            self.btn_in.setText("↩️ Citado por (0)")

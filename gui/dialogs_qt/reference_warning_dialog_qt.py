@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
 , QSizePolicy)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
+from gui.components.buttons import DangerButton, SecondaryButton
 
 class ReferenceWarningDialog(QDialog):
     """Dialog that shows impact analysis before deleting a referenced entity."""
@@ -120,39 +121,22 @@ class ReferenceWarningDialog(QDialog):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(10)
 
-        btn_archive = QPushButton("📦 Arquivar")
-        btn_archive.setStyleSheet("""
-            QPushButton {
-                padding: 8px 20px; border-radius: 5px; font-weight: bold; font-size: 13px;
-                background-color: #2a2a3f; color: #fff; border: 1px solid #555;
-            }
-            QPushButton:hover { background-color: #3a3a5f; }
-        """)
+        # REGRA: acao destrutiva em dialogo de confirmacao usa a variante
+        # `danger` do tema (vermelho solido). Item de menu nao leva icone
+        # nenhum -- ver ContextMenuQt.add_command. Antes estes tres botoes
+        # tinham CSS inline, o que os fazia divergir do tema.
+        btn_archive = SecondaryButton("📦 Arquivar")
         btn_archive.clicked.connect(lambda: self._choose("archive"))
         if self.show_archive:
             btn_row.addWidget(btn_archive)
 
         btn_row.addStretch()
 
-        btn_delete = QPushButton("🗑️ Excluir tudo")
-        btn_delete.setStyleSheet("""
-            QPushButton {
-                padding: 8px 20px; border-radius: 5px; font-weight: bold; font-size: 13px;
-                background-color: #e53935; color: #fff; border: none;
-            }
-            QPushButton:hover { background-color: #ff5252; }
-        """)
+        btn_delete = DangerButton("⚠️ Excluir tudo")
         btn_delete.clicked.connect(lambda: self._choose("delete_all"))
         btn_row.addWidget(btn_delete)
 
-        btn_cancel = QPushButton("Cancelar")
-        btn_cancel.setStyleSheet("""
-            QPushButton {
-                padding: 8px 20px; border-radius: 5px; font-weight: bold; font-size: 13px;
-                background-color: transparent; color: #aaa; border: 1px solid #555;
-            }
-            QPushButton:hover { background-color: #2d2d55; color: #fff; border: 1px solid #4a6fe3; }
-        """)
+        btn_cancel = SecondaryButton("Cancelar")
         btn_cancel.clicked.connect(self.reject)
         btn_row.addWidget(btn_cancel)
 

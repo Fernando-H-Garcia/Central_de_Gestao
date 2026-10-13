@@ -30,7 +30,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QMenu
 
-from gui.theme import get_status_color, create_color_icon, ERROR_RED
+from gui.theme import get_status_color, create_color_icon
 
 # Ordem canonica dos status de tarefa. Antes estava escrita a mao em
 # tasks_qt e project_360_qt (duplicadas).
@@ -62,17 +62,20 @@ class ContextMenuQt:
         """Adiciona um item. Retorna a QAction (util para comparar com
         o retorno de popup).
 
-        danger=True aplica um ponto vermelho a esquerda, para que acao
-        destrutiva nao pareca igual a acao normal. O texto NAO e
-        alterado -- o emoji do rotulo (ex.: "🗑️ Excluir") ja sinaliza.
-        O Qt reserva espaco de icone para todos os itens quando algum
-        tem icone, entao o alinhamento do texto se mantem.
+        `danger=True` marca a acao como destrutiva SEM mudar a aparencia.
+        Decisao: o item de menu e texto puro, igual aos outros, e um icone
+        a esquerda (bolinha vermelha) so desalinhou a coluna e ficou
+        inconsistente com os botoes, que usam a variante inteira em cor.
+        O parametro continua existindo para marcar a intencao no codigo e
+        para o tema poder usar no futuro.
+
+        Como sinalizar entao? Pelo proprio rotulo, que ja traz o emoji
+        (🗑️ Excluir). E nos dialogos de confirmacao pelo botao, que usa
+        a variante `danger` do tema -- ver reference_warning_dialog_qt.
         """
         action = QAction(label, self.menu)
         if icon is not None:
             action.setIcon(icon)
-        elif danger:
-            action.setIcon(create_color_icon(ERROR_RED))
         if not enabled:
             action.setEnabled(False)
         if callback is not None:
