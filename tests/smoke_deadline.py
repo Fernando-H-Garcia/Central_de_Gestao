@@ -26,6 +26,15 @@ shutil.copy2(os.path.join(os.getcwd(), "database", "novo_cerebro.db"), _TMP_DB)
 config.DB_PATH = __import__("pathlib").Path(_TMP_DB)
 config.DB_DIR = config.DB_PATH.parent
 
+# Trava de seguranca: se o patch de DB_PATH nao pegou, ABORTA em vez de
+# gravar no banco do repo (que tem dados reais e nao esta commitado).
+from database.connection import get_connection as _probe_conn
+_p = _probe_conn()
+_destino = _p.execute("PRAGMA database_list").fetchone()[2]
+_p.close()
+if str(_destino).lower() != str(_TMP_DB).lower():
+    raise SystemExit(f"ABORTADO: o teste escreveria em {_destino}, "
+                     f"e nao na copia temporaria {_TMP_DB}")
 results = []
 
 # Nao existe usuario em offscreen: qualquer exec() modal travaria o teste.

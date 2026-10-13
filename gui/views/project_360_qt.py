@@ -978,7 +978,8 @@ class Project360Qt(QWidget):
             import traceback
             traceback.print_exc()
 
-    def _edit_estimated_deadline(self, task_or_id, deadline_id=None, initial_date=None):
+    def _edit_estimated_deadline(self, task_or_id, deadline_id=None,
+                                  initial_date=None, create=False):
         """Prazos Estimados da tarefa.
 
         Antes esta janela era montada inteira aqui, com lista + campos +
@@ -987,10 +988,15 @@ class Project360Qt(QWidget):
         fica so a parte que conhece o banco: criar, editar, excluir, sincronizar
         os alarmes e registrar a atividade.
 
-        `deadline_id` abre ja o formulario daquele prazo (menu da timeline);
-        `initial_date` abre ja o formulario novo com a data sob o mouse.
+        `deadline_id` abre a edicao daquele prazo (menu do marcador).
+        `create=True` abre a criacao, com `initial_date` -- a data sob o mouse
+        na timeline. `create=True` com `initial_date=None` tambem e criacao:
+        o clique foi fora da area da timeline, entao o formulario abre com a
+        data de hoje. Sem nenhum dos dois, abre a lista.
         """
-        from gui.dialogs_qt.deadline_dialog_qt import DeadlineListDialog
+        from PySide6.QtWidgets import QDialog
+        from gui.dialogs_qt.deadline_dialog_qt import (
+            DeadlineEditDialog, DeadlineListDialog)
 
         task = self._resolve_timeline_task(task_or_id)
         if task is None:
@@ -1048,17 +1054,33 @@ class Project360Qt(QWidget):
                 view._after_deadline_change()
 
         view = self
-        dlg = DeadlineListDialog(self, task=task, controller=_Ops)
-        dlg.new_requested.connect(lambda: dlg.open_new())
-        dlg.exec()
+        # Cada entrada abre DIRETO o que o usuario pediu. Antes todas caiam
+        # na lista primeiro e so depois do exec() aparecia o formulario --
+        # ou seja, era preciso abrir a lista e fecha-la para chegar nele.
+        #
+        #  - deadline_id: menu do marcador -> editar aquele prazo;
+        #  - create:      menu "Prazo Estimado" na timeline -> criar, com a
+        #                data sob o mouse (ou hoje, se o clique foi fora da
+        #                area da timeline e nao ha data sob o cursor);
+        #  - sem nada:    botao da tela da tarefa -> a lista.
+        if deadline_id is not None:
+            d = repo.get_by_id(deadline_id)
+            if d is not None:
+                form = DeadlineEditDialog(self, task_title=task.title, deadline=d)
+                if form.exec() == QDialog.Accepted:
+                    _Ops.update(d.id, form.description(), form.deadline_date())
+                return
 
-        # Chegou com um prazo especifico (menu da timeline): abre o formulario
-        # dele assim que a lista aparecer, sem exigir um clique extra.
-        if deadline_id is not None and dlg.select_deadline(deadline_id):
-            dlg._edit_selected()
-        # Chegou com uma data sob o mouse: abre direto o formulario novo.
-        elif initial_date is not None:
-            dlg.open_new(initial_date)
+        if create:
+            form = DeadlineEditDialog(self, task_title=task.title,
+                                      initial_date=initial_date)
+            if form.exec() == QDialog.Accepted:
+                _Ops.create(form.description(), form.deadline_date())
+            return
+
+        lst = DeadlineListDialog(self, task=task, controller=_Ops)
+        lst.new_requested.connect(lambda: lst.open_new())
+        lst.exec()
 
     def _after_deadline_change(self):
         """Recarrega a view e avisa as outras telas apos mexer num prazo."""
@@ -1081,8 +1103,18 @@ class Project360Qt(QWidget):
             pass
 
     def _edit_estimated_deadline_at(self, task_or_id, initial_date):
-        """Prazo Estimado aberto pela timeline — pré-preenche com a data sob o mouse."""
-        self._edit_estimated_deadline(task_or_id, None, initial_date)
+        """Prazo Estimado aberto pela timeline.
+
+        Sempre ABRIR O FORMULARIO DE CRIACAO -- com `initial_date` (a data
+        sob o mouse) ou sem ela, quando o clique foi fora da area da timeline
+        e nao ha data sob o cursor (aí o formulario ja abre com hoje).
+
+        O `create=True` é o que distingue "criar na data do mouse" de
+        "abrir a lista": os dois chegam com `initial_date` vazio quando o
+        clique foi no texto da linha em vez da timeline.
+        """
+        self._edit_estimated_deadline(task_or_id, deadline_id=None,
+                                      initial_date=initial_date, create=True)
 
     def _delete_estimated_deadline(self, task_or_id, deadline_id):
         """Remove um prazo estimado específico (com confirmação)."""

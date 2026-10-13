@@ -283,7 +283,11 @@ class DeadlineListDialog(QDialog):
         menu.add_separator()
         act_new = menu.add_command("➕ Novo Prazo")
 
-        chosen = menu.popup_at(self.list_widget, self.list_widget.mapToGlobal(pos))
+        # `pos` JA vem em coordenadas do viewport (é o que o
+        # customContextMenuRequested emite) e o popup_at faz o mapToGlobal
+        # internamente. Converter aqui ALSO convertia duas vezes e o menu
+        # aparecia longe do cursor.
+        chosen = menu.popup_at(self.list_widget, pos)
         if chosen is None:
             return
         if chosen is act_edit:
