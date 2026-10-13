@@ -232,6 +232,7 @@ class Project360Qt(QWidget):
         self.tab_timeline.create_event_signal.connect(self._create_event_from_timeline)
         self.tab_timeline.deadline_moved_signal.connect(self._on_timeline_deadline_moved)
         self.tab_timeline.edit_deadline_signal.connect(self._edit_estimated_deadline)
+        self.tab_timeline.deadline_list_signal.connect(self._open_deadline_list)
         self.tab_timeline.delete_deadline_signal.connect(self._delete_estimated_deadline)
         self.tab_timeline.edit_deadline_at_signal.connect(self._edit_estimated_deadline_at)
         self.tab_timeline.event_clicked.connect(self._on_timeline_event_clicked)
@@ -1081,6 +1082,12 @@ class Project360Qt(QWidget):
         lst = DeadlineListDialog(self, task=task, controller=_Ops)
         lst.new_requested.connect(lambda: lst.open_new())
         lst.exec()
+
+    def _open_deadline_list(self, task_or_id):
+        """Abre a janela com TODOS os prazos da tarefa (menu "Editar Prazos"
+        no marcador da timeline). O formulario de um prazoso fica no duplo
+        clique no marcador."""
+        self._edit_estimated_deadline(task_or_id)
 
     def _after_deadline_change(self):
         """Recarrega a view e avisa as outras telas apos mexer num prazo."""

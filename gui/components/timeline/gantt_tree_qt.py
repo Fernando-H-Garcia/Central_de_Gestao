@@ -61,6 +61,7 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
     # Prazo Estimado (marcadores vermelhos): mover, editar e excluir
     deadline_moved = Signal(int, int, object)       # task_id, deadline_id, nova data
     edit_deadline_requested = Signal(object, object)   # Task (raw) ou id, deadline_id | None
+    deadline_list_requested = Signal(object)   # Task (raw) ou id -> abre a LISTA de prazos
     delete_deadline_requested = Signal(object, object) # Task (raw) ou id, deadline_id
     # Prazo Estimado aberto pelo menu da tarefa na TIMELINE: traz a data sob o mouse
     edit_deadline_at_requested = Signal(object, object)  # Task (raw) ou id, datetime.date | None
@@ -1518,14 +1519,17 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             if idx.isValid():
                 self.setCurrentIndex(idx.sibling(idx.row(), 0))
                 menu = ContextMenuQt(parent=self)
-                act_edit = menu.add_command("📅 Editar Prazo Estimado")
+                # "Editar Prazos" abre a JANELA com todos os prazos da tarefa
+                # (nao o formulario de um prazo). O formulario continua no
+                # duplo clique no marcador.
+                act_edit = menu.add_command("📅 Editar Prazos")
                 act_open = menu.add_command("👁️ Abrir Tarefa")
                 menu.add_separator()
                 act_del = menu.add_command("🗑️ Excluir Prazo", danger=True)
                 chosen = menu.popup(event.globalPos())
             task_ref = dl_item.task_id
             if chosen == act_edit:
-                self.edit_deadline_requested.emit(task_ref, dl_item.id)
+                self.deadline_list_requested.emit(task_ref)
             elif chosen == act_open:
                 self.open_task_requested.emit(task_ref)
             elif chosen == act_del:

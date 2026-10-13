@@ -16,6 +16,7 @@ class TimelineViewQt(QWidget):
     create_event_signal = Signal(object)  # Task (raw) — abre EventDialogQt no host
     deadline_moved_signal = Signal(int, int, object)   # task_id, deadline_id, nova data
     edit_deadline_signal = Signal(object, object)         # Task (raw) ou id, deadline_id | None
+    deadline_list_signal = Signal(object)              # Task (raw) ou id -> lista de prazos
     delete_deadline_signal = Signal(object, object)       # Task (raw) ou id, deadline_id
     edit_deadline_at_signal = Signal(object, object)  # Task (raw) ou id, data sob o mouse | None
     event_clicked = Signal(object)  # TimelineEvent
@@ -119,6 +120,7 @@ class TimelineViewQt(QWidget):
         self.tree.create_event_requested.connect(self.create_event_signal.emit)
         self.tree.deadline_moved.connect(self.deadline_moved_signal.emit)
         self.tree.edit_deadline_requested.connect(self.edit_deadline_signal.emit)
+        self.tree.deadline_list_requested.connect(self.deadline_list_signal.emit)
         self.tree.delete_deadline_requested.connect(self.delete_deadline_signal.emit)
         self.tree.edit_deadline_at_requested.connect(self.edit_deadline_at_signal.emit)
         self.tree.item_clicked.connect(self._on_tree_item_clicked)
