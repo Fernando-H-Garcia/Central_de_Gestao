@@ -32,21 +32,39 @@ ENERGY_LABELS = {
 
 
 class Badge(QLabel):
-    def __init__(self, text="", color=ACCENT_BLUE, parent=None):
+    """Chip de status/prioridade/saude.
+
+    Dois estilos:
+      * tinted (padrao) -- fundo e borda na cor com alpha baixa, texto na
+        cor cheia. Serve para a maioria dos casos.
+      * solid=True -- fundo na cor cheia e texto branco. Usar quando o
+        chip precisa se destacar do card (ex.: prioridade de alarme).
+
+    O visual NAO vem do GLOBAL_STYLE porque a cor e dinamica por instancia
+    (vem do status/prioridade da entidade). Para cores fixas, prefira uma
+    variante no tema.
+    """
+
+    def __init__(self, text="", color=ACCENT_BLUE, parent=None, solid=False):
         super().__init__(text, parent)
         self._badge_color = color
+        self._solid = solid
         self.setAlignment(Qt.AlignCenter)
         self.setFixedHeight(22)
         self._update_style()
 
     def _update_style(self):
-        bg = f"{self._badge_color}33"
-        text_c = self._badge_color
+        if self._solid:
+            bg, text_c, border = self._badge_color, "#ffffff", "none"
+        else:
+            bg = f"{self._badge_color}33"
+            text_c = self._badge_color
+            border = f"1px solid {self._badge_color}44"
         self.setStyleSheet(f"""
             QLabel {{
                 background-color: {bg};
                 color: {text_c};
-                border: 1px solid {self._badge_color}44;
+                border: {border};
                 border-radius: {RADIUS_SM - 1}px;
                 padding: 1px 8px;
                 font-size: {FONT_CAPTION}px;

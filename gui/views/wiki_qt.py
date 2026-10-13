@@ -11,6 +11,7 @@ from PySide6.QtCore import Qt, QTimer, QEvent, QRect, QSize
 from PySide6.QtGui import QAction, QFont, QFontMetrics, QTextCursor, QKeyEvent, QPainter, QDropEvent, QBrush, QColor
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
 from gui.components.drag_drop_tree_qt import TranslucentDragMixin
+from gui.components.buttons import ToggleButton
 from gui.theme import SlimComboBox, fit_dialog_to_content
 from gui.widgets.title_edit import TitleEdit
 from services.knowledge_page_service import KnowledgePageService
@@ -245,9 +246,9 @@ class WikiQt(QWidget):
         btn_new.clicked.connect(lambda: self._new_page())
         sidebar_layout.addWidget(btn_new)
 
-        self.btn_archived = QPushButton("📦 Arquivados: OFF")
-        self.btn_archived.setObjectName("secondary")
-        self.btn_archived.setCheckable(True)
+        self.btn_archived = ToggleButton("📦 Arquivados", on_label="📦 Arquivados: ON",
+                                         off_label="📦 Arquivados: OFF", checked=False,
+                                         on_name="toggleGreen", off_name=None)
         self.btn_archived.clicked.connect(self.toggle_archived)
         sidebar_layout.addWidget(self.btn_archived)
 
@@ -1377,7 +1378,6 @@ class WikiQt(QWidget):
     # ─── Load / Filter ───────────────────────────────────────────────
     def toggle_archived(self):
         self.show_archived = self.btn_archived.isChecked()
-        self.btn_archived.setText(f"📦 Arquivados: {'ON' if self.show_archived else 'OFF'}")
         self.load_pages()
 
     def load_pages(self):

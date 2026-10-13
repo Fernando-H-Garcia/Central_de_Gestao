@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt, Signal, QSettings
 from PySide6.QtGui import QColor, QBrush, QFont
 
 from gui.components.drag_drop_tree_qt import DragDropTreeWidget, SortableTreeWidgetItem
+from gui.components.buttons import ToggleButton
 from services.project_service import ProjectService
 from gui.theme import get_status_color, get_energy_color, format_colored_label, format_status, get_archived_color
 from services.task_service import TaskService
@@ -312,9 +313,9 @@ class Project360Qt(QWidget):
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         
-        self.btn_archived_tasks = QPushButton("📦 Arquivados: OFF")
-        self.btn_archived_tasks.setObjectName("secondary")
-        self.btn_archived_tasks.setCheckable(True)
+        self.btn_archived_tasks = ToggleButton("📦 Arquivados", on_label="📦 Arquivados: ON",
+                                                off_label="📦 Arquivados: OFF", checked=False,
+                                                on_name="toggleGreen", off_name=None)
         self.btn_archived_tasks.clicked.connect(self.toggle_archived_tasks)
         btn_layout.addWidget(self.btn_archived_tasks)
         
@@ -439,7 +440,6 @@ class Project360Qt(QWidget):
 
     def toggle_archived_tasks(self):
         self.show_archived_tasks = self.btn_archived_tasks.isChecked()
-        self.btn_archived_tasks.setText(f"📦 Arquivados: {'ON' if self.show_archived_tasks else 'OFF'}")
         self.load_data()
 
     def on_metric_clicked(self, title):
@@ -1322,19 +1322,7 @@ class Project360Qt(QWidget):
         action_edit = menu.addAction("✏️ Editar")
         menu.addSeparator()
         
-        def create_color_icon(color_hex):
-            from PySide6.QtGui import QPixmap, QIcon, QPainter, QColor
-            from PySide6.QtCore import Qt
-            pixmap = QPixmap(16, 16)
-            pixmap.fill(Qt.transparent)
-            painter = QPainter(pixmap)
-            painter.setRenderHint(QPainter.Antialiasing)
-            painter.setBrush(QColor(color_hex))
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(2, 2, 12, 12)
-            painter.end()
-            return QIcon(pixmap)
-        
+        from gui.theme import create_color_icon
         status_menu = menu.addMenu("Mudar Status")
         for st in ["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"]:
             color = get_status_color(st)

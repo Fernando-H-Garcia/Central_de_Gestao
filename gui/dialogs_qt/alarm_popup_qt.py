@@ -14,6 +14,7 @@ import os
 import traceback
 
 from gui.theme import ENERGY_COLORS, get_energy_color, style_calendar_today, fit_dialog_to_content
+from gui.components.badge import Badge
 from services.alert_service import AlertService
 from services.task_service import TaskService
 from core.event_bus import event_bus
@@ -92,14 +93,10 @@ class AlarmCard(QFrame):
         layout.setContentsMargins(14, 10, 14, 14)
         layout.setSpacing(6)
 
-        # Linha superior: badge de prioridade + título
+        # Linha superior: badge de prioridade + titulo
         top = QHBoxLayout()
         label_pt, color_hex = PRIORITY_LABELS.get(self.alarm.priority, ("Média", "#2b8c52"))
-        badge = QLabel(f" {label_pt} ")
-        badge.setStyleSheet(
-            f"background-color: {color_hex}; color: white; border-radius: 4px; "
-            f"padding: 1px 6px; font-size: 11px; font-weight: bold;"
-        )
+        badge = Badge(f" {label_pt} ", color_hex, solid=True)
         badge.setFixedHeight(20)
         top.addWidget(badge)
         top.addSpacing(8)

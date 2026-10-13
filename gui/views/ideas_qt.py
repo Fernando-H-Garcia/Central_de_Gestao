@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QSettings
 from gui.components.drag_drop_table_qt import DragDropTableWidget
+from gui.components.buttons import ToggleButton
 from services.idea_service import IdeaService
 from services.project_service import ProjectService
 from gui.theme import get_status_color, get_energy_color, format_status
@@ -43,9 +44,9 @@ class IdeasQt(QWidget):
         
         header_layout.addStretch()
         
-        self.btn_archived = QPushButton("📦 Arquivados: OFF")
-        self.btn_archived.setObjectName("secondary")
-        self.btn_archived.setCheckable(True)
+        self.btn_archived = ToggleButton("📦 Arquivados", on_label="📦 Arquivados: ON",
+                                         off_label="📦 Arquivados: OFF", checked=False,
+                                         on_name="toggleGreen", off_name=None)
         self.btn_archived.clicked.connect(self.toggle_archived)
         header_layout.addWidget(self.btn_archived)
         
@@ -124,7 +125,6 @@ class IdeasQt(QWidget):
 
     def toggle_archived(self):
         self.show_archived = self.btn_archived.isChecked()
-        self.btn_archived.setText(f"📦 Arquivados: {'ON' if self.show_archived else 'OFF'}")
         self.load_data()
         
     def load_data(self):

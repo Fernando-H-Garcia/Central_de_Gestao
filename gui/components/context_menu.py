@@ -1,14 +1,17 @@
-"""
-context_menu.py — Menu de contexto moderno (substitui tk.Menu em todo o projeto).
+"""LEGADO / MORTO — nao usar.
 
-API:
-    m = ContextMenu(master)
-    m.add_command("✏️ Editar", command=fn)
-    m.add_header("Alterar Status")          # rótulo de seção (cinza, não clicável)
-    m.add_command("▶ Em Andamento", ...)
-    m.add_separator()
-    m.add_command("🗑 Excluir", ..., danger=True)  # texto vermelho
-    m.popup(x, y)   # ou m.tk_popup(x, y) — alias compatível
+tkinter + customtkinter. A UI de producao e 100% PySide6 (gui/views/*_qt.py,
+gui/dialogs_qt/*). Os unicos consumidores estao em scratch/legacy_gui/,
+que tambem e codigo morto.
+
+API antiga (tk): m.add_command(label, command=fn, danger=...),
+m.add_header(label), m.add_separator(), m.popup(x, y).
+
+Os menus de producao sao construidos inline com QMenu e estilizados pelo
+`QMenu` do GLOBAL_STYLE (gui/theme.py). A etapa 1F da Parte 1 cria um
+ContextMenuQt (PySide6) e migra os 18 pontos de construcao.
+
+Este arquivo sera removido na etapa 1G, junto com scratch/legacy_gui/.
 """
 
 import tkinter as tk

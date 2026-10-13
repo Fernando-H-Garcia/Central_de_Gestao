@@ -1,23 +1,23 @@
+"""Card base.
+
+O visual vem do `QFrame#card` do GLOBAL_STYLE (gui/theme.py). Nao
+aplique setStyleSheet aqui -- stylesheet local anula o do tema.
+
+Variantes: se precisar de um card com acento/elevacao/compacto, acrescente
+`QFrame#card_nome` no GLOBAL_STYLE e um `objectName` aqui, em vez de
+inventar um estilo inline.
+"""
+
 from PySide6.QtWidgets import QFrame, QVBoxLayout
-from gui.theme import BG_CARD, RADIUS_LG
 
 
 class Card(QFrame):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, margins=(16, 16, 16, 16), spacing=12):
         super().__init__(parent)
         self.setObjectName("card")
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(16, 16, 16, 16)
-        self._layout.setSpacing(12)
+        self._layout.setContentsMargins(*margins)
+        self._layout.setSpacing(spacing)
 
     def layout(self):
         return self._layout
-
-    @staticmethod
-    def style() -> str:
-        return f"""
-            QFrame#card {{
-                background-color: {BG_CARD};
-                border-radius: {RADIUS_LG}px;
-            }}
-        """

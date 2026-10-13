@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import Qt, Signal, QSettings
 from gui.components.drag_drop_tree_qt import DragDropTreeWidget, SortableTreeWidgetItem
+from gui.components.buttons import ToggleButton
 from services.task_service import TaskService
 from services.project_service import ProjectService
 
@@ -43,9 +44,9 @@ class TasksQt(QWidget):
         self.search_bar.textChanged.connect(self.load_data)
         header_layout.addWidget(self.search_bar)
 
-        self.btn_archived = QPushButton("📦 Arquivados: OFF")
-        self.btn_archived.setObjectName("secondary")
-        self.btn_archived.setCheckable(True)
+        self.btn_archived = ToggleButton("📦 Arquivados", on_label="📦 Arquivados: ON",
+                                         off_label="📦 Arquivados: OFF", checked=False,
+                                         on_name="toggleGreen", off_name=None)
         self.btn_archived.clicked.connect(self.toggle_archived)
         header_layout.addWidget(self.btn_archived)
         
@@ -192,7 +193,6 @@ class TasksQt(QWidget):
 
     def toggle_archived(self):
         self.show_archived = self.btn_archived.isChecked()
-        self.btn_archived.setText(f"📦 Arquivados: {'ON' if self.show_archived else 'OFF'}")
         self.load_data()
         
     def open_task_detail(self, item, column=None):
@@ -228,21 +228,8 @@ class TasksQt(QWidget):
             
             menu.addSeparator()
             
-            def create_color_icon(color_hex):
-                from PySide6.QtGui import QPixmap, QIcon, QPainter, QColor
-                from PySide6.QtCore import Qt
-                pixmap = QPixmap(16, 16)
-                pixmap.fill(Qt.transparent)
-                painter = QPainter(pixmap)
-                painter.setRenderHint(QPainter.Antialiasing)
-                painter.setBrush(QColor(color_hex))
-                painter.setPen(Qt.NoPen)
-                painter.drawEllipse(2, 2, 12, 12)
-                painter.end()
-                return QIcon(pixmap)
-            
+            from gui.theme import get_status_color, create_color_icon
             status_menu = menu.addMenu("Mudar Status")
-            from gui.theme import get_status_color
             for st in ["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"]:
                 action = status_menu.addAction(st)
                 action.setIcon(create_color_icon(get_status_color(st)))

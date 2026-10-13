@@ -7,6 +7,7 @@ from PySide6.QtCore import Qt, Signal, QEvent
 from PySide6.QtGui import QFont, QAction, QCursor
 from gui.components.page_header import PageHeader
 from gui.components.collapsible_section_qt import CollapsibleSection
+from gui.components.buttons import ToggleButton
 import json
 from datetime import datetime
 from collections import defaultdict
@@ -140,42 +141,17 @@ class ActivitySummaryQt(QWidget):
         col_reg.addWidget(lbl_reg)
         col_reg.addWidget(self.spin_count)
 
-        btn_concluidos = QPushButton("✅ Exibir concluídos: OFF")
-        btn_concluidos.setCheckable(True)
-        btn_concluidos.setObjectName("secondary")
+        btn_concluidos = ToggleButton("✅ Exibir concluídos", on_label="✅ Exibir concluídos: ON",
+                                     off_label="✅ Exibir concluídos: OFF", checked=False,
+                                     on_name="toggleGreen", off_name=None)
         btn_concluidos.setFixedWidth(210)
-        btn_concluidos.setStyleSheet("""
-            QPushButton {
-                padding: 6px 14px; border-radius: 5px; font-weight: bold;
-                background-color: #2b8c52; color: #fff; border: none;
-            }
-            QPushButton:hover { background-color: #3bbf6e; }
-            QPushButton:checked { background-color: #2b8c52; color: #fff; border: none; }
-            QPushButton:checked:hover { background-color: #3bbf6e; }
-            QPushButton:!checked { background-color: transparent; color: #aaa; border: 1px solid #555; }
-            QPushButton:!checked:hover { background-color: #2d2d55; color: #fff; border: 1px solid #4a6fe3; }
-            QPushButton:pressed { background-color: #3bbf6e; }
-        """)
         btn_concluidos.clicked.connect(self._toggle_concluidos)
         self.btn_concluidos = btn_concluidos
 
-        btn_comentarios = QPushButton("💬 Somente Comentários: ON")
-        btn_comentarios.setCheckable(True)
-        btn_comentarios.setChecked(True)
-        btn_comentarios.setObjectName("secondary")
+        btn_comentarios = ToggleButton("💬 Somente Comentários", on_label="💬 Somente Comentários: ON",
+                                       off_label="💬 Somente Comentários: OFF", checked=True,
+                                       on_name="togglePink", off_name=None)
         btn_comentarios.setFixedWidth(210)
-        btn_comentarios.setStyleSheet("""
-            QPushButton {
-                padding: 6px 14px; border-radius: 5px; font-weight: bold;
-                background-color: #c2185b; color: #fff; border: none;
-            }
-            QPushButton:hover { background-color: #e91e63; }
-            QPushButton:checked { background-color: #c2185b; color: #fff; border: none; }
-            QPushButton:checked:hover { background-color: #e91e63; }
-            QPushButton:!checked { background-color: transparent; color: #aaa; border: 1px solid #555; }
-            QPushButton:!checked:hover { background-color: #2d2d55; color: #fff; border: 1px solid #4a6fe3; }
-            QPushButton:pressed { background-color: #e91e63; }
-        """)
         btn_comentarios.clicked.connect(self._toggle_comentarios)
         self.btn_comentarios = btn_comentarios
 
@@ -218,13 +194,11 @@ class ActivitySummaryQt(QWidget):
         self.results_layout.addStretch()
 
     def _toggle_concluidos(self):
-        on = self.btn_concluidos.isChecked()
-        self.btn_concluidos.setText(f"✅ Exibir concluídos: {'ON' if on else 'OFF'}")
+        # ToggleButton ja atualiza o rotulo ON/OFF sozinho via `toggled`
         self._buscar()
 
     def _toggle_comentarios(self):
-        on = self.btn_comentarios.isChecked()
-        self.btn_comentarios.setText(f"💬 Somente Comentários: {'ON' if on else 'OFF'}")
+        # ToggleButton ja atualiza o rotulo ON/OFF sozinho via `toggled`
         self._buscar()
 
     def _load_projects(self):

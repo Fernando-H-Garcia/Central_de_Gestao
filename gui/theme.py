@@ -232,6 +232,117 @@ QPushButton#secondary:pressed {{
     color: {TEXT_PRIMARY};
     {border_focus()};
 }}
+QPushButton#text {{
+    background-color: transparent;
+    border: none;
+    color: {ACCENT_BLUE};
+    padding: 4px 8px;
+}}
+QPushButton#text:hover {{
+    color: {ACCENT_ACTIVE};
+    border: none;
+    text-decoration: underline;
+}}
+QPushButton#text:pressed {{
+    color: {ACCENT_ACTIVE};
+    border: none;
+}}
+QPushButton#ghost {{
+    background-color: transparent;
+    border: none;
+    color: {TEXT_SECONDARY};
+}}
+QPushButton#ghost:hover {{
+    background-color: {BG_HOVER};
+    color: {TEXT_PRIMARY};
+    border: none;
+}}
+QPushButton#ghost:pressed {{
+    background-color: {BORDER_SUBTLE};
+    border: none;
+}}
+QPushButton#icon {{
+    background-color: transparent;
+    border: 1px solid {BORDER_SUBTLE};
+    color: {TEXT_SECONDARY};
+    padding: 4px;
+    min-width: 28px;
+    max-width: 28px;
+}}
+QPushButton#icon:hover {{
+    background-color: {BG_HOVER};
+    color: {TEXT_PRIMARY};
+    {border_focus()};
+}}
+QPushButton#icon:pressed {{
+    background-color: {BORDER_SUBTLE};
+}}
+
+/* Variantes compactas: cards e linhas de tabela (fonte menor). */
+QPushButton#secondaryCompact {{
+    background-color: transparent;
+    border: 1px solid {BORDER_SUBTLE};
+    color: {TEXT_SECONDARY};
+    padding: 6px 14px;
+    border-radius: {RADIUS_SM}px;
+    font-weight: bold;
+    font-size: {FONT_CAPTION}px;
+}}
+QPushButton#secondaryCompact:hover {{
+    background-color: {BG_HOVER};
+    color: {TEXT_PRIMARY};
+    {border_focus()};
+}}
+QPushButton#secondaryCompact:pressed {{
+    background-color: {BORDER_SUBTLE};
+}}
+
+/* Variante destrutiva discreta: contorno vermelho, sem fundo cheio.
+   Usada em acoes de card/linha, onde um vermelho solto competiria com o
+   conteudo. O preenchimento vem no hover. */
+QPushButton#dangerOutline {{
+    background-color: transparent;
+    border: 1px solid {ERROR_RED};
+    color: {ERROR_RED};
+    padding: 6px 14px;
+    border-radius: {RADIUS_SM}px;
+    font-weight: bold;
+    font-size: {FONT_CAPTION}px;
+}}
+QPushButton#dangerOutline:hover {{
+    background-color: {ERROR_RED};
+    color: {TEXT_PRIMARY};
+}}
+QPushButton#dangerOutline:pressed {{
+    background-color: {ERROR_HOVER};
+}}
+
+/* Padrao toggle do AGENTS.md:
+     LIGADO    -> fundo preenchido + texto branco
+     DESLIGADO -> transparente + borda #555 + texto #aaa
+   Duas variantes de acento, para nao repetir o bloco em cada tela. */
+QPushButton#toggleGreen, QPushButton#togglePink {{
+    padding: 6px 14px;
+    border-radius: 5px;
+    font-weight: bold;
+}}
+QPushButton#toggleGreen {{ background-color: {SUCCESS_GREEN}; color: #ffffff; border: none; }}
+QPushButton#toggleGreen:hover {{ background-color: {SUCCESS_HOVER}; }}
+QPushButton#togglePink {{ background-color: #c2185b; color: #ffffff; border: none; }}
+QPushButton#togglePink:hover {{ background-color: #e91e63; }}
+QPushButton#toggleGreen:pressed, QPushButton#togglePink:pressed {{
+    background-color: {BG_HOVER};
+}}
+QPushButton#toggleGreen:!checked, QPushButton#togglePink:!checked {{
+    background-color: transparent;
+    color: #aaaaaa;
+    border: 1px solid #555555;
+}}
+QPushButton#toggleGreen:!checked:hover, QPushButton#togglePink:!checked:hover {{
+    background-color: {BG_HOVER};
+    color: {TEXT_PRIMARY};
+    {border_focus()};
+}}
 
 QLineEdit, QTextEdit, QDateEdit, QTimeEdit {{
     background-color: {BG_INPUT};

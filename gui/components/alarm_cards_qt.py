@@ -10,6 +10,7 @@ from gui.theme import (
     BORDER_SUBTLE, RADIUS_MD, RADIUS_SM,
     FONT_CAPTION, FONT_BODY, FONT_BODY_LG, FONT_SUBTITLE,
 )
+from gui.components.badge import Badge
 from services.alert_service import AlertService
 from services.task_service import TaskService
 from services.project_service import ProjectService
@@ -120,16 +121,7 @@ class AlarmCard(QFrame):
         color = PRIORITY_COLORS.get(self.alarm.priority, SUCCESS_GREEN)
         emoji = PRIORITY_EMOJIS.get(self.alarm.priority, "🟡")
         
-        badge = _prevent(QLabel(f"{emoji} {label_pt}"))
-        badge.setStyleSheet(f"""
-            background-color: {color};
-            color: white;
-            border-radius: {RADIUS_SM}px;
-            padding: 2px 8px;
-            font-size: {FONT_CAPTION}px;
-            font-weight: bold;
-        """)
-        badge.setFixedHeight(22)
+        badge = _prevent(Badge(f"{emoji} {label_pt}", color, solid=True))
         top.addWidget(badge)
         top.addStretch()
 
@@ -187,51 +179,14 @@ class AlarmCard(QFrame):
         btn_row.addStretch()
         
         btn_edit = _prevent(QPushButton("✏️ Editar"))
-        btn_edit.setObjectName("secondary")
+        btn_edit.setObjectName("secondaryCompact")
         btn_edit.setMinimumHeight(32)
-        btn_edit.setStyleSheet(f"""
-            QPushButton#secondary {{
-                background-color: transparent;
-                border: 1px solid {BORDER_SUBTLE};
-                color: {TEXT_SECONDARY};
-                padding: 6px 14px;
-                border-radius: {RADIUS_SM}px;
-                font-weight: bold;
-                font-size: {FONT_CAPTION}px;
-            }}
-            QPushButton#secondary:hover {{
-                background-color: {BG_HOVER};
-                color: {TEXT_PRIMARY};
-                border: 1px solid {ACCENT_BLUE};
-            }}
-            QPushButton#secondary:pressed {{
-                background-color: {BORDER_SUBTLE};
-            }}
-        """)
         btn_edit.clicked.connect(lambda: self.on_edit(self.alarm.id))
         btn_row.addWidget(btn_edit)
 
         btn_delete = _prevent(QPushButton("🗑️ Excluir"))
-        btn_delete.setObjectName("danger")
+        btn_delete.setObjectName("dangerOutline")
         btn_delete.setMinimumHeight(32)
-        btn_delete.setStyleSheet(f"""
-            QPushButton#danger {{
-                background-color: transparent;
-                border: 1px solid {ERROR_RED};
-                color: {ERROR_RED};
-                padding: 6px 14px;
-                border-radius: {RADIUS_SM}px;
-                font-weight: bold;
-                font-size: {FONT_CAPTION}px;
-            }}
-            QPushButton#danger:hover {{
-                background-color: {ERROR_RED};
-                color: white;
-            }}
-            QPushButton#danger:pressed {{
-                background-color: #b02a27;
-            }}
-        """)
         btn_delete.clicked.connect(lambda: self.on_delete(self.alarm.id))
         btn_row.addWidget(btn_delete)
         

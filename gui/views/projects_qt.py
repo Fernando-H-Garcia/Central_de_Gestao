@@ -6,6 +6,8 @@ from PySide6.QtCore import Qt, Signal
 from services.project_service import ProjectService
 from gui.theme import get_status_color, get_energy_color, format_status, get_archived_color, FONT_SUBTITLE, FONT_BODY, FONT_CAPTION
 from gui.components.page_header import PageHeader
+from gui.components.buttons import ToggleButton
+from gui.components.badge import Badge
 
 class ClickableFrame(QFrame):
     doubleClicked = Signal()
@@ -37,9 +39,9 @@ class ProjectsQt(QWidget):
         
         self.header = PageHeader("Projetos")
         
-        self.btn_archived = QPushButton("📦 Arquivados: OFF")
-        self.btn_archived.setObjectName("secondary")
-        self.btn_archived.setCheckable(True)
+        self.btn_archived = ToggleButton("📦 Arquivados", on_label="📦 Arquivados: ON",
+                                         off_label="📦 Arquivados: OFF", checked=False,
+                                         on_name="toggleGreen", off_name=None)
         self.btn_archived.clicked.connect(self.toggle_archived)
         self.header.add_button(self.btn_archived)
         
@@ -104,7 +106,6 @@ class ProjectsQt(QWidget):
         
     def toggle_archived(self):
         self.show_archived = self.btn_archived.isChecked()
-        self.btn_archived.setText(f"📦 Arquivados: {'ON' if self.show_archived else 'OFF'}")
         self.load_data()
 
     def load_data(self):
@@ -148,13 +149,13 @@ class ProjectsQt(QWidget):
             
             display_status = format_status(p.status, getattr(p, 'is_archived', False))
             status_color = get_archived_color() if getattr(p, 'is_archived', False) else get_status_color(p.status)
-            lbl_status = QLabel(display_status)
-            lbl_status.setStyleSheet(f"font-size: {FONT_CAPTION}px; font-weight: bold; color: {status_color}; background-color: #2a2a3f; padding: 2px 6px; border-radius: 3px;")
+            lbl_status = Badge(display_status, status_color)
+            lbl_status.setFixedHeight(20)
             info_layout.addWidget(lbl_status)
             
             prio_val = p.priority if hasattr(p, 'priority') and p.priority else "-"
-            lbl_prio = QLabel(prio_val)
-            lbl_prio.setStyleSheet(f"font-size: {FONT_CAPTION}px; font-weight: bold; color: {get_energy_color(prio_val)}; background-color: #2a2a3f; padding: 2px 6px; border-radius: 3px;")
+            lbl_prio = Badge(prio_val, get_energy_color(prio_val))
+            lbl_prio.setFixedHeight(20)
             info_layout.addWidget(lbl_prio)
             
             info_layout.addStretch()
