@@ -32,29 +32,25 @@ class IdeasQt(QWidget):
         main_layout.setSpacing(20)
         
         # Header Area
-        header_layout = QHBoxLayout()
-        self.header = QLabel("💡 Ideias")
-        self.header.setObjectName("header")
-        header_layout.addWidget(self.header)
-        
+        from gui.components.page_header import PageHeader
+        self.header = PageHeader("💡 Ideias")
+
         self.search_bar = SearchBar("Filtrar ideias...", max_width=250)
         self.search_bar.textChanged.connect(self.load_data)
-        header_layout.addWidget(self.search_bar)
-        
-        header_layout.addStretch()
-        
+        self.header.add_button(self.search_bar)
+
         self.btn_archived = ToggleButton("📦 Arquivados", on_label="📦 Arquivados: ON",
                                          off_label="📦 Arquivados: OFF", checked=False,
                                          on_name="toggleGreen", off_name=None)
         self.btn_archived.clicked.connect(self.toggle_archived)
-        header_layout.addWidget(self.btn_archived)
-        
+        self.header.add_button(self.btn_archived)
+
         self.btn_new = QPushButton("💡 + Nova Ideia")
         self.btn_new.setObjectName("primary")
         self.btn_new.clicked.connect(self.open_new_dialog)
-        header_layout.addWidget(self.btn_new)
-        
-        main_layout.addLayout(header_layout)
+        self.header.add_button(self.btn_new)
+
+        main_layout.addWidget(self.header)
         
         self._snapshot_cb = lambda _: self.load_data()
         event_bus.subscribe("snapshot_updated", self._snapshot_cb)

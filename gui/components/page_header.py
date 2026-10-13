@@ -1,6 +1,17 @@
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout, QLabel
+from PySide6.QtWidgets import (QFrame, QHBoxLayout, QVBoxLayout, QLabel,
+                               QWidget, QSizePolicy)
 from PySide6.QtCore import Qt
 from gui.theme import TEXT_SECONDARY, FONT_BODY_LG
+
+
+class _Spacing(QWidget):
+    """Espacador fixo. Substitui addSpacing(), que nao sobrevive a um
+    layout reordenado."""
+
+    def __init__(self, width):
+        super().__init__()
+        self.setFixedWidth(width)
+        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
 
 
 class PageHeader(QFrame):
@@ -36,6 +47,12 @@ class PageHeader(QFrame):
         self._button_layout.setSpacing(8)
         layout.addLayout(self._button_layout)
 
+        # Area livre a direita dos botoes, para paineis (referencias, filtros)
+        self._right_layout = QHBoxLayout()
+        self._right_layout.setSpacing(12)
+        layout.addLayout(self._right_layout)
+        self._right_layout.addStretch()
+
     def set_title(self, title: str):
         self.title_label.setText(title)
 
@@ -48,3 +65,14 @@ class PageHeader(QFrame):
 
     def add_button(self, button):
         self._button_layout.addWidget(button)
+
+    def add_right_widget(self, widget, spacing=12):
+        """Painel a direita dos botoes (ex.: painel de referencias)."""
+        if self._right_layout.count() > 1:
+            # substitui o stretch inicial por espacamento explicito
+            self._right_layout.insertWidget(self._right_layout.count() - 1, widget)
+        else:
+            self._right_layout.addWidget(widget)
+        if spacing:
+            self._right_layout.insertWidget(self._right_layout.count() - 1,
+                                            _Spacing(spacing))

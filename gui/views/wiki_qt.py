@@ -11,7 +11,7 @@ from PySide6.QtCore import Qt, QTimer, QEvent, QRect, QSize
 from PySide6.QtGui import QAction, QFont, QFontMetrics, QTextCursor, QKeyEvent, QPainter, QDropEvent, QBrush, QColor
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
 from gui.components.drag_drop_tree_qt import TranslucentDragMixin
-from gui.components.buttons import ToggleButton
+from gui.components.buttons import ToggleButton, SecondaryButton
 from gui.components.card import Card
 from gui.theme import SlimComboBox, fit_dialog_to_content
 from gui.widgets.title_edit import TitleEdit
@@ -327,32 +327,12 @@ class WikiQt(QWidget):
         ref_bar.addWidget(self.refs_panel)
         ref_bar.addStretch()
 
-        self.btn_read = QPushButton("📖 Leitura")
-        self.btn_read.setCheckable(True)
-        self.btn_read.setChecked(True)
-        self.btn_read.setStyleSheet("""
-            QPushButton {
-                padding: 6px 14px; border-radius: 5px; font-weight: bold;
-                background-color: #4a6fe3; color: #fff; border: none;
-            }
-            QPushButton:hover { background-color: #6384f5; }
-            QPushButton:!checked { background-color: transparent; color: #aaa; border: 1px solid #555; }
-            QPushButton:!checked:hover { background-color: #2d2d55; color: #fff; border: 1px solid #4a6fe3; }
-        """)
+        self.btn_read = ToggleButton("📖 Leitura", on_name="toggleBlue", off_name=None, checked=True)
         self.btn_read.clicked.connect(self._set_read_mode)
         ref_bar.addWidget(self.btn_read)
 
-        self.btn_edit_mode = QPushButton("✏️ Editar")
-        self.btn_edit_mode.setCheckable(True)
-        self.btn_edit_mode.setStyleSheet("""
-            QPushButton {
-                padding: 6px 14px; border-radius: 5px; font-weight: bold;
-                background-color: #4a6fe3; color: #fff; border: none;
-            }
-            QPushButton:hover { background-color: #6384f5; }
-            QPushButton:!checked { background-color: transparent; color: #aaa; border: 1px solid #555; }
-            QPushButton:!checked:hover { background-color: #2d2d55; color: #fff; border: 1px solid #4a6fe3; }
-        """)
+        self.btn_edit_mode = ToggleButton("✏️ Editar", on_name="toggleBlue", off_name=None,
+                                          checked=False)
         self.btn_edit_mode.clicked.connect(self._set_edit_mode)
         ref_bar.addWidget(self.btn_edit_mode)
 
@@ -362,13 +342,7 @@ class WikiQt(QWidget):
         self.mode_group.addButton(self.btn_edit_mode)
 
         self.btn_save = QPushButton("💾 Salvar")
-        self.btn_save.setStyleSheet("""
-            QPushButton {
-                padding: 6px 14px; border-radius: 5px; font-weight: bold;
-                background-color: #2b8c52; color: #fff; border: none;
-            }
-            QPushButton:hover { background-color: #3bbf6e; }
-        """)
+        self.btn_save.setObjectName("success")
         self.btn_save.clicked.connect(self.save_page)
         ref_bar.addWidget(self.btn_save)
         editor_layout.addLayout(ref_bar)

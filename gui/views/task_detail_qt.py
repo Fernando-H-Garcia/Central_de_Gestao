@@ -89,31 +89,29 @@ class TaskDetailQt(QWidget):
         main_layout.setSpacing(16)
         
         # Header
-        header_layout = QHBoxLayout()
-        
+        from gui.components.page_header import PageHeader
+        self.header = PageHeader()
+
         from gui.components.back_nav_widget_qt import BackNavWidget
         self.back_nav = BackNavWidget()
         self.back_nav.go_back_requested.connect(self._on_back_clicked)
-        header_layout.addWidget(self.back_nav)
-        
-        self.lbl_title = QLabel(f"Tarefa #{self.task.id}: {self.task.title}")
-        self.lbl_title.setObjectName("header")
-        self.lbl_title.setAlignment(Qt.AlignCenter)
+        self.header.add_left_widget(self.back_nav)
+
+        # titulo centro -> alinhado a esquerda, como nas demais telas
+        self.lbl_title = self.header.title_label
         self.lbl_title.setWordWrap(True)
         self.lbl_title.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        header_layout.addWidget(self.lbl_title, stretch=1)
-        
+
         self.btn_edit = QPushButton("✏️ Editar Tarefa")
         self.btn_edit.setObjectName("secondary")
         self.btn_edit.clicked.connect(self.edit_task)
-        header_layout.addWidget(self.btn_edit)
+        self.header.add_button(self.btn_edit)
 
-        header_layout.addSpacing(20)
         from gui.components.references_panel_qt import ReferencesPanelQt
         self.refs_panel = ReferencesPanelQt(entity_type="task", entity_id=self.task.id, parent=self)
-        header_layout.addWidget(self.refs_panel)
+        self.header.add_right_widget(self.refs_panel)
 
-        main_layout.addLayout(header_layout)
+        main_layout.addWidget(self.header)
         
         # Tabs
         self.tabs = QTabWidget()

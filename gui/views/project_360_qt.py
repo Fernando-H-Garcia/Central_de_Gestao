@@ -170,29 +170,27 @@ class Project360Qt(QWidget):
         main_layout.setSpacing(20)
         
         # 🔝 Top Header 🔝
-        header_layout = QHBoxLayout()
-        
+        from gui.components.page_header import PageHeader
+        self.header = PageHeader("Visão 360°")
+
         from gui.components.back_nav_widget_qt import BackNavWidget
         self.back_nav = BackNavWidget()
         self.back_nav.go_back_requested.connect(self._on_back_clicked)
-        header_layout.addWidget(self.back_nav)
-        
-        self.lbl_title = QLabel("Visão 360°")
-        self.lbl_title.setObjectName("header")
-        self.lbl_title.setAlignment(Qt.AlignCenter)
-        header_layout.addWidget(self.lbl_title, stretch=1)
-        
+        self.header.add_left_widget(self.back_nav)
+
+        #titulo centro -> alinhado a esquerda, como nas demais telas
+        self.lbl_title = self.header.title_label
+
         self.btn_edit = QPushButton("✏️ Editar Projeto")
         self.btn_edit.setObjectName("secondary")
         self.btn_edit.clicked.connect(self.edit_project)
-        header_layout.addWidget(self.btn_edit)
+        self.header.add_button(self.btn_edit)
 
-        header_layout.addSpacing(20)
         from gui.components.references_panel_qt import ReferencesPanelQt
         self.refs_panel = ReferencesPanelQt(entity_type="project", entity_id=self.project_id, parent=self)
-        header_layout.addWidget(self.refs_panel)
+        self.header.add_right_widget(self.refs_panel)
 
-        main_layout.addLayout(header_layout)
+        main_layout.addWidget(self.header)
         
         # ── Overview Card ──
         overview_layout = QVBoxLayout()

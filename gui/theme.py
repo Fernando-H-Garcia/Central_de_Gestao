@@ -334,7 +334,7 @@ QPushButton#dangerOutline:pressed {{
      LIGADO    -> fundo preenchido + texto branco
      DESLIGADO -> transparente + borda #555 + texto #aaa
    Duas variantes de acento, para nao repetir o bloco em cada tela. */
-QPushButton#toggleGreen, QPushButton#togglePink {{
+QPushButton#toggleGreen, QPushButton#togglePink, QPushButton#toggleBlue {{
     padding: 6px 14px;
     border-radius: 5px;
     font-weight: bold;
@@ -343,15 +343,20 @@ QPushButton#toggleGreen {{ background-color: {SUCCESS_GREEN}; color: #ffffff; bo
 QPushButton#toggleGreen:hover {{ background-color: {SUCCESS_HOVER}; }}
 QPushButton#togglePink {{ background-color: #c2185b; color: #ffffff; border: none; }}
 QPushButton#togglePink:hover {{ background-color: #e91e63; }}
-QPushButton#toggleGreen:pressed, QPushButton#togglePink:pressed {{
+QPushButton#toggleBlue {{ background-color: {ACCENT_BLUE}; color: #ffffff; border: none; }}
+QPushButton#toggleBlue:hover {{ background-color: {ACCENT_ACTIVE}; }}
+QPushButton#toggleGreen:pressed, QPushButton#togglePink:pressed,
+QPushButton#toggleBlue:pressed {{
     background-color: {BG_HOVER};
 }}
-QPushButton#toggleGreen:!checked, QPushButton#togglePink:!checked {{
+QPushButton#toggleGreen:!checked, QPushButton#togglePink:!checked,
+QPushButton#toggleBlue:!checked {{
     background-color: transparent;
     color: #aaaaaa;
     border: 1px solid #555555;
 }}
-QPushButton#toggleGreen:!checked:hover, QPushButton#togglePink:!checked:hover {{
+QPushButton#toggleGreen:!checked:hover, QPushButton#togglePink:!checked:hover,
+QPushButton#toggleBlue:!checked:hover {{
     background-color: {BG_HOVER};
     color: {TEXT_PRIMARY};
     {border_focus()};
