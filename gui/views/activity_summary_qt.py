@@ -8,6 +8,7 @@ from PySide6.QtGui import QFont, QAction, QCursor
 from gui.components.page_header import PageHeader
 from gui.components.collapsible_section_qt import CollapsibleSection
 from gui.components.buttons import ToggleButton
+from gui.components.context_menu_qt import ContextMenuQt
 import json
 from datetime import datetime
 from collections import defaultdict
@@ -487,7 +488,7 @@ class ActivitySummaryQt(QWidget):
         pid = label.property("project_id")
         if not pid:
             return
-        menu = QMenu(self)
+        menu = ContextMenuQt(parent=self)
         act = QAction("📁 Abrir Projeto", self)
         act.triggered.connect(lambda: self._navigate_to("project", pid))
         menu.addAction(act)
@@ -497,7 +498,7 @@ class ActivitySummaryQt(QWidget):
         tid = label.property("task_id")
         if not tid:
             return
-        menu = QMenu(self)
+        menu = ContextMenuQt(parent=self)
         act = QAction("📋 Abrir Tarefa", self)
         act.triggered.connect(lambda: self._navigate_to("task", tid))
         menu.addAction(act)

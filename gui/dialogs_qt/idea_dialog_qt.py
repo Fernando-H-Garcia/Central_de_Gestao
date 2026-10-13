@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt
 from models.entities import Idea
 from services.project_service import ProjectService
 from gui.theme import set_combobox_colors, STATUS_COLORS, ENERGY_COLORS, apply_combobox_dynamic_color, get_status_color, get_energy_color, SlimComboBox
+from gui.components.context_menu_qt import TASK_STATUSES
 
 class IdeaDialogQt(QDialog):
     def __init__(self, parent=None, idea: Idea = None, on_save=None, project_id=None, task_id=None):
@@ -52,7 +53,7 @@ class IdeaDialogQt(QDialog):
         
         layout.addWidget(QLabel("Status:"))
         self.opt_status = SlimComboBox()
-        self.opt_status.addItems(["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"])
+        self.opt_status.addItems(TASK_STATUSES)
         layout.addWidget(self.opt_status)
         
         layout.addWidget(QLabel("Prioridade:"))

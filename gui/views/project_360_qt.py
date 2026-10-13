@@ -8,6 +8,7 @@ from PySide6.QtGui import QColor, QBrush, QFont
 
 from gui.components.drag_drop_tree_qt import DragDropTreeWidget, SortableTreeWidgetItem
 from gui.components.buttons import ToggleButton
+from gui.components.context_menu_qt import ContextMenuQt
 from gui.components.progress_bar import ProgressBar
 from services.project_service import ProjectService
 from gui.theme import get_status_color, get_energy_color, format_colored_label, format_status, get_archived_color
@@ -1344,36 +1345,33 @@ class Project360Qt(QWidget):
         if not item: return
         task = item.data(0, Qt.UserRole)
         if not task: return
-        
-        menu = QMenu(self)
-        
-        action_open = menu.addAction("👁️ Abrir")
-        action_edit = menu.addAction("✏️ Editar")
-        menu.addSeparator()
-        
-        from gui.theme import create_color_icon
-        status_menu = menu.addMenu("Mudar Status")
-        for st in ["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"]:
-            color = get_status_color(st)
-            action = status_menu.addAction(create_color_icon(color), st)
-            action.triggered.connect(lambda checked=False, s=st, t=task: self.change_task_status(t, s))
-            
-        menu.addSeparator()
-        
-        action_deadline = menu.addAction("🎯 Prazo Estimado")
-        action_alarm = menu.addAction("🔔 Criar Alarme")
-        
+
+        menu = ContextMenuQt(parent=self)
+
+        action_open = menu.add_command("👁️ Abrir")
+        action_edit = menu.add_command("✏️ Editar")
+        menu.add_separator()
+
+        status_menu = menu.add_submenu("📊 Mudar Status")
+        status_menu.add_status_items(
+            on_click=lambda s: self.change_task_status(task, s))
+
+        menu.add_separator()
+
+        action_deadline = menu.add_command("🎯 Prazo Estimado")
+        action_alarm = menu.add_command("🔔 Criar Alarme")
+
         if getattr(task, "is_archived", False):
-            action_unarchive = menu.addAction("📦 Desarquivar")
-            action_unarchive.triggered.connect(lambda: self._unarchive_task(task))
+            menu.add_command("📦 Desarquivar",
+                             callback=lambda: self._unarchive_task(task))
         else:
-            action_archive = menu.addAction("📦 Arquivar")
-            action_archive.triggered.connect(lambda: self._archive_task(task))
-            
-        menu.addSeparator()
-        action_del = menu.addAction("🗑️ Excluir")
-        
-        action = menu.exec(self.tbl_tasks.viewport().mapToGlobal(pos))
+            menu.add_command("📦 Arquivar",
+                             callback=lambda: self._archive_task(task))
+
+        menu.add_separator()
+        action_del = menu.add_command("🗑️ Excluir", danger=True)
+
+        action = menu.popup_at(self.tbl_tasks, pos)
         if action == action_open:
             self.open_task_detail_signal.emit(task.id)
         elif action == action_edit:

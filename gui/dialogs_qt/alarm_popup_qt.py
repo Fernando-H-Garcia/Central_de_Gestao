@@ -15,6 +15,7 @@ import traceback
 
 from gui.theme import ENERGY_COLORS, get_energy_color, style_calendar_today, fit_dialog_to_content
 from gui.components.badge import Badge
+from gui.components.context_menu_qt import ContextMenuQt
 from services.alert_service import AlertService
 from services.task_service import TaskService
 from core.event_bus import event_bus
@@ -162,7 +163,7 @@ class AlarmCard(QFrame):
         layout.addLayout(btn_row)
 
     def _show_snooze_menu(self):
-        menu = QMenu(self)
+        menu = ContextMenuQt(parent=self)
         for label, key in SNOOZE_OPTIONS:
             action = menu.addAction(label)
             action.triggered.connect(lambda checked=False, k=key: self.on_snooze(self.alarm.id, k))

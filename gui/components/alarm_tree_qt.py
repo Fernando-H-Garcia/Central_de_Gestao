@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QAction, QColor, QBrush, QFont
 from PySide6.QtCore import Qt
 from gui.theme import GLOBAL_STYLE, BG_HOVER, get_energy_color
+from gui.components.context_menu_qt import ContextMenuQt
 
 class AlarmTreeWidget(QTreeWidget):
     def __init__(self, grouping="project", filter_project_id=None, highlight_task_id=None, main_window=None, parent=None):
@@ -233,7 +234,7 @@ class AlarmTreeWidget(QTreeWidget):
         entity_id = data.get("entity_id")
         entity_type = data.get("entity_type")
         
-        menu = QMenu(self)
+        menu = ContextMenuQt(parent=self)
         
         if entity_type == "task":
             if not self.highlight_task_id or self.highlight_task_id != entity_id:

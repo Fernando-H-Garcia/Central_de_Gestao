@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, Signal, QSettings
 from gui.components.drag_drop_tree_qt import DragDropTreeWidget, SortableTreeWidgetItem
 from gui.components.buttons import ToggleButton
 from gui.components.search_bar import SearchBar
+from gui.components.context_menu_qt import ContextMenuQt
 from services.task_service import TaskService
 from services.project_service import ProjectService
 
@@ -212,39 +213,31 @@ class TasksQt(QWidget):
         task = item.data(0, Qt.UserRole)
         if not task: return
         
-        from PySide6.QtWidgets import QMenu
-        menu = QMenu(self)
-        
-        act_open = menu.addAction("🗂️ Abrir")
-        act_open.triggered.connect(lambda: self.open_task_detail(item))
-        
-        if task.is_archived:
-            act_restore = menu.addAction("♻️ Desarquivar")
-            act_restore.triggered.connect(lambda: self._restore_task(task))
-        else:
-            act_edit = menu.addAction("✏️ Editar")
-            act_edit.triggered.connect(lambda: self.edit_task(item))
-            
-            menu.addSeparator()
-            
-            from gui.theme import get_status_color, create_color_icon
-            status_menu = menu.addMenu("Mudar Status")
-            for st in ["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"]:
-                action = status_menu.addAction(st)
-                action.setIcon(create_color_icon(get_status_color(st)))
-                action.triggered.connect(lambda checked=False, s=st, t=task: self._change_task_status(t, s))
+        menu = ContextMenuQt(parent=self)
 
-            menu.addSeparator()
-            
-            act_archive = menu.addAction("📥 Arquivar")
-            act_archive.triggered.connect(lambda: self._archive_task(task))
-            
-        menu.addSeparator()
-        
-        act_del = menu.addAction("🗑️ Excluir")
-        act_del.triggered.connect(lambda: self._delete_task(task))
-        
-        menu.exec_(self.table.viewport().mapToGlobal(pos))
+        menu.add_command("🗂️ Abrir", callback=lambda: self.open_task_detail(item))
+
+        if task.is_archived:
+            menu.add_command("♻️ Desarquivar", callback=lambda: self._restore_task(task))
+        else:
+            menu.add_command("✏️ Editar", callback=lambda: self.edit_task(item))
+
+            menu.add_separator()
+
+            status_menu = menu.add_submenu("📊 Mudar Status")
+            status_menu.add_status_items(
+                on_click=lambda s: self._change_task_status(task, s))
+
+            menu.add_separator()
+
+            menu.add_command("📥 Arquivar", callback=lambda: self._archive_task(task))
+
+        menu.add_separator()
+
+        menu.add_command("🗑️ Excluir", danger=True,
+                         callback=lambda: self._delete_task(task))
+
+        menu.popup_at(self.table, pos)
         
     def _change_task_status(self, task, status):
         task.status = status

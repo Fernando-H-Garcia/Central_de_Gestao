@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, Signal, QSettings
 from gui.components.drag_drop_table_qt import DragDropTableWidget
 from gui.components.buttons import ToggleButton
 from gui.components.search_bar import SearchBar
+from gui.components.context_menu_qt import ContextMenuQt
 from services.idea_service import IdeaService
 from services.project_service import ProjectService
 from gui.theme import get_status_color, get_energy_color, format_status
@@ -244,67 +245,41 @@ class IdeasQt(QWidget):
         if not item: return
         idea = self.table.item(item.row(), 0).data(Qt.UserRole)
         
-        menu = QMenu(self)
+        menu = ContextMenuQt(parent=self)
         is_archived = getattr(idea, "is_archived", False)
 
         if is_archived:
-            restore_action = QAction("♻️ Desarquivar", self)
-            restore_action.triggered.connect(lambda: self.restore_idea(idea))
-            menu.addAction(restore_action)
-
-            menu.addSeparator()
-
-            del_action = QAction("🗑️ Excluir", self)
-            del_action.triggered.connect(lambda: self.delete_idea(idea))
-            menu.addAction(del_action)
+            menu.add_command("♻️ Desarquivar", callback=lambda: self.restore_idea(idea))
+            menu.add_separator()
+            menu.add_command("🗑️ Excluir", danger=True,
+                             callback=lambda: self.delete_idea(idea))
         else:
-            edit_action = QAction("✏️ Editar Ideia", self)
-            edit_action.triggered.connect(lambda: self.edit_idea(idea))
-            menu.addAction(edit_action)
-            
-            menu.addSeparator()
-            
-            promote_proj_action = QAction("🚀 Promover para Projeto", self)
-            promote_proj_action.triggered.connect(lambda: self.open_promote_project(idea))
-            menu.addAction(promote_proj_action)
-            
-            promote_task_action = QAction("📋 Promover para Tarefa", self)
-            promote_task_action.triggered.connect(lambda: self.open_promote_task(idea))
-            menu.addAction(promote_task_action)
-            
-            menu.addSeparator()
-            
-            from gui.theme import create_color_icon
-            
-            prio_menu = menu.addMenu("Alterar Prioridade")
-            for p in ["Baixa", "Média", "Alta", "Crítica"]:
-                action = QAction(p, self)
-                from gui.theme import get_energy_color
-                action.setIcon(create_color_icon(get_energy_color(p)))
-                action.triggered.connect(lambda ch, prio=p: self.change_priority(idea, prio))
-                prio_menu.addAction(action)
-                
-            status_menu = menu.addMenu("Alterar Status")
-            for s in ["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"]:
-                action = QAction(s, self)
-                from gui.theme import get_status_color
-                action.setIcon(create_color_icon(get_status_color(s)))
-                action.triggered.connect(lambda ch, st=s: self.change_status(idea, st))
-                status_menu.addAction(action)
-                
-            menu.addSeparator()
+            menu.add_command("✏️ Editar Ideia", callback=lambda: self.edit_idea(idea))
+            menu.add_separator()
+            menu.add_command("🚀 Promover para Projeto",
+                             callback=lambda: self.open_promote_project(idea))
+            menu.add_command("📋 Promover para Tarefa",
+                             callback=lambda: self.open_promote_task(idea))
+            menu.add_separator()
 
-            archive_action = QAction("📦 Arquivar", self)
-            archive_action.triggered.connect(lambda: self.archive_idea(idea))
-            menu.addAction(archive_action)
+            prio_menu = menu.add_submenu("🎨 Alterar Prioridade")
+            prio_menu.add_color_items(
+                ["Baixa", "Média", "Alta", "Crítica"],
+                color_of=get_energy_color,
+                on_click=lambda p: self.change_priority(idea, p),
+            )
 
-            menu.addSeparator()
-            
-            del_action = QAction("🗑️ Excluir", self)
-            del_action.triggered.connect(lambda: self.delete_idea(idea))
-            menu.addAction(del_action)
-        
-        menu.exec_(self.table.viewport().mapToGlobal(pos))
+            status_menu = menu.add_submenu("📊 Alterar Status")
+            status_menu.add_status_items(on_click=lambda s: self.change_status(idea, s))
+
+            menu.add_separator()
+
+            menu.add_command("📦 Arquivar", callback=lambda: self.archive_idea(idea))
+            menu.add_separator()
+            menu.add_command("🗑️ Excluir", danger=True,
+                             callback=lambda: self.delete_idea(idea))
+
+        menu.popup_at(self.table, pos)
         
     def change_priority(self, idea, prio):
         orig = type(idea)(**idea.__dict__)

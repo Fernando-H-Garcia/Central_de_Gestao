@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QAction, QColor, QFont
 from PySide6.QtCore import Qt
 from gui.theme import GLOBAL_STYLE, BG_HOVER, FONT_CAPTION
+from gui.components.context_menu_qt import ContextMenuQt
 
 class AgendaTreeWidget(QTreeWidget):
     def __init__(self, grouping="project", filter_project_id=None, filter_task_id=None, highlight_task_id=None, main_window=None, parent=None):
@@ -248,7 +249,7 @@ class AgendaTreeWidget(QTreeWidget):
         task_id = data.get("task_id")
         project_id = data.get("project_id")
         
-        menu = QMenu(self)
+        menu = ContextMenuQt(parent=self)
         
         if task_id:
             if not self.highlight_task_id or self.highlight_task_id != task_id:

@@ -513,6 +513,29 @@ QMenu::separator {{
     margin: 4px 8px;
 }}
 
+/* Popup de autocomplete do editor wiki (triggers de colchete duplo e
+   chave dupla).
+   Fica no tema porque o bloco estava duplicado byte a byte em
+   wiki_qt e gui/widgets/wiki_text_edit. */
+QFrame#autocompletePopup {{
+    background-color: {BG_CARD};
+    border: 1px solid {ACCENT_BLUE};
+    {border_radius(RADIUS_MD)};
+}}
+QFrame#autocompletePopup QListWidget {{
+    background: transparent;
+    border: none;
+    color: {TEXT_PRIMARY};
+    font-size: {FONT_BODY}px;
+}}
+QFrame#autocompletePopup QListWidget::item {{
+    padding: 5px 10px;
+    {border_radius(RADIUS_SM - 1)};
+}}
+QFrame#autocompletePopup QListWidget::item:selected {{
+    background-color: {BG_HOVER};
+}}
+
 QCalendarWidget {{
     background-color: {BG_CARD};
 }}

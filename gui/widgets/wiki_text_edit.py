@@ -111,12 +111,7 @@ class WikiTextEdit(QTextEdit):
             return
 
         popup = QFrame(self, Qt.Popup | Qt.FramelessWindowHint)
-        popup.setStyleSheet("""
-            QFrame { background-color: #1c1c2e; border: 1px solid #4a6fe3; border-radius: 6px; }
-            QListWidget { background: transparent; border: none; color: #fff; font-size: 12px; }
-            QListWidget::item { padding: 5px 10px; border-radius: 3px; }
-            QListWidget::item:selected { background-color: #2d2d55; }
-        """)
+        popup.setObjectName("autocompletePopup")
         layout = QVBoxLayout(popup)
         layout.setContentsMargins(0, 0, 0, 0)
 

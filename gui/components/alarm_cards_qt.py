@@ -11,6 +11,7 @@ from gui.theme import (
     FONT_CAPTION, FONT_BODY, FONT_BODY_LG, FONT_SUBTITLE,
 )
 from gui.components.badge import Badge
+from gui.components.context_menu_qt import ContextMenuQt
 from services.alert_service import AlertService
 from services.task_service import TaskService
 from services.project_service import ProjectService
@@ -64,8 +65,8 @@ class AlarmCard(QFrame):
         self._build()
 
     def _show_context_menu(self, pos):
-        menu = QMenu(self)
-        menu.setObjectName("cardMenu")
+        menu = ContextMenuQt(parent=self)
+
 
         if self.alarm.entity_type == "task" and self.task_name:
             open_task_action = QAction("📋 Abrir Tarefa", self)

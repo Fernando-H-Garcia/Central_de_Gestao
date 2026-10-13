@@ -12,6 +12,7 @@ from PySide6.QtGui import QAction, QFont, QFontMetrics, QTextCursor, QKeyEvent, 
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
 from gui.components.drag_drop_tree_qt import TranslucentDragMixin
 from gui.components.buttons import ToggleButton, SecondaryButton
+from gui.components.context_menu_qt import ContextMenuQt
 from gui.components.card import Card
 from gui.theme import SlimComboBox, fit_dialog_to_content
 from gui.widgets.title_edit import TitleEdit
@@ -701,12 +702,7 @@ class WikiQt(QWidget):
             return
 
         popup = QFrame(self, Qt.Popup | Qt.FramelessWindowHint)
-        popup.setStyleSheet("""
-            QFrame { background-color: #1c1c2e; border: 1px solid #4a6fe3; border-radius: 6px; }
-            QListWidget { background: transparent; border: none; color: #fff; font-size: 12px; }
-            QListWidget::item { padding: 5px 10px; border-radius: 3px; }
-            QListWidget::item:selected { background-color: #2d2d55; }
-        """)
+        popup.setObjectName("autocompletePopup")
         layout = QVBoxLayout(popup)
         layout.setContentsMargins(0, 0, 0, 0)
 
@@ -1102,7 +1098,7 @@ class WikiQt(QWidget):
         att = item.data(Qt.UserRole)
         if not att:
             return
-        menu = QMenu(self)
+        menu = ContextMenuQt(parent=self)
 
         open_f = QAction("📂 Abrir Arquivo", self)
         open_f.triggered.connect(lambda: self._open_attachment(item))
@@ -1748,7 +1744,7 @@ class WikiQt(QWidget):
     # ─── Tree context menu ───────────────────────────────────────────
     def _tree_context_menu(self, pos):
         item = self.tree.itemAt(pos)
-        menu = QMenu(self)
+        menu = ContextMenuQt(parent=self)
 
         if item:
             page = item.data(0, Qt.UserRole)

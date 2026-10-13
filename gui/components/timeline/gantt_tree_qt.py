@@ -16,6 +16,7 @@ from PySide6.QtCore import Qt, Signal, QTimer, QRectF, QPointF, QPoint, QSize, Q
 from PySide6.QtGui import QPainter, QColor, QPen, QFont, QBrush, QPolygonF
 
 from gui.components.drag_drop_tree_qt import TranslucentDragMixin
+from gui.components.context_menu_qt import ContextMenuQt
 from gui.components.timeline.timeline_models import TimelineItem, TimelineEvent
 from gui.theme import (BORDER_SUBTLE, ACCENT_BLUE, WARNING_ORANGE,
                        SUCCESS_GREEN, ERROR_RED, TEXT_DISABLED)
@@ -1516,12 +1517,12 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
             idx = self.indexAt(pos)
             if idx.isValid():
                 self.setCurrentIndex(idx.sibling(idx.row(), 0))
-            menu = QMenu(self)
-            act_edit = menu.addAction("✏️ Editar Prazo Estimado")
-            act_open = menu.addAction("👁️ Abrir Tarefa")
-            menu.addSeparator()
-            act_del = menu.addAction("🗑️ Excluir Prazo")
-            chosen = menu.exec(event.globalPos())
+                menu = ContextMenuQt(parent=self)
+                act_edit = menu.add_command("📅 Editar Prazo Estimado")
+                act_open = menu.add_command("👁️ Abrir Tarefa")
+                menu.add_separator()
+                act_del = menu.add_command("🗑️ Excluir Prazo", danger=True)
+                chosen = menu.popup(event.globalPos())
             task_ref = dl_item.task_id
             if chosen == act_edit:
                 self.edit_deadline_requested.emit(task_ref, dl_item.id)
@@ -1535,12 +1536,12 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         ev = self._event_at(pos)
         if ev is not None:
             kind = "Alarme" if ev.event_type == "alarm" else "Evento"
-            menu = QMenu(self)
-            act_edit = menu.addAction(f"✏️ Editar {kind}")
-            act_open = menu.addAction("👁️ Abrir Tarefa") if ev.task_id else None
-            menu.addSeparator()
-            act_del = menu.addAction(f"🗑️ Excluir {kind}")
-            chosen = menu.exec(event.globalPos())
+            menu = ContextMenuQt(parent=self)
+            act_edit = menu.add_command(f"✏️ Editar {kind}")
+            act_open = menu.add_command("👁️ Abrir Tarefa") if ev.task_id else None
+            menu.add_separator()
+            act_del = menu.add_command(f"🗑️ Excluir {kind}", danger=True)
+            chosen = menu.popup(event.globalPos())
             if chosen == act_edit:
                 self.edit_event_requested.emit(ev)
             elif act_open is not None and chosen == act_open:
@@ -1558,14 +1559,14 @@ class GanttTree(TranslucentDragMixin, QTreeWidget):
         # seleciona a linha sob o cursor antes de abrir o menu
         self.setCurrentIndex(index.sibling(index.row(), 0))
 
-        menu = QMenu(self)
-        act_open = menu.addAction("👁️ Abrir Tarefa")
-        act_edit = menu.addAction("✏️ Editar Tarefa")
-        act_deadline = menu.addAction("🎯 Prazo Estimado")
-        menu.addSeparator()
-        act_alarm = menu.addAction("🔔 Criar Alarme")
-        act_event = menu.addAction("📅 Criar Evento")
-        chosen = menu.exec(event.globalPos())
+        menu = ContextMenuQt(parent=self)
+        act_open = menu.add_command("👁️ Abrir Tarefa")
+        act_edit = menu.add_command("✏️ Editar Tarefa")
+        act_deadline = menu.add_command("📅 Prazo Estimado")
+        menu.add_separator()
+        act_alarm = menu.add_command("🔔 Criar Alarme")
+        act_event = menu.add_command("📅 Criar Evento")
+        chosen = menu.popup(event.globalPos())
         task_ref = t_item.raw_task if t_item.raw_task is not None else t_item.id
         if chosen == act_open:
             self.open_task_requested.emit(task_ref)

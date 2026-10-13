@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QScrollBar
 from PySide6.QtWidgets import QSizePolicy
 from gui.theme import get_status_color, get_energy_color, format_colored_label, format_status, get_archived_color
 from PySide6.QtGui import QColor, QBrush, QAction
+from gui.components.context_menu_qt import ContextMenuQt
 from services.task_service import TaskService
 from services.event_service import EventService
 from models.entities import Task
@@ -275,20 +276,17 @@ class TaskDetailQt(QWidget):
         row = index.row()
         log_id = self.tbl_logs.item(row, 0).data(Qt.UserRole)
         action_type = self.tbl_logs.item(row, 1).text()
-        
-        menu = QMenu(self)
-        menu.setObjectName("cardMenu")
-        
+
+        menu = ContextMenuQt(parent=self)
+
         if action_type == "COMENTÁRIO":
-            action_edit = QAction("\u270f\ufe0f Editar", self)
-            action_edit.triggered.connect(lambda: self.edit_activity(log_id, row))
-            menu.addAction(action_edit)
-            
-        action_delete = QAction("\U0001f5d1\ufe0f Excluir", self)
-        action_delete.triggered.connect(lambda: self.delete_activity(log_id))
-        menu.addAction(action_delete)
-        
-        menu.exec_(self.tbl_logs.viewport().mapToGlobal(pos))
+            menu.add_command("✏️ Editar",
+                             callback=lambda: self.edit_activity(log_id, row))
+
+        menu.add_command("🗑️ Excluir", danger=True,
+                         callback=lambda: self.delete_activity(log_id))
+
+        menu.popup_at(self.tbl_logs, pos)
         
     def edit_activity(self, log_id, row):
         tb = self.tbl_logs.cellWidget(row, 2)
@@ -492,12 +490,11 @@ class TaskDetailQt(QWidget):
     def new_subtask(self):
         from gui.dialogs_qt.task_dialog_qt import TaskDialogQt
         from models.entities import Task
-        
+
         new_t = Task(project_id=self.task.project_id, parent_task_id=self.task.id)
-        
+
         def save_subtask(saved_t, is_new, original_t=None):
             try:
-                from services.task_service import TaskService
                 svc = TaskService()
                 svc.create_task(
                     title=saved_t.title,
@@ -581,45 +578,29 @@ class TaskDetailQt(QWidget):
         if task is None:
             return
 
-        from PySide6.QtWidgets import QMenu
-        menu = QMenu(self)
-        menu.setObjectName("cardMenu")
+        menu = ContextMenuQt(parent=self)
 
-        action_open = menu.addAction("👁️ Abrir")
-        action_edit = menu.addAction("✏️ Editar")
+        action_open = menu.add_command("👁️ Abrir")
+        action_edit = menu.add_command("✏️ Editar")
 
-        def create_color_icon(color_hex):
-            from PySide6.QtGui import QPixmap, QIcon, QPainter, QColor
-            pixmap = QPixmap(16, 16)
-            pixmap.fill(Qt.transparent)
-            painter = QPainter(pixmap)
-            painter.setRenderHint(QPainter.Antialiasing)
-            painter.setBrush(QColor(color_hex))
-            painter.setPen(Qt.NoPen)
-            painter.drawEllipse(2, 2, 12, 12)
-            painter.end()
-            return QIcon(pixmap)
+        status_menu = menu.add_submenu("📊 Mudar Status")
+        status_menu.add_status_items(
+            on_click=lambda s: self._change_subtask_status(task, s))
 
-        status_menu = menu.addMenu("Mudar Status")
-        from gui.theme import get_status_color
-        for st in ["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"]:
-            action = status_menu.addAction(create_color_icon(get_status_color(st)), st)
-            action.triggered.connect(lambda checked=False, s=st, t=task: self._change_subtask_status(t, s))
-
-        menu.addSeparator()
-        action_alarm = menu.addAction("🔔 Criar Alarme")
+        menu.add_separator()
+        action_alarm = menu.add_command("🔔 Criar Alarme")
         action_archive = None
         action_unarchive = None
 
         if getattr(task, "is_archived", False):
-            action_unarchive = menu.addAction("📦 Desarquivar")
+            action_unarchive = menu.add_command("📦 Desarquivar")
         else:
-            action_archive = menu.addAction("📦 Arquivar")
+            action_archive = menu.add_command("📦 Arquivar")
 
-        menu.addSeparator()
-        action_del = menu.addAction("🗑️ Excluir")
+        menu.add_separator()
+        action_del = menu.add_command("🗑️ Excluir", danger=True)
 
-        action = menu.exec(self.tbl_subtasks.viewport().mapToGlobal(pos))
+        action = menu.popup_at(self.tbl_subtasks, pos)
         if action == action_open:
             from core.event_bus import event_bus
             event_bus.emit("navigate_to", {"type": "task", "id": task.id})

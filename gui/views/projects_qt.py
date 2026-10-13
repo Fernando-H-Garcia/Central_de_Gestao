@@ -9,6 +9,7 @@ from gui.components.page_header import PageHeader
 from gui.components.buttons import ToggleButton
 from gui.components.badge import Badge
 from gui.components.card import Card
+from gui.components.context_menu_qt import ContextMenuQt
 
 class ClickableFrame(Card):
     """Card de projeto: abre com duplo clique, menu com botao direito."""
@@ -203,17 +204,17 @@ class ProjectsQt(QWidget):
                 
     def show_context_menu(self, event, project):
         from PySide6.QtWidgets import QMenu, QMessageBox
-        menu = QMenu(self)
-        menu.setObjectName("cardMenu")
-        
-        action_open = menu.addAction("🗂️ Abrir")
-        action_edit = menu.addAction("✏️ Editar")
-        menu.addSeparator()
-        action_archive = menu.addAction("📦 Desarquivar" if getattr(project, "is_archived", False) else "📦 Arquivar")
-        menu.addSeparator()
-        action_delete = menu.addAction("🗑️ Excluir")
-        
-        action = menu.exec(event.globalPos())
+        menu = ContextMenuQt(parent=self)
+
+        action_open = menu.add_command("🗂️ Abrir")
+        action_edit = menu.add_command("✏️ Editar")
+        menu.add_separator()
+        action_archive = menu.add_command(
+            "📦 Desarquivar" if getattr(project, "is_archived", False) else "📦 Arquivar")
+        menu.add_separator()
+        action_delete = menu.add_command("🗑️ Excluir", danger=True)
+
+        action = menu.popup(event.globalPos())
         if action == action_open:
             self.open_project_360.emit(project.id)
         elif action == action_edit:

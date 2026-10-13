@@ -7,6 +7,7 @@ from models.entities import Task
 from services.project_service import ProjectService
 import copy
 from gui.theme import set_combobox_colors, STATUS_COLORS, ENERGY_COLORS, apply_combobox_dynamic_color, get_status_color, get_energy_color, style_calendar_today, CHECKBOX_STYLE, SlimComboBox
+from gui.components.context_menu_qt import TASK_STATUSES
 
 class TaskDialogQt(QDialog):
     def __init__(self, parent=None, task: Task = None, on_save=None):
@@ -52,7 +53,7 @@ class TaskDialogQt(QDialog):
         # Status
         layout.addWidget(QLabel("Status:"))
         self.opt_status = SlimComboBox()
-        self.opt_status.addItems(["Pendente", "Em Andamento", "Pausado", "Aguardando", "Bloqueado", "Concluído"])
+        self.opt_status.addItems(TASK_STATUSES)
         layout.addWidget(self.opt_status)
         
         # Energy
