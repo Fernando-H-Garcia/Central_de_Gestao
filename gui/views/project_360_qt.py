@@ -979,191 +979,106 @@ class Project360Qt(QWidget):
             traceback.print_exc()
 
     def _edit_estimated_deadline(self, task_or_id, deadline_id=None, initial_date=None):
-        """Gerencia os Prazos Estimados da tarefa (vários).
+        """Prazos Estimados da tarefa.
 
-        Cada prazo tem data + descrição. As ações (Adicionar/Atualizar/Remover)
-        persistem imediatamente e registram a atividade."""
-        try:
-            import datetime
-            from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QDateEdit,
-                                            QHBoxLayout, QPushButton, QPlainTextEdit, QListWidget, QListWidgetItem)
-            from PySide6.QtCore import QDate, Qt
-            from gui.theme import style_calendar_today
-            task = self._resolve_timeline_task(task_or_id)
-            if task is None:
-                return
-            repo = self._deadline_repo()
+        Antes esta janela era montada inteira aqui, com lista + campos +
+        botoes Adicionar/Atualizar/Remover no mesmo rodape. Agora a UI esta
+        em gui/dialogs_qt/deadline_dialog_qt.py (lista + formulario), e aqui
+        fica so a parte que conhece o banco: criar, editar, excluir, sincronizar
+        os alarmes e registrar a atividade.
 
-            dlg = QDialog(self)
-            dlg.setWindowTitle("🎯 Prazos Estimados")
-            dlg.setMinimumWidth(440)
-            layout = QVBoxLayout(dlg)
-            layout.addWidget(QLabel(f"Tarefa: <b>{task.title}</b>"))
-            layout.addWidget(QLabel("Prazos cadastrados:"))
-            list_w = QListWidget()
-            layout.addWidget(list_w)
-            layout.addWidget(QLabel("Data do prazo:"))
-            dt_edit = QDateEdit()
-            dt_edit.setCalendarPopup(True)
-            dt_edit.setDisplayFormat("dd/MM/yyyy")
-            style_calendar_today(dt_edit)
-            layout.addWidget(dt_edit)
-            layout.addWidget(QLabel("Descrição (opcional):"))
-            desc_edit = QPlainTextEdit()
-            desc_edit.setMaximumHeight(60)
-            from gui.theme import autogrow_text_edit
-            autogrow_text_edit(desc_edit, min_h=50, max_h=150)
-            desc_edit.setPlaceholderText("Exibida no tooltip da timeline")
-            layout.addWidget(desc_edit)
+        `deadline_id` abre ja o formulario daquele prazo (menu da timeline);
+        `initial_date` abre ja o formulario novo com a data sob o mouse.
+        """
+        from gui.dialogs_qt.deadline_dialog_qt import DeadlineListDialog
 
-            btns = QHBoxLayout()
-            btn_add = QPushButton("➕ Adicionar")
-            btn_add.setObjectName("primary")
-            btn_upd = QPushButton("✏️ Atualizar")
-            btn_del = QPushButton("🗑️ Remover")
-            btn_close = QPushButton("Fechar")
-            btns.addWidget(btn_add)
-            btns.addWidget(btn_upd)
-            btns.addWidget(btn_del)
-            btns.addStretch()
-            btns.addWidget(btn_close)
-            layout.addLayout(btns)
+        task = self._resolve_timeline_task(task_or_id)
+        if task is None:
+            return
+        repo = self._deadline_repo()
+        svc = self.task_service
 
-            from gui.theme import fit_dialog_to_content
-            fit_dialog_to_content(dlg, min_w=440, min_h=420)
+        class _Ops:
+            """Adapter: o dialogo nao conhece o banco, so estes 4 metodos."""
 
-            selected_id = [None]
+            @staticmethod
+            def list():
+                return repo.get_by_task(task.id)
 
-            def refresh():
-                list_w.clear()
-                for d in repo.get_by_task(task.id):
-                    txt = f"{d.deadline_date.strftime('%d/%m/%Y') if d.deadline_date else '—'} — {d.description or '(sem descrição)'}"
-                    it = QListWidgetItem(txt)
-                    it.setData(Qt.UserRole, d.id)
-                    list_w.addItem(it)
-
-            def on_select():
-                it = list_w.currentItem()
-                if not it:
-                    return
-                did = it.data(Qt.UserRole)
-                d = repo.get_by_id(did)
-                if not d:
-                    return
-                selected_id[0] = did
-                try:
-                    dt_edit.setDate(QDate(d.deadline_date.year, d.deadline_date.month, d.deadline_date.day))
-                except Exception:
-                    dt_edit.setDate(QDate.currentDate())
-                desc_edit.setPlainText(d.description or "")
-
-            def _read_date():
-                qd = dt_edit.date()
-                return datetime.date(qd.year(), qd.month(), qd.day())
-
-            def do_add():
-                date = _read_date()
-                desc = desc_edit.toPlainText().strip()
-                nd = repo.create(task.id, date, desc or None)
-                self._sync_deadline_alarms(nd, date)
-                self.task_service._log_activity(
+            @staticmethod
+            def create(description, date):
+                nd = repo.create(task.id, date, description)
+                view._sync_deadline_alarms(nd, date)
+                svc._log_activity(
                     task.id, "DEADLINE_CREATED",
                     {"estimated_deadline": {"to": date.strftime("%d/%m/%Y")},
-                     "estimated_deadline_desc": {"to": desc}})
-                refresh()
-                self.load_data()
-                from core.event_bus import event_bus
-                event_bus.emit("entity_updated")
+                     "estimated_deadline_desc": {"to": description}})
+                view._after_deadline_change()
 
-            def do_upd():
-                did = selected_id[0]
-                if did is None:
-                    return
+            @staticmethod
+            def update(did, description, date):
                 d = repo.get_by_id(did)
-                if not d:
+                if d is None:
                     return
-                date = _read_date()
-                desc = desc_edit.toPlainText().strip()
                 prev_date = d.deadline_date
                 prev_desc = d.description or ""
                 d.deadline_date = date
-                d.description = desc or None
+                d.description = description
                 repo.update(d)
-                self._sync_deadline_alarms(d, date)
-                if prev_date != date or prev_desc != (desc or ""):
-                    self.task_service._log_activity(
+                view._sync_deadline_alarms(d, date)
+                if prev_date != date or prev_desc != description:
+                    svc._log_activity(
                         task.id, "DEADLINE_UPDATED",
                         {"estimated_deadline": {"to": date.strftime("%d/%m/%Y")},
-                         "estimated_deadline_desc": {"to": desc}})
-                refresh()
-                self.load_data()
-                from core.event_bus import event_bus
-                event_bus.emit("entity_updated")
+                         "estimated_deadline_desc": {"to": description}})
+                view._after_deadline_change()
 
-            def do_del():
-                did = selected_id[0]
-                if did is None:
-                    return
+            @staticmethod
+            def delete(did):
                 d = repo.get_by_id(did)
-                if not d:
+                if d is None:
                     return
-                from PySide6.QtWidgets import QMessageBox
-                msg = QMessageBox(self)
-                msg.setWindowTitle("Confirmar")
-                msg.setText(f"Remover este prazo estimado de <b>{task.title}</b>?")
-                btn_sim = msg.addButton("Sim", QMessageBox.YesRole)
-                msg.addButton("Não", QMessageBox.RejectRole)
-                msg.exec()
-                if msg.clickedButton() != btn_sim:
-                    return
-                # remove os 2 alarmes automáticos deste prazo
-                try:
-                    from services.alert_service import AlertService
-                    alert_svc = AlertService()
-                    for aid in (d.alarm_week_id, d.alarm_day_id):
-                        if aid:
-                            try:
-                                alert_svc.delete_alert(aid)
-                            except Exception:
-                                pass
-                except Exception:
-                    pass
+                view._drop_deadline_alarms(d)
                 repo.soft_delete(did)
-                self.task_service._log_activity(
+                svc._log_activity(
                     task.id, "DEADLINE_REMOVED",
-                    {"estimated_deadline": {"to": (d.deadline_date.strftime("%d/%m/%Y") if d.deadline_date else "")},
+                    {"estimated_deadline": {"to": (d.deadline_date.strftime("%d/%m/%Y")
+                                                   if d.deadline_date else "")},
                      "estimated_deadline_desc": {"to": d.description or ""}})
-                selected_id[0] = None
-                refresh()
-                self.load_data()
-                from core.event_bus import event_bus
-                event_bus.emit("entity_updated")
+                view._after_deadline_change()
 
-            list_w.itemClicked.connect(on_select)
-            btn_add.clicked.connect(do_add)
-            btn_upd.clicked.connect(do_upd)
-            btn_del.clicked.connect(do_del)
-            btn_close.clicked.connect(dlg.accept)
+        view = self
+        dlg = DeadlineListDialog(self, task=task, controller=_Ops)
+        dlg.new_requested.connect(lambda: dlg.open_new())
+        dlg.exec()
 
-            if initial_date is not None:
-                try:
-                    dt_edit.setDate(QDate(initial_date.year, initial_date.month, initial_date.day))
-                except Exception:
-                    dt_edit.setDate(QDate.currentDate())
-            else:
-                dt_edit.setDate(QDate.currentDate())
-            # se veio editando um prazo específico, pré-seleciona
-            if deadline_id is not None:
-                for i in range(list_w.count()):
-                    if list_w.item(i).data(Qt.UserRole) == deadline_id:
-                        list_w.setCurrentItem(list_w.item(i))
-                        on_select()
-                        break
-            refresh()
-            dlg.exec()
+        # Chegou com um prazo especifico (menu da timeline): abre o formulario
+        # dele assim que a lista aparecer, sem exigir um clique extra.
+        if deadline_id is not None and dlg.select_deadline(deadline_id):
+            dlg._edit_selected()
+        # Chegou com uma data sob o mouse: abre direto o formulario novo.
+        elif initial_date is not None:
+            dlg.open_new(initial_date)
+
+    def _after_deadline_change(self):
+        """Recarrega a view e avisa as outras telas apos mexer num prazo."""
+        self.load_data()
+        from core.event_bus import event_bus
+        event_bus.emit("entity_updated")
+
+    def _drop_deadline_alarms(self, deadline):
+        """Remove os 2 alarmes automaticos (semana e dia) de um prazo."""
+        try:
+            from services.alert_service import AlertService
+            alert_svc = AlertService()
+            for aid in (deadline.alarm_week_id, deadline.alarm_day_id):
+                if aid:
+                    try:
+                        alert_svc.delete_alert(aid)
+                    except Exception:
+                        pass
         except Exception:
-            import traceback
-            traceback.print_exc()
+            pass
 
     def _edit_estimated_deadline_at(self, task_or_id, initial_date):
         """Prazo Estimado aberto pela timeline — pré-preenche com a data sob o mouse."""
