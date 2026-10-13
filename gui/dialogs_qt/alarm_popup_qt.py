@@ -13,7 +13,7 @@ from PySide6.QtGui import QColor, QFont
 import os
 import traceback
 
-from gui.theme import ENERGY_COLORS, get_energy_color, style_calendar_today
+from gui.theme import ENERGY_COLORS, get_energy_color, style_calendar_today, fit_dialog_to_content
 from services.alert_service import AlertService
 from services.task_service import TaskService
 from core.event_bus import event_bus
@@ -307,7 +307,6 @@ class AlarmPopupQt(QDialog):
             from PySide6.QtCore import QDateTime
             dlg = QDialog(self)
             dlg.setWindowTitle("Adiar Alarme")
-            dlg.setFixedSize(300, 150)
             layout = QVBoxLayout(dlg)
             layout.addWidget(QLabel("Escolha a nova data e hora:"))
             dt_edit = QDateTimeEdit(QDateTime.currentDateTime())
@@ -316,7 +315,9 @@ class AlarmPopupQt(QDialog):
             style_calendar_today(dt_edit)
             layout.addWidget(dt_edit)
             btn_layout = QHBoxLayout()
+            btn_layout.addStretch()
             btn_cancel = QPushButton("Cancelar")
+            btn_cancel.setObjectName("secondary")
             btn_cancel.clicked.connect(dlg.reject)
             btn_ok = QPushButton("Confirmar")
             btn_ok.setObjectName("primary")
@@ -324,6 +325,7 @@ class AlarmPopupQt(QDialog):
             btn_layout.addWidget(btn_cancel)
             btn_layout.addWidget(btn_ok)
             layout.addLayout(btn_layout)
+            fit_dialog_to_content(dlg, min_w=300, min_h=170)
             if dlg.exec() == QDialog.Accepted:
                 new_dt = dt_edit.dateTime()
                 new_date = new_dt.toString("yyyy-MM-dd")

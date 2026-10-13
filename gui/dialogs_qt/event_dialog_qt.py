@@ -55,6 +55,7 @@ class EventDialogQt(QDialog):
         
         main_layout.addWidget(QLabel("Local/Link:"))
         self.ent_loc = QLineEdit()
+        self.ent_loc.setPlaceholderText("Ex.: Sala 3, Teams, https://...")
         main_layout.addWidget(self.ent_loc)
         
         main_layout.addWidget(QLabel("Descrição / Alerta:"))

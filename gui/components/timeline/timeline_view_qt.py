@@ -78,30 +78,21 @@ class TimelineViewQt(QWidget):
 
         # Filtros de visualização
         from PySide6.QtWidgets import QCheckBox
-        self.chk_tasks = QCheckBox("Tarefas")
-        self.chk_tasks.setChecked(True)
-        self.chk_tasks.stateChanged.connect(self._on_filters_changed)
-        toolbar.addWidget(self.chk_tasks)
+        from gui.theme import CHECKBOX_STYLE
 
-        self.chk_milestones = QCheckBox("Milestones")
-        self.chk_milestones.setChecked(True)
-        self.chk_milestones.stateChanged.connect(self._on_filters_changed)
-        toolbar.addWidget(self.chk_milestones)
+        def _filter_box(text, checked=True):
+            chk = QCheckBox(text)
+            chk.setStyleSheet(CHECKBOX_STYLE)
+            chk.setChecked(checked)
+            chk.stateChanged.connect(self._on_filters_changed)
+            toolbar.addWidget(chk)
+            return chk
 
-        self.chk_events = QCheckBox("Eventos")
-        self.chk_events.setChecked(True)
-        self.chk_events.stateChanged.connect(self._on_filters_changed)
-        toolbar.addWidget(self.chk_events)
-
-        self.chk_alarms = QCheckBox("Alarmes")
-        self.chk_alarms.setChecked(True)
-        self.chk_alarms.stateChanged.connect(self._on_filters_changed)
-        toolbar.addWidget(self.chk_alarms)
-
-        self.chk_completed = QCheckBox("Concluídas")
-        self.chk_completed.setChecked(False) # Padrão False para não poluir
-        self.chk_completed.stateChanged.connect(self._on_filters_changed)
-        toolbar.addWidget(self.chk_completed)
+        self.chk_tasks = _filter_box("Tarefas")
+        self.chk_milestones = _filter_box("Milestones")
+        self.chk_events = _filter_box("Eventos")
+        self.chk_alarms = _filter_box("Alarmes")
+        self.chk_completed = _filter_box("Concluídas", checked=False) # Padrão False para não poluir
 
         toolbar.addStretch()
         from PySide6.QtWidgets import QLabel

@@ -11,6 +11,8 @@ from PySide6.QtCore import Qt, QTimer, QEvent, QRect, QSize
 from PySide6.QtGui import QAction, QFont, QFontMetrics, QTextCursor, QKeyEvent, QPainter, QDropEvent, QBrush, QColor
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
 from gui.components.drag_drop_tree_qt import TranslucentDragMixin
+from gui.theme import SlimComboBox, fit_dialog_to_content
+from gui.widgets.title_edit import TitleEdit
 from services.knowledge_page_service import KnowledgePageService
 import re
 
@@ -1197,10 +1199,9 @@ class WikiQt(QWidget):
             return
         dialog = QDialog(self)
         dialog.setWindowTitle("Mover Anexo")
-        dialog.resize(350, 150)
         layout = QVBoxLayout(dialog)
         layout.addWidget(QLabel(f"Selecione a página de destino para '{att.file_name}':"))
-        combo = QComboBox()
+        combo = SlimComboBox()
         current_id = self.current_page.id if self.current_page else None
         selection_idx = 0
         for i, pg in enumerate(pages):
@@ -1212,6 +1213,7 @@ class WikiQt(QWidget):
         layout.addWidget(combo)
         btn_layout = QHBoxLayout()
         btn_cancel = QPushButton("Cancelar")
+        btn_cancel.setObjectName("secondary")
         btn_cancel.clicked.connect(dialog.reject)
         btn_ok = QPushButton("Mover")
         btn_ok.setObjectName("primary")
@@ -1220,6 +1222,7 @@ class WikiQt(QWidget):
         btn_layout.addWidget(btn_cancel)
         btn_layout.addWidget(btn_ok)
         layout.addLayout(btn_layout)
+        fit_dialog_to_content(dialog, min_w=350, min_h=180)
         if dialog.exec() != QDialog.Accepted:
             return
         target_id = combo.currentData()
@@ -1934,18 +1937,18 @@ class _NewPageDialog(QDialog):
             self.setWindowTitle(f"Nova sub-página de '{parent_page.title}'")
         else:
             self.setWindowTitle("Nova Página")
-        self.resize(380, 130)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(16, 16, 16, 16)
         layout.setSpacing(10)
         layout.addWidget(QLabel("Título:"))
-        self.ent = QLineEdit(current_title)
+        self.ent = TitleEdit(current_title)
         self.ent.selectAll()
         layout.addWidget(self.ent)
 
         btn_row = QHBoxLayout()
         btn_cancel = QPushButton("Cancelar")
+        btn_cancel.setObjectName("secondary")
         btn_cancel.clicked.connect(self.reject)
         btn_ok = QPushButton("✅ Confirmar")
         btn_ok.setObjectName("primary")
@@ -1955,7 +1958,15 @@ class _NewPageDialog(QDialog):
         btn_row.addWidget(btn_ok)
         layout.addLayout(btn_row)
 
-        self.ent.returnPressed.connect(self._confirm)
+        self.ent.installEventFilter(self)
+        fit_dialog_to_content(self, min_w=380, min_h=150)
+
+    def eventFilter(self, obj, event):
+        if obj is self.ent and event.type() == QEvent.KeyPress:
+            if event.key() in (Qt.Key_Return, Qt.Key_Enter):
+                self._confirm()
+                return True
+        return super().eventFilter(obj, event)
 
     def _confirm(self):
         t = self.ent.text().strip()

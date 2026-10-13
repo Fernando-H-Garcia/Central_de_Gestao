@@ -35,7 +35,6 @@ class MainWindow(QMainWindow):
         self._paint_logged = False
         
         self.setup_ui()
-        self.load_stylesheet()
         self._setup_global_alarm_timer()
         
         from core.event_bus import event_bus
@@ -225,6 +224,7 @@ class MainWindow(QMainWindow):
                 btn.setChecked(True)
             btn.setCursor(Qt.PointingHandCursor)
             btn.clicked.connect(lambda *args, idx=i: self.change_page(idx))
+            self.btn_group.addButton(btn)
             self.nav_buttons[i] = btn
             nav_layout.addWidget(btn)
 
@@ -432,6 +432,3 @@ class MainWindow(QMainWindow):
             self._show_project(target[1])
         elif kind == "task":
             self._show_task(target[1])
-
-    def load_stylesheet(self):
-        pass

@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 from models.entities import Idea
 from services.project_service import ProjectService
-from gui.theme import SlimComboBox, fit_dialog_to_content, autogrow_text_edit
+from gui.theme import SlimComboBox, fit_dialog_to_content, autogrow_text_edit, CHECKBOX_STYLE
 
 class PromoteIdeaDialogQt(QDialog):
     def __init__(self, parent=None, idea: Idea = None, default_type="project", on_promote=None):
@@ -52,10 +52,12 @@ class PromoteIdeaDialogQt(QDialog):
         autogrow_text_edit(self.ent_desc, min_h=80, max_h=200)
         
         self.chk_keep_linked = QCheckBox("Manter Ideia vinculada")
+        self.chk_keep_linked.setStyleSheet(CHECKBOX_STYLE)
         self.chk_keep_linked.setChecked(True)
         main_layout.addWidget(self.chk_keep_linked)
         
         self.chk_copy_tags = QCheckBox("Copiar Tags/Arquivos")
+        self.chk_copy_tags.setStyleSheet(CHECKBOX_STYLE)
         self.chk_copy_tags.setChecked(True)
         main_layout.addWidget(self.chk_copy_tags)
         
@@ -65,6 +67,7 @@ class PromoteIdeaDialogQt(QDialog):
         btn_save.clicked.connect(self.promote)
         
         btn_cancel = QPushButton("Cancelar")
+        btn_cancel.setObjectName("secondary")
         btn_cancel.clicked.connect(self.reject)
         
         btn_layout.addStretch()

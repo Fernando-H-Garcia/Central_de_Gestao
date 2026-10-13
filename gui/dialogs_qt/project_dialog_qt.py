@@ -43,7 +43,7 @@ class ProjectDialogQt(QDialog):
 
         # Objective
         layout.addWidget(QLabel("Objetivo:"))
-        self.ent_obj = QLineEdit()
+        self.ent_obj = TitleEdit()
         layout.addWidget(self.ent_obj)
 
         # Priority
@@ -84,6 +84,7 @@ class ProjectDialogQt(QDialog):
         # ── Botões ────────────────────────────────────────────────────
         btn_layout = QHBoxLayout()
         btn_cancel = QPushButton("Cancelar")
+        btn_cancel.setObjectName("secondary")
         btn_cancel.clicked.connect(self.reject)
         self.btn_save = QPushButton("Salvar")
         self.btn_save.setObjectName("primary")

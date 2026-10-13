@@ -82,6 +82,7 @@ class IdeaDialogQt(QDialog):
         btn_save.clicked.connect(self.save_idea)
         
         btn_cancel = QPushButton("Cancelar")
+        btn_cancel.setObjectName("secondary")
         btn_cancel.clicked.connect(self.reject)
         
         btn_layout.addStretch()

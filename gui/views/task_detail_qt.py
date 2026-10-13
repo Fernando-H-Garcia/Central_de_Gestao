@@ -256,9 +256,9 @@ class TaskDetailQt(QWidget):
     def get_activity_text(self, title, default_text=""):
         from PySide6.QtWidgets import QDialog, QDialogButtonBox, QVBoxLayout
         from gui.widgets.wiki_text_edit import WikiTextEdit
+        from gui.theme import fit_dialog_to_content
         dialog = QDialog(self)
         dialog.setWindowTitle(title)
-        dialog.resize(600, 300)
 
         layout = QVBoxLayout(dialog)
         text_edit = WikiTextEdit()
@@ -270,6 +270,8 @@ class TaskDetailQt(QWidget):
         btn_box.accepted.connect(dialog.accept)
         btn_box.rejected.connect(dialog.reject)
         layout.addWidget(btn_box)
+
+        fit_dialog_to_content(dialog, min_w=600, min_h=300)
 
         if dialog.exec() == QDialog.Accepted:
             return text_edit.toPlainText(), True

@@ -203,6 +203,7 @@ class AlarmDialogQt(QDialog):
         # Botões
         btn_layout = QHBoxLayout()
         btn_cancel = QPushButton("Cancelar")
+        btn_cancel.setObjectName("secondary")
         btn_cancel.clicked.connect(self.reject)
         
         btn_text = "💾 Salvar" if self.alarm else "🔔 Criar Alarme"
