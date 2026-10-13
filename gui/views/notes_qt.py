@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
     QListWidgetItem, QLineEdit, QMessageBox
 )
 from PySide6.QtCore import Qt
+from gui.components.search_bar import SearchBar
 from services.note_service import NoteService
 from models.entities import Note
 from core.refresh_manager import notify_entity_updated
@@ -50,9 +51,7 @@ class NotesQt(QWidget):
         self.btn_new.clicked.connect(self.new_note)
         sidebar_layout.addWidget(self.btn_new)
         
-        self.search_bar = QLineEdit()
-        self.search_bar.setPlaceholderText("Filtrar notas...")
-        self.search_bar.setStyleSheet("padding: 5px; border-radius: 5px; background-color: #13131f; color: white; border: 1px solid #2a2a3f;")
+        self.search_bar = SearchBar("Filtrar notas...")
         self.search_bar.textChanged.connect(self.load_data)
         sidebar_layout.addWidget(self.search_bar)
         

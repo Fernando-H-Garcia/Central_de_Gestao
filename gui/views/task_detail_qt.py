@@ -117,23 +117,7 @@ class TaskDetailQt(QWidget):
         
         # Tabs
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #2a2a3f; }
-            QTabBar::tab {
-                background: #1c1c2e;
-                color: #888;
-                padding: 10px 20px;
-                border: 1px solid #2a2a3f;
-                border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-            }
-            QTabBar::tab:selected {
-                background: #2a2a3f;
-                color: #fff;
-                font-weight: bold;
-            }
-        """)
+        # visual vem do GLOBAL_STYLE (QTabWidget/QTabBar)
         
         self.tab_geral = QWidget()
         self.setup_geral_tab()
@@ -295,7 +279,7 @@ class TaskDetailQt(QWidget):
         action_type = self.tbl_logs.item(row, 1).text()
         
         menu = QMenu(self)
-        menu.setStyleSheet("QMenu { background-color: #2a2a3f; color: white; } QMenu::item:selected { background-color: #4a6fe3; }")
+        menu.setObjectName("cardMenu")
         
         if action_type == "COMENTÁRIO":
             action_edit = QAction("\u270f\ufe0f Editar", self)
@@ -601,7 +585,7 @@ class TaskDetailQt(QWidget):
 
         from PySide6.QtWidgets import QMenu
         menu = QMenu(self)
-        menu.setStyleSheet("QMenu { background-color: #2a2a3f; color: white; } QMenu::item:selected { background-color: #4a6fe3; }")
+        menu.setObjectName("cardMenu")
 
         action_open = menu.addAction("👁️ Abrir")
         action_edit = menu.addAction("✏️ Editar")

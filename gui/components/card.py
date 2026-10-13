@@ -8,14 +8,16 @@ Variantes: se precisar de um card com acento/elevacao/compacto, acrescente
 inventar um estilo inline.
 """
 
-from PySide6.QtWidgets import QFrame, QVBoxLayout
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout
 
 
 class Card(QFrame):
-    def __init__(self, parent=None, margins=(16, 16, 16, 16), spacing=12):
+    def __init__(self, parent=None, margins=(16, 16, 16, 16), spacing=12,
+                 orientation="vertical"):
         super().__init__(parent)
         self.setObjectName("card")
-        self._layout = QVBoxLayout(self)
+        self._layout = (QHBoxLayout(self) if orientation == "horizontal"
+                        else QVBoxLayout(self))
         self._layout.setContentsMargins(*margins)
         self._layout.setSpacing(spacing)
 

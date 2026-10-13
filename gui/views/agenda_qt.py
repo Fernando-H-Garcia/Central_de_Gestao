@@ -39,23 +39,7 @@ class AgendaQt(QWidget):
         
         from PySide6.QtWidgets import QTabWidget
         self.agenda_tabs = QTabWidget()
-        self.agenda_tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #2a2a3f; }
-            QTabBar::tab {
-                background: #1c1c2e;
-                color: #888;
-                padding: 10px 20px;
-                border: 1px solid #2a2a3f;
-                border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-            }
-            QTabBar::tab:selected {
-                background: #2a2a3f;
-                color: #fff;
-                font-weight: bold;
-            }
-        """)
+        # visual vem do GLOBAL_STYLE (QTabWidget/QTabBar)
         
         # Sub-tab Alarmes
         tab_alarmes = QWidget()
@@ -70,7 +54,7 @@ class AgendaQt(QWidget):
         layout_alarmes.addLayout(btn_layout_a)
 
         self.project_alarm_tabs = QTabWidget()
-        self.project_alarm_tabs.setStyleSheet(self._nested_tab_style())
+        self.project_alarm_tabs.setObjectName("nestedTabs")
         # Cada projeto com alarmes vira uma sub-aba aqui
         layout_alarmes.addWidget(self.project_alarm_tabs, stretch=1)
         self.agenda_tabs.addTab(tab_alarmes, "Alarmes")
@@ -88,30 +72,13 @@ class AgendaQt(QWidget):
         layout_eventos.addLayout(btn_layout)
         
         self.project_event_tabs = QTabWidget()
-        self.project_event_tabs.setStyleSheet(self._nested_tab_style())
+        self.project_event_tabs.setObjectName("nestedTabs")
         # Cada projeto com eventos vira uma sub-aba aqui
         layout_eventos.addWidget(self.project_event_tabs, stretch=1)
         self.agenda_tabs.addTab(tab_eventos, "Eventos")
         
         main_layout.addWidget(self.agenda_tabs, stretch=1)
 
-    def _nested_tab_style(self):
-        return """
-            QTabWidget::pane { border: 1px solid #2a2a3f; border-top: none; }
-            QTabBar::tab {
-                background: #14142a;
-                color: #888;
-                padding: 8px 18px;
-                border: 1px solid #2a2a3f;
-                border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-                font-weight: bold;
-            }
-            QTabBar::tab:selected { background: #2a2a3f; color: #fff; }
-            QTabBar::tab:hover:!selected { color: #d8d8f0; }
-        """
-        
     def new_alarm(self):
         try:
             from gui.dialogs_qt.alarm_dialog_qt import AlarmDialogQt

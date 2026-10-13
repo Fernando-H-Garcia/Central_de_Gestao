@@ -65,7 +65,7 @@ class AlarmCard(QFrame):
 
     def _show_context_menu(self, pos):
         menu = QMenu(self)
-        menu.setStyleSheet("QMenu { background-color: #1c1c2e; color: white; border: 1px solid #2a2a3f; } QMenu::item:selected { background-color: #2d2d55; }")
+        menu.setObjectName("cardMenu")
 
         if self.alarm.entity_type == "task" and self.task_name:
             open_task_action = QAction("📋 Abrir Tarefa", self)

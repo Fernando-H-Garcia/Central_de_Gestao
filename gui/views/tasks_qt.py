@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QSettings
 from gui.components.drag_drop_tree_qt import DragDropTreeWidget, SortableTreeWidgetItem
 from gui.components.buttons import ToggleButton
+from gui.components.search_bar import SearchBar
 from services.task_service import TaskService
 from services.project_service import ProjectService
 
@@ -38,9 +39,7 @@ class TasksQt(QWidget):
         self.header.setAlignment(Qt.AlignCenter)
         header_layout.addWidget(self.header, stretch=1)
         
-        self.search_bar = QLineEdit()
-        self.search_bar.setPlaceholderText("Filtrar tarefas (ID, Título, Período)...")
-        self.search_bar.setStyleSheet("padding: 5px; border-radius: 5px; background-color: #13131f; color: white; border: 1px solid #2a2a3f; max-width: 280px;")
+        self.search_bar = SearchBar("Filtrar tarefas (ID, Título, Período)...", max_width=280)
         self.search_bar.textChanged.connect(self.load_data)
         header_layout.addWidget(self.search_bar)
 

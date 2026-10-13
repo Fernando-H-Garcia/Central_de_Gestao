@@ -359,6 +359,15 @@ QComboBox {{
     {padding_all(5)};
     padding-right: 20px;
 }}
+/* Campo de filtro das listagens. Fundo mais escuro que o input normal para
+   nao competir com os botoes de acao ao lado. */
+QLineEdit#searchBar {{
+    background-color: {BG_SECONDARY};
+    color: {TEXT_PRIMARY};
+    {border_subtle()};
+    {border_radius(RADIUS_SM)};
+    {padding_all(5)};
+}}
 QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QDateEdit:focus, QTimeEdit:focus {{
     {border_focus()};
 }}
@@ -437,16 +446,53 @@ QTabBar::tab:selected {{
     font-weight: bold;
 }}
 
+/* Abas aninhadas (sub-abas por projeto dentro de uma aba).
+   Mais compactas e com hover proprio, para nao competir com a aba externa. */
+QTabWidget#nestedTabs::pane {{
+    {border_subtle()};
+    border-top: none;
+}}
+QTabWidget#nestedTabs QTabBar::tab {{
+    background: #14142a;
+    color: {TEXT_SECONDARY};
+    padding: 8px 18px;
+    {border_subtle()};
+    border-bottom: none;
+    {border_radius(RADIUS_SM)};
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    font-weight: bold;
+}}
+QTabWidget#nestedTabs QTabBar::tab:selected {{
+    background: {BORDER_SUBTLE};
+    color: {TEXT_PRIMARY};
+}}
+QTabWidget#nestedTabs QTabBar::tab:hover:!selected {{
+    color: #d8d8f0;
+}}
+
 QMenu {{
     background-color: {BG_CARD};
-    color: white;
+    color: {TEXT_PRIMARY};
     {border_subtle()};
+    {border_radius(RADIUS_MD)};
+    padding: 4px;
 }}
 QMenu::item {{
     {padding_hv(25, 5)};
+    {border_radius(RADIUS_SM)};
 }}
 QMenu::item:selected {{
     background-color: {BG_HOVER};
+    color: {TEXT_PRIMARY};
+}}
+QMenu::item:disabled {{
+    color: {TEXT_DISABLED};
+}}
+QMenu::separator {{
+    height: 1px;
+    background: {BORDER_SUBTLE};
+    margin: 4px 8px;
 }}
 
 QCalendarWidget {{

@@ -44,27 +44,6 @@ class BackNavWidget(QWidget):
             QToolButton::menu-indicator { image: none; }
         """)
         self._menu = QMenu(self.btn_history)
-        self._menu.setStyleSheet("""
-            QMenu {
-                background-color: #1e1e3a;
-                color: #fff;
-                border: 1px solid #3a3a6a;
-                border-radius: 6px;
-                padding: 4px;
-            }
-            QMenu::item {
-                padding: 6px 14px;
-                border-radius: 4px;
-            }
-            QMenu::item:selected {
-                background-color: #2d2d55;
-            }
-            QMenu::separator {
-                height: 1px;
-                background: #2a2a3f;
-                margin: 4px 8px;
-            }
-        """)
         self.btn_history.setMenu(self._menu)
         # popula toda vez que abre
         self._menu.aboutToShow.connect(self._populate_menu)

@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QSettings
 from gui.components.drag_drop_table_qt import DragDropTableWidget
 from gui.components.buttons import ToggleButton
+from gui.components.search_bar import SearchBar
 from services.idea_service import IdeaService
 from services.project_service import ProjectService
 from gui.theme import get_status_color, get_energy_color, format_status
@@ -36,9 +37,7 @@ class IdeasQt(QWidget):
         self.header.setObjectName("header")
         header_layout.addWidget(self.header)
         
-        self.search_bar = QLineEdit()
-        self.search_bar.setPlaceholderText("Filtrar ideias...")
-        self.search_bar.setStyleSheet("padding: 5px; border-radius: 5px; background-color: #13131f; color: white; border: 1px solid #2a2a3f; max-width: 250px;")
+        self.search_bar = SearchBar("Filtrar ideias...", max_width=250)
         self.search_bar.textChanged.connect(self.load_data)
         header_layout.addWidget(self.search_bar)
         

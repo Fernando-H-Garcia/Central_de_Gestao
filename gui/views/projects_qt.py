@@ -8,10 +8,17 @@ from gui.theme import get_status_color, get_energy_color, format_status, get_arc
 from gui.components.page_header import PageHeader
 from gui.components.buttons import ToggleButton
 from gui.components.badge import Badge
+from gui.components.card import Card
 
-class ClickableFrame(QFrame):
+class ClickableFrame(Card):
+    """Card de projeto: abre com duplo clique, menu com botao direito."""
+
     doubleClicked = Signal()
     rightClicked = Signal(object) # pass event
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setCursor(Qt.PointingHandCursor)
     
     def mouseDoubleClickEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -125,13 +132,11 @@ class ProjectsQt(QWidget):
         
         for p in projects:
             card = ClickableFrame()
-            card.setStyleSheet("background-color: #1c1c2e; border-radius: 10px;")
             card.setFixedSize(320, 160)
             card.doubleClicked.connect(lambda pid=p.id: self.open_project_360.emit(pid))
             card.rightClicked.connect(lambda ev, proj=p: self.show_context_menu(ev, proj))
-            card.setCursor(Qt.PointingHandCursor)
             
-            card_layout = QVBoxLayout(card)
+            card_layout = card.layout()
             
             lbl_name = QLabel(p.name)
             lbl_name.setStyleSheet(f"font-size: {FONT_SUBTITLE}px; font-weight: bold; color: #fff;")
@@ -195,7 +200,7 @@ class ProjectsQt(QWidget):
     def show_context_menu(self, event, project):
         from PySide6.QtWidgets import QMenu, QMessageBox
         menu = QMenu(self)
-        menu.setStyleSheet("QMenu { background-color: #1c1c2e; color: white; border: 1px solid #2a2a3f; } QMenu::item:selected { background-color: #2d2d55; }")
+        menu.setObjectName("cardMenu")
         
         action_open = menu.addAction("🗂️ Abrir")
         action_edit = menu.addAction("✏️ Editar")

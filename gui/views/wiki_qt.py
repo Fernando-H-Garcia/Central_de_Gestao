@@ -12,6 +12,7 @@ from PySide6.QtGui import QAction, QFont, QFontMetrics, QTextCursor, QKeyEvent, 
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
 from gui.components.drag_drop_tree_qt import TranslucentDragMixin
 from gui.components.buttons import ToggleButton
+from gui.components.card import Card
 from gui.theme import SlimComboBox, fit_dialog_to_content
 from gui.widgets.title_edit import TitleEdit
 from services.knowledge_page_service import KnowledgePageService
@@ -369,11 +370,9 @@ class WikiQt(QWidget):
         editor_layout.addLayout(ref_bar)
 
         # ── Meta data bar ──
-        meta_frame = QFrame()
-        meta_frame.setStyleSheet("QFrame { background-color: #1c1c2e; border-radius: 8px; padding: 6px; }")
-        meta_layout = QHBoxLayout(meta_frame)
-        meta_layout.setContentsMargins(10, 8, 10, 8)
-        meta_layout.setSpacing(14)
+        meta_frame = Card(margins=(10, 8, 10, 8), spacing=14,
+                          orientation="horizontal")
+        meta_layout = meta_frame.layout()
 
         meta_layout.addWidget(QLabel("Pai:"))
         self.cmb_parent = QComboBox()
@@ -635,12 +634,9 @@ class WikiQt(QWidget):
         content_row.addWidget(fmt_panel)
 
         # Right: attachments sidebar
-        attach_frame = QFrame()
+        attach_frame = Card(margins=(10, 8, 10, 8), spacing=6)
         attach_frame.setFixedWidth(280)
-        attach_frame.setStyleSheet("QFrame { background-color: #1c1c2e; border-radius: 6px; padding: 6px; }")
-        attach_layout = QVBoxLayout(attach_frame)
-        attach_layout.setContentsMargins(10, 8, 10, 8)
-        attach_layout.setSpacing(6)
+        attach_layout = attach_frame.layout()
 
         attach_header = QHBoxLayout()
         lbl_attach = QLabel("📎 Anexos")

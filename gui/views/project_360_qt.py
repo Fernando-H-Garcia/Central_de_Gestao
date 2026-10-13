@@ -231,23 +231,7 @@ class Project360Qt(QWidget):
         
         # ── Tabs ──
         self.tabs = QTabWidget()
-        self.tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #2a2a3f; }
-            QTabBar::tab {
-                background: #1c1c2e;
-                color: #888;
-                padding: 10px 20px;
-                border: 1px solid #2a2a3f;
-                border-bottom: none;
-                border-top-left-radius: 4px;
-                border-top-right-radius: 4px;
-            }
-            QTabBar::tab:selected {
-                background: #2a2a3f;
-                color: #fff;
-                font-weight: bold;
-            }
-        """)
+        # visual vem do GLOBAL_STYLE (QTabWidget/QTabBar)
         
         # Tarefas Tab
         self.tab_tasks = QWidget()
