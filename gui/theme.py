@@ -121,7 +121,20 @@ QFrame#panel, QScrollArea, QStackedWidget {{
 
 QFrame#card {{
     background-color: {BG_CARD};
-    border-radius: {RADIUS_LG}px;
+    border: 1px solid {BORDER_SUBTLE};
+    {border_radius(RADIUS_LG)};
+}}
+
+/* Card clicavel (abre no duplo clique / menu no botao direito).
+   Tem hover porque responde ao clique. */
+QFrame#clickableCard {{
+    background-color: {BG_CARD};
+    border: 1px solid {BORDER_SUBTLE};
+    {border_radius(RADIUS_LG)};
+}}
+QFrame#clickableCard:hover {{
+    border: 1px solid {ACCENT_BLUE};
+    background-color: {BORDER_SUBTLE};
 }}
 
 QFrame#Sidebar {{

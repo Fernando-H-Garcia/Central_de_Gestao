@@ -280,7 +280,11 @@ class WikiQt(QWidget):
         sidebar_layout.addWidget(self.tree, stretch=1)
 
         editor_container = QWidget()
-        editor_container.setStyleSheet("background-color: #0b0b14;")
+        # NAO aplicar stylesheet local: num QWidget cru ele nao pinta nada
+        # (falta WA_StyledBackground) e ainda desliga o casamento das regras
+        # do GLOBAL_STYLE nos filhos -- os Cards da barra de metadados e do
+        # painel de anexos ficavam transparentes. A cor de fundo ja e a
+        # herdada do app.
         editor_layout = QVBoxLayout(editor_container)
         editor_layout.setContentsMargins(20, 20, 20, 20)
         editor_layout.setSpacing(8)

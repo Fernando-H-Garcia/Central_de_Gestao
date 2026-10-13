@@ -74,10 +74,9 @@ class ReferenceWarningDialog(QDialog):
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setFrameShape(QFrame.NoFrame)
-            scroll.setStyleSheet("QScrollArea { background: transparent; }")
+            # sem stylesheet local: quebra as regras do tema dos filhos
 
             list_widget = QWidget()
-            list_widget.setStyleSheet("background: transparent;")
             list_layout = QVBoxLayout(list_widget)
             list_layout.setContentsMargins(0, 0, 0, 0)
             list_layout.setSpacing(6)

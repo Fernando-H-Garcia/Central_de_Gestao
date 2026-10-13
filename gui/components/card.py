@@ -8,14 +8,19 @@ Variantes: se precisar de um card com acento/elevacao/compacto, acrescente
 inventar um estilo inline.
 """
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QVBoxLayout
 
 
 class Card(QFrame):
     def __init__(self, parent=None, margins=(16, 16, 16, 16), spacing=12,
-                 orientation="vertical"):
+                 orientation="vertical", object_name="card"):
         super().__init__(parent)
-        self.setObjectName("card")
+        # O Qt so pinta o background de uma subclasse de QWidget definida em
+        # Python quando WA_StyledBackground esta ligado. Sem isto o
+        # QFrame#card do GLOBAL_STYLE e simplesmente ignorado.
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setObjectName(object_name)
         self._layout = (QHBoxLayout(self) if orientation == "horizontal"
                         else QVBoxLayout(self))
         self._layout.setContentsMargins(*margins)

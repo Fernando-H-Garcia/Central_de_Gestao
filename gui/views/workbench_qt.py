@@ -53,18 +53,17 @@ class WorkbenchQt(QWidget):
         # Left Column (e.g., Tarefas)
         self.left_col_scroll = QScrollArea()
         self.left_col_scroll.setWidgetResizable(True)
-        self.left_col_scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+        # ver nota em projects_qt.py: stylesheet local no ancestral quebra
+        # as regras do GLOBAL_STYLE dos descendentes. O tema ja cobre.
         self.left_col_widget = QWidget()
-        self.left_col_widget.setStyleSheet("background-color: transparent;")
         self.left_col_layout = QVBoxLayout(self.left_col_widget)
         self.left_col_scroll.setWidget(self.left_col_widget)
         
         # Right Column (e.g., Projetos/Agenda)
         self.right_col_scroll = QScrollArea()
         self.right_col_scroll.setWidgetResizable(True)
-        self.right_col_scroll.setStyleSheet("QScrollArea { border: none; background-color: transparent; }")
+        # ver nota em projects_qt.py
         self.right_col_widget = QWidget()
-        self.right_col_widget.setStyleSheet("background-color: transparent;")
         self.right_col_layout = QVBoxLayout(self.right_col_widget)
         self.right_col_scroll.setWidget(self.right_col_widget)
         

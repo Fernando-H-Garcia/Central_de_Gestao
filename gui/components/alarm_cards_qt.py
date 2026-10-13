@@ -245,10 +245,12 @@ class AlarmCardsWidget(QWidget):
         self.scroll.setWidgetResizable(True)
         self.scroll.setFrameShape(QFrame.NoFrame)
         self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.scroll.setStyleSheet("background: transparent; border: none;")
+        # ver nota em projects_qt.py: stylesheet local no QScrollArea
+        # desliga as regras do GLOBAL_STYLE nos descendentes.
         
         self.container = QWidget()
-        self.container.setStyleSheet("background: transparent;")
+        # sem stylesheet local: num QWidget cru ele nao pinta nada e ainda
+        # desliga as regras do GLOBAL_STYLE nos filhos (ver projeto)
         self.cards_layout = QVBoxLayout(self.container)
         self.cards_layout.setContentsMargins(4, 4, 4, 4)
         self.cards_layout.setSpacing(0)

@@ -17,7 +17,7 @@ class ClickableFrame(Card):
     rightClicked = Signal(object) # pass event
     
     def __init__(self, parent=None):
-        super().__init__(parent)
+        super().__init__(parent, object_name="clickableCard")
         self.setCursor(Qt.PointingHandCursor)
     
     def mouseDoubleClickEvent(self, event):
@@ -65,7 +65,11 @@ class ProjectsQt(QWidget):
 
         self.scroll = QScrollArea()
         self.scroll.setWidgetResizable(True)
-        self.scroll.setStyleSheet("border: none; background-color: transparent;")
+        # NAO aplicar stylesheet local aqui: um stylesheet no ancestral
+        # desliga o casamento das regras do GLOBAL_STYLE nos descendentes,
+        # e os cards (#card) ficavam transparentes. A regra
+        # `QScrollArea { border: none; background: transparent }` ja esta
+        # no tema.
         
         self.grid_widget = QWidget()
         self.grid_layout = QGridLayout(self.grid_widget)
