@@ -250,15 +250,16 @@ class AgendaTreeWidget(QTreeWidget):
         project_id = data.get("project_id")
         
         menu = ContextMenuQt(parent=self)
+        main_win = self.window()
         
         if task_id:
             if not self.highlight_task_id or self.highlight_task_id != task_id:
                 open_task_action = QAction("📋 Abrir Tarefa", self)
-                open_task_action.triggered.connect(lambda: self._open_task(task_id))
+                open_task_action.triggered.connect(lambda mw=main_win, tid=task_id: self._open_task(mw, tid))
                 menu.addAction(open_task_action)
         elif not task_id and project_id:
             open_proj_action = QAction("🗂️ Abrir Projeto", self)
-            open_proj_action.triggered.connect(lambda: self._open_project(project_id))
+            open_proj_action.triggered.connect(lambda mw=main_win, pid=project_id: self._open_project(mw, pid))
             menu.addAction(open_proj_action)
             
         edit_action = QAction("✏️ Editar Evento", self)
@@ -307,12 +308,10 @@ class AgendaTreeWidget(QTreeWidget):
                     break
                 p = p.parent()
 
-    def _open_task(self, task_id):
-        main_win = self.window()
+    def _open_task(self, main_win, task_id):
         if main_win and hasattr(main_win, "show_task_detail"):
             main_win.show_task_detail(task_id, self.main_view)
 
-    def _open_project(self, project_id):
-        main_win = self.window()
+    def _open_project(self, main_win, project_id):
         if main_win and hasattr(main_win, "show_project_360"):
             main_win.show_project_360(project_id, self.main_view)

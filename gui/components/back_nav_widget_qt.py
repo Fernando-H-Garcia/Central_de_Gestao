@@ -47,6 +47,8 @@ class BackNavWidget(QWidget):
         self.btn_history.setMenu(self._menu)
         # popula toda vez que abre
         self._menu.aboutToShow.connect(self._populate_menu)
+        # referencia da main window capturada no aboutToShow, usada no clique
+        self._menu_win = None
 
         self.btn_back = QPushButton("← Voltar")
         self.btn_back.setObjectName("secondary")
@@ -82,6 +84,7 @@ class BackNavWidget(QWidget):
             a.setEnabled(False)
             return
         items = win.get_history_for_menu()
+        self._menu_win = win
         if not items:
             a = self._menu.addAction("Nenhuma janela no histórico")
             a.setEnabled(False)
@@ -102,6 +105,6 @@ class BackNavWidget(QWidget):
             self._menu.addAction(act)
 
     def _jump_to(self, target):
-        win = self._find_main_window()
+        win = self._menu_win or self._find_main_window()
         if win is not None and hasattr(win, "jump_to_target"):
             win.jump_to_target(target)

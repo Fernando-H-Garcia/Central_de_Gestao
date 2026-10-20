@@ -7,9 +7,15 @@ class CollapsibleSection(QWidget):
     """Seção com cabeçalho clicável que recolhe/expande o corpo.
 
     `depth`: nível de aninhamento (0 = nível raiz). Cada nível extra indenta o
-    corpo e adiciona uma borda-guia vertical à esquerda, deixando claro que o
-    conteúdo está contido dentro do bloco de um nível superior.
+    corpo em exatamente INDENT_STEP (escadinha uniforme) e adiciona uma
+    borda-guia vertical à esquerda, deixando claro que o conteúdo está
+    contido dentro do bloco de um nível superior.
     """
+
+    # Passo único da escadinha: todo corpo (projeto ou tarefa, qualquer
+    # nível) indenta exatamente isso — o aninhamento acumula e forma
+    # projeto=0, tarefa=1×, subtarefa=2×, sub-sub=3×...
+    INDENT_STEP = 16
 
     def __init__(self, title="", parent=None, default_collapsed=False, accent="#e67e22", depth=0, bg=None):
         super().__init__(parent)
@@ -38,8 +44,7 @@ class CollapsibleSection(QWidget):
 
         self.body = QWidget()
         self.body_layout = QVBoxLayout(self.body)
-        indent = 8 + self._depth * 18
-        self.body_layout.setContentsMargins(indent, 4, 0, 6)
+        self.body_layout.setContentsMargins(self.INDENT_STEP, 4, 0, 6)
         self.body_layout.setSpacing(4)
         layout.addWidget(self.body)
 
@@ -113,8 +118,7 @@ class CollapsibleSection(QWidget):
 
     def set_depth(self, depth):
         self._depth = max(0, int(depth))
-        indent = 8 + self._depth * 18
-        self.body_layout.setContentsMargins(indent, 4, 0, 6)
+        self.body_layout.setContentsMargins(self.INDENT_STEP, 4, 0, 6)
         self.header.setStyleSheet(self._header_css())
 
     def set_title(self, title):
@@ -123,11 +127,9 @@ class CollapsibleSection(QWidget):
 
     def _update_header(self):
         arrow = "▼" if not self._collapsed else "▶"
-        prefix = ""
-        if self._depth == 1:
-            prefix = "└─ "
-        elif self._depth > 1:
-            prefix = ("  " * (self._depth - 1)) + "└─ "
+        # Prefixo único em todo nível ≥1 (sem espaços extras por nível):
+        # o recuo já vem do layout, então o texto acompanha a escadinha.
+        prefix = "└─ " if self._depth >= 1 else ""
         self.header.setText(f"{arrow}  {prefix}{self._title}")
         self.body.setVisible(not self._collapsed)
 

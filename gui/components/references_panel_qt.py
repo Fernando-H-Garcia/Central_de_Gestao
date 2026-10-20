@@ -63,6 +63,7 @@ class ReferencePopup(QFrame):
     def __init__(self, items, parent=None):
         super().__init__(parent)
         self.items = items
+        self._main_win = parent if hasattr(parent, "show_project_360") or hasattr(parent, "show_task_detail") else None
         self.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground, False)
         self.setStyleSheet("background-color: #1c1c2e; border: 1px solid #4a6fe3; border-radius: 8px;")
@@ -113,7 +114,7 @@ class ReferencePopup(QFrame):
         if not e_type or not e_id:
             return
 
-        main_win = self.window() if self.parent() else None
+        main_win = self._main_win
 
         if e_type == "project" and main_win and hasattr(main_win, "show_project_360"):
             main_win.show_project_360(e_id)

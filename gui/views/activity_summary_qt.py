@@ -203,15 +203,38 @@ class ActivitySummaryQt(QWidget):
         self._buscar()
 
     def _load_projects(self):
-        self.cmb_project.clear()
-        self.cmb_project.addItem("— Todos os projetos —", 0)
+        # Preserva a seleção atual: a view vive no QStackedWidget e o combo
+        # só era carregado no __init__, então projetos criados depois
+        # nunca apareciam no filtro até reiniciar o app.
         try:
-            from services.project_service import ProjectService
-            projects = ProjectService().get_all_active()
-            for p in projects:
-                self.cmb_project.addItem(f"{p.name} (ID {p.id})", p.id)
+            current = self.cmb_project.currentData()
+        except Exception:
+            current = 0
+        self.cmb_project.blockSignals(True)
+        try:
+            self.cmb_project.clear()
+            self.cmb_project.addItem("— Todos os projetos —", 0)
+            try:
+                from services.project_service import ProjectService
+                projects = ProjectService().get_all_active()
+                for p in projects:
+                    self.cmb_project.addItem(f"{p.name} (ID {p.id})", p.id)
+            except Exception:
+                pass
+            if current:
+                idx = self.cmb_project.findData(current)
+                if idx >= 0:
+                    self.cmb_project.setCurrentIndex(idx)
+        finally:
+            self.cmb_project.blockSignals(False)
+
+    def showEvent(self, event):
+        # Recarrega o filtro toda vez que a página fica visível.
+        try:
+            self._load_projects()
         except Exception:
             pass
+        super().showEvent(event)
 
     def _format_details(self, log_action: str, changed_json: str, task_title: str) -> str:
         if log_action in ("MANUAL", "MANUAL_NOTE", "COMENTÁRIO"):
@@ -308,6 +331,11 @@ class ActivitySummaryQt(QWidget):
             return ", ".join(parts)
 
     def _buscar(self):
+        # Garante filtro atualizado (preserva a seleção do usuário).
+        try:
+            self._load_projects()
+        except Exception:
+            pass
         # Clear previous results
         for i in reversed(range(self.results_layout.count())):
             item = self.results_layout.itemAt(i)
@@ -456,8 +484,19 @@ class ActivitySummaryQt(QWidget):
                             lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
                             block_layout.addWidget(lbl)
 
-                        for sub in sorted(children.get(tid, []), key=lambda x: task_title.get(x, "")):
-                            block_layout.addWidget(render_task(sub, depth + 1))
+                        subs = sorted(children.get(tid, []), key=lambda x: task_title.get(x, ""))
+                        if subs:
+                            # Filhas andam UM passo além dos registros: cada
+                            # linha (título → registro → subtarefa → ...)
+                            # fica um degrau à frente da anterior, sem o
+                            # registro do pai colar na margem da filha.
+                            kids_wrap = QWidget()
+                            kids_layout = QVBoxLayout(kids_wrap)
+                            kids_layout.setContentsMargins(CollapsibleSection.INDENT_STEP, 0, 0, 0)
+                            kids_layout.setSpacing(4)
+                            for sub in subs:
+                                kids_layout.addWidget(render_task(sub, depth + 1))
+                            block_layout.addWidget(kids_wrap)
 
                         return task_section
 

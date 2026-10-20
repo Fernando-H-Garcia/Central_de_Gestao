@@ -66,15 +66,16 @@ class AlarmCard(QFrame):
 
     def _show_context_menu(self, pos):
         menu = ContextMenuQt(parent=self)
+        main_win = self.window()
 
 
         if self.alarm.entity_type == "task" and self.task_name:
             open_task_action = QAction("📋 Abrir Tarefa", self)
-            open_task_action.triggered.connect(lambda: self.on_open_entity(self.alarm.id))
+            open_task_action.triggered.connect(lambda mw=main_win: self.on_open_entity(mw, self.alarm.id))
             menu.addAction(open_task_action)
         elif self.alarm.entity_type == "project" and self.project_name:
             open_proj_action = QAction("🗂️ Abrir Projeto", self)
-            open_proj_action.triggered.connect(lambda: self.on_open_entity(self.alarm.id))
+            open_proj_action.triggered.connect(lambda mw=main_win: self.on_open_entity(mw, self.alarm.id))
             menu.addAction(open_proj_action)
 
         edit_action = QAction("✏️ Editar", self)
@@ -413,7 +414,7 @@ class AlarmCardsWidget(QWidget):
             project_name=project_name,
             on_edit=self._open_edit,
             on_delete=self._delete_alarm,
-            on_open_entity=self._open_entity,
+            on_open_entity=self.on_open_entity,
             parent=self.container
         )
 
@@ -444,11 +445,10 @@ class AlarmCardsWidget(QWidget):
             from core.event_bus import event_bus
             event_bus.emit("entity_updated")
 
-    def _open_entity(self, alarm_id):
+    def on_open_entity(self, main_win, alarm_id):
         alarm = self.alert_service.get_alert(alarm_id)
         if not alarm:
             return
-        main_win = self.window()
         if not main_win:
             return
         if alarm.entity_type == "task":
